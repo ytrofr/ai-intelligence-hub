@@ -1,0 +1,126 @@
+{
+  "sources": [
+    {
+      "id": "github",
+      "name": "GitHub Trending",
+      "type": "github",
+      "url": "https://api.github.com/search/repositories",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "topics": ["ai", "llm", "claude", "anthropic", "mcp", "agent"]
+      },
+      "color": "#238636"
+    },
+    {
+      "id": "huggingface",
+      "name": "HuggingFace",
+      "type": "huggingface",
+      "url": "https://huggingface.co/api/models",
+      "enabled": true,
+      "rate_limit_minutes": 30,
+      "config": {},
+      "color": "#ff9d00"
+    },
+    {
+      "id": "hackernews",
+      "name": "Hacker News",
+      "type": "rss",
+      "url": "https://hnrss.org/frontpage",
+      "enabled": true,
+      "rate_limit_minutes": 5,
+      "config": {},
+      "color": "#ff6600"
+    },
+    {
+      "id": "producthunt",
+      "name": "Product Hunt",
+      "type": "rss",
+      "url": "https://www.producthunt.com/feed",
+      "enabled": true,
+      "rate_limit_minutes": 15,
+      "config": {},
+      "color": "#da552f"
+    },
+    {
+      "id": "ainews",
+      "name": "AI News",
+      "type": "rss",
+      "url": "https://buttondown.email/ainews/rss",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {},
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "anthropic",
+      "name": "Anthropic Blog",
+      "type": "rss",
+      "url": "https://www.anthropic.com/news/rss",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {},
+      "color": "#d97706"
+    },
+    {
+      "id": "openai",
+      "name": "OpenAI Blog",
+      "type": "rss",
+      "url": "https://openai.com/blog/rss.xml",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {},
+      "color": "#10a37f"
+    },
+    {
+      "id": "mcp-registry",
+      "name": "MCP Servers",
+      "type": "mcp",
+      "url": "https://glama.ai/mcp/servers",
+      "enabled": true,
+      "rate_limit_minutes": 30,
+      "config": {},
+      "color": "#6366f1"
+    },
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch AI",
+      "type": "rss",
+      "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
+      "enabled": true,
+      "rate_limit_minutes": 15,
+      "config": {},
+      "color": "#0a0"
+    },
+    {
+      "id": "mit-ai",
+      "name": "MIT AI News",
+      "type": "rss",
+      "url": "https://news.mit.edu/topic/artificial-intelligence2/rss",
+      "enabled": false,
+      "rate_limit_minutes": 60,
+      "config": {},
+      "color": "#750014"
+    },
+    {
+      "id": "claude-code-releases",
+      "name": "Claude Code Releases",
+      "type": "changelog",
+      "url": "https://api.github.com/repos/anthropics/claude-code/releases",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": { "mode": "releases", "max_items": 30 },
+      "color": "#cc785c"
+    },
+    {
+      "id": "claude-code-docs",
+      "name": "Claude Code Docs",
+      "type": "changelog",
+      "url": "https://api.github.com/repos/anthropics/claude-code/git/trees/main",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": { "mode": "docs", "max_items": 100 },
+      "color": "#e8956a"
+    }
+  ]
+}

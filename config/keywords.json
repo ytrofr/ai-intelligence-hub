@@ -1,0 +1,105 @@
+{
+  "categories": [
+    {
+      "id": "claude",
+      "name": "Claude & Anthropic",
+      "weight": 2.0,
+      "keywords": [
+        "claude",
+        "anthropic",
+        "mcp",
+        "claude code",
+        "sonnet",
+        "opus",
+        "haiku",
+        "artifacts",
+        "constitutional ai"
+      ],
+      "color": "#d97706"
+    },
+    {
+      "id": "devtools",
+      "name": "Developer Tools",
+      "weight": 1.5,
+      "keywords": [
+        "landing page",
+        "api",
+        "sdk",
+        "cli",
+        "no-code",
+        "low-code",
+        "developer",
+        "framework",
+        "library",
+        "toolkit"
+      ],
+      "color": "#3b82f6"
+    },
+    {
+      "id": "ai",
+      "name": "AI & ML",
+      "weight": 1.5,
+      "keywords": [
+        "agent",
+        "rag",
+        "embedding",
+        "llm",
+        "gpt",
+        "gemini",
+        "transformer",
+        "fine-tune",
+        "prompt",
+        "inference",
+        "openai",
+        "ai",
+        "machine learning",
+        "neural"
+      ],
+      "color": "#8b5cf6"
+    },
+    {
+      "id": "opensource",
+      "name": "Open Source",
+      "weight": 1.0,
+      "keywords": [
+        "open source",
+        "open-source",
+        "free",
+        "self-hosted",
+        "local",
+        "privacy",
+        "foss",
+        "mit license",
+        "apache"
+      ],
+      "color": "#22c55e"
+    },
+    {
+      "id": "claude-code-updates",
+      "name": "Claude Code Updates",
+      "weight": 2.5,
+      "keywords": [
+        "claude code",
+        "changelog",
+        "release",
+        "version",
+        "breaking change",
+        "subagent",
+        "hook",
+        "CLAUDE.md",
+        "context window",
+        "skill",
+        "SDK",
+        "IDE",
+        "VS Code",
+        "plugin",
+        "agent",
+        "command",
+        "MCP",
+        "memory",
+        "permission"
+      ],
+      "color": "#cc785c"
+    }
+  ]
+}

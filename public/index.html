@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Intelligence Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/components.css" />
+    <link rel="stylesheet" href="/css/layout.css" />
+  </head>
+  <body>
+    <div class="container">
+      <!-- Header -->
+      <header class="header">
+        <h1 class="header-title">
+          <span class="header-icon" id="header-icon"></span>
+          AI Intelligence Hub
+        </h1>
+        <div class="header-actions">
+          <div id="view-toggle"></div>
+          <button id="fetch-btn" class="btn btn-primary">
+            <span id="refresh-icon"></span>
+            Fetch Now
+          </button>
+        </div>
+      </header>
+
+      <!-- Stats -->
+      <div id="stats-grid" class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">-</div>
+          <div class="stat-label">Total Items</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">-</div>
+          <div class="stat-label">Active Sources</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">-</div>
+          <div class="stat-label">Bookmarks</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">-</div>
+          <div class="stat-label">Source Types</div>
+        </div>
+      </div>
+
+      <!-- Search & Filters -->
+      <div class="search-panel">
+        <div class="search-row">
+          <div class="search-box">
+            <span class="search-icon" id="search-icon"></span>
+            <input
+              type="text"
+              id="search-input"
+              class="input input-with-icon"
+              placeholder='Search items... (supports AND, OR, "phrases")'
+              autocomplete="off"
+            />
+            <div id="suggestions-dropdown"></div>
+          </div>
+          <button
+            class="btn btn-secondary"
+            id="toggle-filters-btn"
+            onclick="App.toggleAdvancedFilters()"
+          >
+            <span id="filter-icon"></span>
+            Filters
+          </button>
+          <button
+            class="btn btn-secondary"
+            id="save-search-btn"
+            onclick="App.saveCurrentSearch()"
+            title="Save current search"
+          >
+            <span id="save-icon"></span>
+          </button>
+          <div id="sort-controls"></div>
+        </div>
+
+        <!-- Advanced Filters (hidden by default) -->
+        <div id="advanced-filters" class="advanced-filters-container hidden">
+          <!-- Rendered by JS -->
+        </div>
+
+        <!-- Source Filters -->
+        <div class="filters">
+          <span class="filter-label">Sources:</span>
+          <div id="source-filters" class="filter-group">
+            <!-- Rendered by JS -->
+          </div>
+          <button id="clear-filters" class="btn btn-secondary">
+            Clear All
+          </button>
+        </div>
+
+        <!-- Saved Searches -->
+        <div id="saved-searches-panel" class="saved-searches-panel hidden">
+          <div class="saved-searches-header">
+            <span>Saved Searches</span>
+            <button class="btn btn-icon" onclick="App.toggleSavedSearches()">
+              ×
+            </button>
+          </div>
+          <div id="saved-searches-list">
+            <!-- Rendered by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Feed -->
+      <div id="feed" class="feed">
+        <div class="loading">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Save Search Modal -->
+    <div id="save-modal" class="modal hidden">
+      <div class="modal-content">
+        <h3>Save Search</h3>
+        <input
+          type="text"
+          id="save-search-name"
+          class="input"
+          placeholder="Search name..."
+        />
+        <div class="modal-actions">
+          <button class="btn btn-secondary" onclick="App.closeSaveModal()">
+            Cancel
+          </button>
+          <button class="btn btn-primary" onclick="App.confirmSaveSearch()">
+            Save
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="/js/icons.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/filters.js"></script>
+    <script src="/js/app.js"></script>
+    <script>
+      // Initialize icons after DOM load
+      document.addEventListener("DOMContentLoaded", () => {
+        document.getElementById("header-icon").innerHTML = Icons.robot;
+        document.getElementById("refresh-icon").innerHTML = Icons.refresh;
+        document.getElementById("search-icon").innerHTML = Icons.search;
+        document.getElementById("filter-icon").innerHTML = Icons.filter;
+        document.getElementById("save-icon").innerHTML = Icons.save;
+        document.getElementById("view-toggle").innerHTML =
+          UI.renderViewToggle();
+        UI.initViewMode();
+      });
+    </script>
+  </body>
+</html>

@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+title: AI Intelligence Hub
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - name: "ytrofr"
+url: "https://github.com/ytrofr/ai-intelligence-hub"
+repository-code: "https://github.com/ytrofr/ai-intelligence-hub"
+license: MIT
+date-released: "2026-02-12"
+keywords:
+  - ai-trends
+  - artificial-intelligence
+  - mcp-servers
+  - claude-code
+  - huggingface
+  - github-trending
+  - full-text-search
+  - sqlite-fts5
+  - trend-tracker
+  - developer-tools
+abstract: "Track 12 AI sources (GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases) with SQLite FTS5 full-text search, keyword scoring, and bookmarks. Zero external dependencies — runs on free APIs."

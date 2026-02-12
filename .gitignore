@@ -1,0 +1,19 @@
+# Environment variables (secrets)
+.env
+*.env
+
+# Database files (generated at runtime)
+*.db
+*.db-shm
+*.db-wal
+
+# Dependencies
+node_modules/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
