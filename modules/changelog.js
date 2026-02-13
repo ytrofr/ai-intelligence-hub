@@ -1,5 +1,5 @@
 /**
- * Changelog Module - Fetch Claude Code releases and docs changes
+ * Changelog Module - Fetch GitHub repo releases and docs changes
  */
 
 const BaseModule = require("./base-module");
@@ -23,6 +23,44 @@ class ChangelogModule extends BaseModule {
     const token = process.env.GITHUB_TOKEN;
     if (token) headers.Authorization = `Bearer ${token}`;
     return headers;
+  }
+
+  /**
+   * Extract "owner/repo" from GitHub API URL
+   * e.g., https://api.github.com/repos/anthropics/claude-code/releases → "anthropics/claude-code"
+   */
+  repoSlug() {
+    const match = this.url.match(/repos\/([^/]+\/[^/]+)/);
+    return match ? match[1] : "anthropics/claude-code";
+  }
+
+  /**
+   * Human-readable repo name for titles
+   * Uses config.repo_name override or derives from repo slug
+   */
+  repoName() {
+    if (this.config.repo_name) return this.config.repo_name;
+    const repo = this.repoSlug().split("/")[1] || this.repoSlug();
+    return repo
+      .split("-")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+  }
+
+  /**
+   * Extract readable text from Jupyter notebook JSON
+   */
+  extractNotebookText(raw) {
+    try {
+      const nb = JSON.parse(raw);
+      const cells = nb.cells || [];
+      return cells
+        .filter((c) => c.cell_type === "markdown" || c.cell_type === "code")
+        .map((c) => (Array.isArray(c.source) ? c.source.join("") : c.source))
+        .join("\n\n");
+    } catch {
+      return raw;
+    }
   }
 
   /**
@@ -52,7 +90,7 @@ class ChangelogModule extends BaseModule {
 
       return this.normalize({
         id: release.tag_name || release.id.toString(),
-        title: `Claude Code ${release.tag_name || release.name}`,
+        title: `${this.repoName()} ${release.tag_name || release.name}`,
         url: release.html_url,
         description: plainText.substring(0, 500),
         author: "anthropic",
@@ -91,7 +129,7 @@ class ChangelogModule extends BaseModule {
     const mdFiles = (tree.tree || []).filter(
       (f) =>
         f.type === "blob" &&
-        f.path.endsWith(".md") &&
+        (f.path.endsWith(".md") || f.path.endsWith(".ipynb")) &&
         f.path !== "CHANGELOG.md" &&
         f.path !== "LICENSE.md" &&
         f.size > 200,
@@ -104,13 +142,16 @@ class ChangelogModule extends BaseModule {
     for (const file of mdFiles.slice(0, maxItems)) {
       try {
         // Fetch raw content (CDN, no API rate limit)
-        const rawUrl = `https://raw.githubusercontent.com/anthropics/claude-code/main/${file.path}`;
+        const rawUrl = `https://raw.githubusercontent.com/${this.repoSlug()}/main/${file.path}`;
         const res = await fetch(rawUrl, {
           headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
         });
         if (!res.ok) continue;
 
-        const content = await res.text();
+        let content = await res.text();
+        if (file.path.endsWith(".ipynb")) {
+          content = this.extractNotebookText(content);
+        }
         const title = this.extractTitle(content, file.path);
         const description = this.stripMarkdown(content).substring(0, 500);
         const sections = this.extractSections(content);
@@ -135,7 +176,7 @@ class ChangelogModule extends BaseModule {
           this.normalize({
             id: file.path,
             title,
-            url: `https://github.com/anthropics/claude-code/blob/main/${file.path}`,
+            url: `https://github.com/${this.repoSlug()}/blob/main/${file.path}`,
             description,
             author: "anthropic",
             published_at: lastModifiedAt || new Date().toISOString(),
@@ -177,7 +218,7 @@ class ChangelogModule extends BaseModule {
   async getLatestVersion(headers) {
     try {
       const res = await fetch(
-        "https://api.github.com/repos/anthropics/claude-code/releases?per_page=1",
+        `https://api.github.com/repos/${this.repoSlug()}/releases?per_page=1`,
         { headers },
       );
       if (!res.ok) return null;
@@ -194,7 +235,7 @@ class ChangelogModule extends BaseModule {
    */
   async getFileLastCommit(filePath, headers) {
     try {
-      const url = `https://api.github.com/repos/anthropics/claude-code/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
+      const url = `https://api.github.com/repos/${this.repoSlug()}/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
       const res = await fetch(url, { headers });
 
       const remaining = parseInt(res.headers.get("x-ratelimit-remaining"), 10);

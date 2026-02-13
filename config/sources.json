@@ -121,6 +121,34 @@
       "rate_limit_minutes": 360,
       "config": { "mode": "docs", "max_items": 100 },
       "color": "#e8956a"
+    },
+    {
+      "id": "anthropic-skills-docs",
+      "name": "Anthropic Skills Library",
+      "type": "changelog",
+      "url": "https://api.github.com/repos/anthropics/skills/git/trees/main",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "mode": "docs",
+        "max_items": 100,
+        "repo_name": "Anthropic Skills"
+      },
+      "color": "#d4956a"
+    },
+    {
+      "id": "claude-cookbooks-docs",
+      "name": "Claude Cookbooks",
+      "type": "changelog",
+      "url": "https://api.github.com/repos/anthropics/claude-cookbooks/git/trees/main",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "mode": "docs",
+        "max_items": 100,
+        "repo_name": "Claude Cookbooks"
+      },
+      "color": "#b8784e"
     }
   ]
 }
