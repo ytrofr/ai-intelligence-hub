@@ -1,11 +1,11 @@
 # AI Intelligence Hub
 
-**Track AI trends from 12 sources in one dashboard.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, and more — with full-text search and keyword scoring.
+**Track AI trends from 14 sources in one dashboard.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, and more — with full-text search and keyword scoring.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![Port](https://img.shields.io/badge/Port-4444-blue.svg)]()
-[![Sources](https://img.shields.io/badge/Sources-12-purple.svg)]()
+[![Sources](https://img.shields.io/badge/Sources-14-purple.svg)]()
 
 ---
 
@@ -19,7 +19,7 @@ node server.js
 # Open http://localhost:4444
 ```
 
-No external services required. All 12 sources use free, unauthenticated APIs.
+No external services required. All 14 sources use free, unauthenticated APIs.
 
 > **Optional**: Add a `GITHUB_TOKEN` in `.env` to increase GitHub API rate limit from 60/h to 5,000/h. See `.env.example`.
 
@@ -27,7 +27,7 @@ No external services required. All 12 sources use free, unauthenticated APIs.
 
 ## Features
 
-- **12 AI Sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News
+- **14 AI Sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Anthropic Skills Library, Claude Cookbooks, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News
 - **Full-Text Search** — SQLite FTS5 indexes all items for instant keyword search
 - **Keyword Scoring** — Configurable categories with weighted keywords rank items by relevance
 - **Bookmarks** — Save items for later with persistent bookmarks
@@ -53,6 +53,8 @@ No external services required. All 12 sources use free, unauthenticated APIs.
 | MIT AI News          | rss         | 60 min  | MIT AI research                    |
 | Claude Code Releases | changelog   | 60 min  | GitHub releases with version notes |
 | Claude Code Docs     | changelog   | 360 min | 98 documentation pages             |
+| Anthropic Skills     | changelog   | 360 min | Official skill library (16 skills) |
+| Claude Cookbooks     | changelog   | 360 min | Agent patterns and notebooks       |
 
 ---
 
@@ -169,7 +171,7 @@ Edit `config/sources.json` to add or modify sources:
 A: Port 4444. This is hardcoded in `server.js` and does not conflict with other common development ports.
 
 **Q: Do I need any API keys?**
-A: No. All 12 sources use free, unauthenticated APIs. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
+A: No. All 14 sources use free, unauthenticated APIs. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
 
 **Q: How is data stored?**
 A: SQLite with FTS5 (full-text search). The database is created automatically on first run. No setup needed.
