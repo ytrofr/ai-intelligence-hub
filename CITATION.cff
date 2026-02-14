@@ -19,4 +19,6 @@ keywords:
   - sqlite-fts5
   - trend-tracker
   - developer-tools
-abstract: "Track 12 AI sources (GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases) with SQLite FTS5 full-text search, keyword scoring, and bookmarks. Zero external dependencies — runs on free APIs."
+  - anthropic-skills
+  - claude-cookbooks
+abstract: "Track 14 AI sources (GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills Library, Claude Cookbooks) with SQLite FTS5 full-text search, keyword scoring, and bookmarks. Zero external dependencies — runs on free APIs."
