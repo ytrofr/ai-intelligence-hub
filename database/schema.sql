@@ -35,6 +35,14 @@ CREATE TRIGGER IF NOT EXISTS items_ad AFTER DELETE ON items BEGIN
   VALUES('delete', OLD.rowid, OLD.title, OLD.description);
 END;
 
+-- FTS5 UPDATE trigger (keeps search index in sync when items are updated via upsert)
+CREATE TRIGGER IF NOT EXISTS items_au AFTER UPDATE ON items BEGIN
+  INSERT INTO items_fts(items_fts, rowid, title, description)
+  VALUES('delete', OLD.rowid, OLD.title, OLD.description);
+  INSERT INTO items_fts(rowid, title, description)
+  VALUES (NEW.rowid, NEW.title, NEW.description);
+END;
+
 -- Bookmarks table
 CREATE TABLE IF NOT EXISTS bookmarks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

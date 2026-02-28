@@ -139,69 +139,80 @@ class ChangelogModule extends BaseModule {
     const items = [];
     let rateLimitRemaining = 100; // Assume OK until told otherwise
 
-    for (const file of mdFiles.slice(0, maxItems)) {
-      try {
-        // Fetch raw content (CDN, no API rate limit)
-        const rawUrl = `https://raw.githubusercontent.com/${this.repoSlug()}/main/${file.path}`;
-        const res = await fetch(rawUrl, {
-          headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
-        });
-        if (!res.ok) continue;
+    // Process files in parallel batches of 10
+    const BATCH_SIZE = 10;
+    const filesToProcess = mdFiles.slice(0, maxItems);
 
-        let content = await res.text();
-        if (file.path.endsWith(".ipynb")) {
-          content = this.extractNotebookText(content);
-        }
-        const title = this.extractTitle(content, file.path);
-        const description = this.stripMarkdown(content).substring(0, 500);
-        const sections = this.extractSections(content);
-        const category = this.categorizeDoc(file.path);
+    for (let i = 0; i < filesToProcess.length; i += BATCH_SIZE) {
+      const batch = filesToProcess.slice(i, i + BATCH_SIZE);
+      const batchResults = await Promise.all(
+        batch.map(async (file) => {
+          try {
+            // Fetch raw content (CDN, no API rate limit)
+            const rawUrl = `https://raw.githubusercontent.com/${this.repoSlug()}/main/${file.path}`;
+            const res = await fetch(rawUrl, {
+              headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
+            });
+            if (!res.ok) return null;
 
-        // Get real last-modified date from GitHub Commits API
-        // Stop making API calls if we're running low on rate limit
-        let lastModifiedAt = null;
-        let lastCommitMsg = null;
-        if (rateLimitRemaining > 10) {
-          const commitInfo = await this.getFileLastCommit(file.path, headers);
-          if (commitInfo) {
-            if (commitInfo.rateLimitRemaining !== undefined) {
-              rateLimitRemaining = commitInfo.rateLimitRemaining;
+            let content = await res.text();
+            if (file.path.endsWith(".ipynb")) {
+              content = this.extractNotebookText(content);
             }
-            lastModifiedAt = commitInfo.date;
-            lastCommitMsg = commitInfo.message;
+            const title = this.extractTitle(content, file.path);
+            const description = this.stripMarkdown(content).substring(0, 500);
+            const sections = this.extractSections(content);
+            const category = this.categorizeDoc(file.path);
+
+            // Get real last-modified date from GitHub Commits API
+            // Decrement BEFORE the async call so concurrent batch members see updated count
+            // Stop making API calls if we're running low on rate limit
+            let lastModifiedAt = null;
+            let lastCommitMsg = null;
+            if (rateLimitRemaining > 10) {
+              rateLimitRemaining--;
+              const commitInfo = await this.getFileLastCommit(
+                file.path,
+                headers,
+              );
+              if (commitInfo) {
+                if (commitInfo.rateLimitRemaining !== undefined) {
+                  rateLimitRemaining = commitInfo.rateLimitRemaining;
+                }
+                lastModifiedAt = commitInfo.date;
+                lastCommitMsg = commitInfo.message;
+              }
+            }
+
+            return this.normalize({
+              id: file.path,
+              title,
+              url: `https://github.com/${this.repoSlug()}/blob/main/${file.path}`,
+              description,
+              author: "anthropic",
+              published_at: lastModifiedAt || new Date().toISOString(),
+              score: this.docScore(file.path, file.size),
+              metadata: {
+                type: "docs",
+                category,
+                file_path: file.path,
+                size_bytes: file.size,
+                section_count: sections.length,
+                sections: sections.slice(0, 10),
+                blob_sha: file.sha,
+                last_modified_at: lastModifiedAt,
+                last_commit_message: lastCommitMsg,
+                fetched_at_version: latestVersion,
+                tree_sha: treeSha,
+              },
+            });
+          } catch (err) {
+            console.error(`Error processing ${file.path}:`, err.message);
+            return null;
           }
-        }
-
-        items.push(
-          this.normalize({
-            id: file.path,
-            title,
-            url: `https://github.com/${this.repoSlug()}/blob/main/${file.path}`,
-            description,
-            author: "anthropic",
-            published_at: lastModifiedAt || new Date().toISOString(),
-            score: this.docScore(file.path, file.size),
-            metadata: {
-              type: "docs",
-              category,
-              file_path: file.path,
-              size_bytes: file.size,
-              section_count: sections.length,
-              sections: sections.slice(0, 10),
-              blob_sha: file.sha,
-              last_modified_at: lastModifiedAt,
-              last_commit_message: lastCommitMsg,
-              fetched_at_version: latestVersion,
-              tree_sha: treeSha,
-            },
-          }),
-        );
-
-        // Small delay between requests
-        await new Promise((r) => setTimeout(r, 150));
-      } catch (err) {
-        console.error(`Doc fetch error for ${file.path}:`, err.message);
-      }
+        }),
+      );
+      items.push(...batchResults.filter(Boolean));
     }
 
     const withDates = items.filter((i) => i.metadata?.last_modified_at).length;

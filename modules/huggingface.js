@@ -7,15 +7,20 @@ const BaseModule = require("./base-module");
 class HuggingFaceModule extends BaseModule {
   async fetch() {
     const items = [];
+    const headers = { "User-Agent": "AI-Intelligence-Hub/1.0" };
 
-    // Fetch trending models
+    const modelsUrl =
+      "https://huggingface.co/api/models?sort=trending&limit=30";
+    const spacesUrl =
+      "https://huggingface.co/api/spaces?sort=trending&limit=20";
+
+    const [modelsRes, spacesRes] = await Promise.all([
+      fetch(modelsUrl, { headers }).catch(() => ({ ok: false })),
+      fetch(spacesUrl, { headers }).catch(() => ({ ok: false })),
+    ]);
+
+    // Process models
     try {
-      const modelsUrl =
-        "https://huggingface.co/api/models?sort=trending&limit=30";
-      const modelsRes = await fetch(modelsUrl, {
-        headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
-      });
-
       if (modelsRes.ok) {
         const models = await modelsRes.json();
         for (const model of models) {
@@ -45,14 +50,8 @@ class HuggingFaceModule extends BaseModule {
       console.error("HuggingFace models fetch error:", err.message);
     }
 
-    // Fetch trending spaces
+    // Process spaces
     try {
-      const spacesUrl =
-        "https://huggingface.co/api/spaces?sort=trending&limit=20";
-      const spacesRes = await fetch(spacesUrl, {
-        headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
-      });
-
       if (spacesRes.ok) {
         const spaces = await spacesRes.json();
         for (const space of spaces) {

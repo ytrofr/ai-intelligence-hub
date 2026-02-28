@@ -51,7 +51,10 @@ router.get("/", (req, res) => {
       scoredItems.sort((a, b) => {
         const scoreA = (a.score || 0) + (a.relevanceScore || 0);
         const scoreB = (b.score || 0) + (b.relevanceScore || 0);
-        return sortOrder === "ASC" ? scoreA - scoreB : scoreB - scoreA;
+        const diff = sortOrder === "ASC" ? scoreA - scoreB : scoreB - scoreA;
+        if (diff !== 0) return diff;
+        // Date tiebreaker: newest first within same score
+        return new Date(b.published_at || 0) - new Date(a.published_at || 0);
       });
     }
 

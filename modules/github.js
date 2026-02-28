@@ -7,23 +7,22 @@ const BaseModule = require("./base-module");
 class GitHubModule extends BaseModule {
   async fetch() {
     const topics = this.config.topics || ["ai", "llm", "claude", "anthropic"];
-    const items = [];
+    const headers = {
+      Accept: "application/vnd.github.v3+json",
+      "User-Agent": "AI-Intelligence-Hub/1.0",
+    };
+    if (process.env.GITHUB_TOKEN) {
+      headers["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
+    }
 
-    for (const topic of topics) {
-      try {
-        const url = `https://api.github.com/search/repositories?q=topic:${topic}&sort=stars&order=desc&per_page=20`;
-        const res = await fetch(url, {
-          headers: {
-            Accept: "application/vnd.github.v3+json",
-            "User-Agent": "AI-Intelligence-Hub/1.0",
-          },
-        });
-
-        if (!res.ok) continue;
-        const data = await res.json();
-
-        for (const repo of data.items || []) {
-          items.push(
+    const topicResults = await Promise.all(
+      topics.map(async (topic) => {
+        try {
+          const url = `https://api.github.com/search/repositories?q=topic:${topic}&sort=stars&order=desc&per_page=20`;
+          const res = await fetch(url, { headers });
+          if (!res.ok) return [];
+          const data = await res.json();
+          return (data.items || []).map((repo) =>
             this.normalize({
               id: repo.id.toString(),
               title: repo.full_name,
@@ -41,16 +40,13 @@ class GitHubModule extends BaseModule {
               },
             }),
           );
+        } catch (err) {
+          console.error(`GitHub topic ${topic} error:`, err.message);
+          return [];
         }
-
-        // Small delay between requests
-        await new Promise((r) => setTimeout(r, 200));
-      } catch (err) {
-        console.error(`GitHub fetch error for topic ${topic}:`, err.message);
-      }
-    }
-
-    return items;
+      }),
+    );
+    return topicResults.flat();
   }
 
   calculateScore(repo) {

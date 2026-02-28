@@ -214,7 +214,7 @@ function buildAdvancedQuery(options) {
   };
   const sortColumn = sortColumns[sortBy] || "i.score";
   const order = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
-  query += ` ORDER BY ${sortColumn} ${order}`;
+  query += ` ORDER BY ${sortColumn} ${order}, i.published_at DESC`;
 
   // Pagination
   query += ` LIMIT @limit OFFSET @offset`;
