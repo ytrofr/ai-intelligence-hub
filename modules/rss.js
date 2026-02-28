@@ -35,7 +35,7 @@ class RSSModule extends BaseModule {
               title: item.title,
               url: item.link,
               description: this.stripHtml(item.description || ""),
-              author: item.author || item["dc:creator"],
+              author: this.extractAuthor(item.author || item["dc:creator"]),
               published_at: item.pubDate
                 ? new Date(item.pubDate).toISOString()
                 : null,
@@ -74,6 +74,19 @@ class RSSModule extends BaseModule {
     }
 
     return items;
+  }
+
+  extractAuthor(val) {
+    if (!val) return null;
+    if (typeof val === "string") return val;
+    if (Array.isArray(val))
+      return val
+        .map((a) => a?.name || "")
+        .filter(Boolean)
+        .join(", ");
+    if (typeof val === "object")
+      return val.name || JSON.stringify(val).substring(0, 100);
+    return String(val);
   }
 
   stripHtml(html) {

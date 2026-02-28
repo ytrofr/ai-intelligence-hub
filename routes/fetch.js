@@ -19,37 +19,43 @@ router.post("/", async (req, res) => {
       ? sources.filter((s) => s.id === sourceId)
       : sources;
 
-    for (const source of toFetch) {
+    const fetchPromises = toFetch.map(async (source) => {
+      const module = createModule(source);
+      if (!module)
+        return {
+          source: source.id,
+          status: "error",
+          error: "Unknown module type: " + source.type,
+        };
+      if (!module.canFetch(source.last_fetched_at)) {
+        return { source: source.id, status: "rate_limited", items: 0 };
+      }
       try {
-        const module = createModule(source);
-        if (!module) {
-          results.errors.push({
-            source: source.id,
-            error: "Unknown module type",
-          });
-          continue;
-        }
-
-        // Check rate limit
-        if (!module.canFetch(source.last_fetched_at)) {
-          results.sources[source.id] = { status: "rate_limited", items: 0 };
-          continue;
-        }
-
-        // Fetch items
         const items = await module.fetch();
         const count = db.upsertItems(items);
-
-        // Update last fetched timestamp
         db.updateSourceLastFetched(source.id);
-
-        results.sources[source.id] = { status: "success", items: count };
-        results.fetched += count;
+        return { source: source.id, status: "success", items: count };
       } catch (err) {
-        console.error(`Fetch error for ${source.id}:`, err.message);
-        results.errors.push({ source: source.id, error: err.message });
-        results.sources[source.id] = { status: "error", error: err.message };
+        console.error(`Error fetching ${source.id}:`, err.message);
+        return { source: source.id, status: "error", error: err.message };
       }
+    });
+
+    const settled = await Promise.allSettled(fetchPromises);
+    for (const r of settled) {
+      const val =
+        r.status === "fulfilled"
+          ? r.value
+          : { source: "unknown", status: "error", error: r.reason?.message };
+      if (val.status === "error") {
+        results.errors.push({ source: val.source, error: val.error });
+      } else {
+        results.sources[val.source] = {
+          status: val.status,
+          items: val.items || 0,
+        };
+      }
+      if (val.status === "success") results.fetched += val.items || 0;
     }
 
     res.json(results);

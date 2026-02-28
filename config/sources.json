@@ -46,7 +46,7 @@
       "id": "ainews",
       "name": "AI News",
       "type": "rss",
-      "url": "https://buttondown.email/ainews/rss",
+      "url": "https://buttondown.com/ainews/rss",
       "enabled": true,
       "rate_limit_minutes": 60,
       "config": {},
@@ -97,7 +97,7 @@
       "name": "MIT AI News",
       "type": "rss",
       "url": "https://news.mit.edu/topic/artificial-intelligence2/rss",
-      "enabled": false,
+      "enabled": true,
       "rate_limit_minutes": 60,
       "config": {},
       "color": "#750014"
@@ -149,6 +149,61 @@
         "repo_name": "Claude Cookbooks"
       },
       "color": "#b8784e"
+    },
+    {
+      "id": "arxiv-ai",
+      "name": "arXiv CS.AI",
+      "type": "rss",
+      "url": "https://rss.arxiv.org/rss/cs.AI",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#b31b1b"
+      }
+    },
+    {
+      "id": "simonwillison",
+      "name": "Simon Willison",
+      "type": "rss",
+      "url": "https://simonwillison.net/atom/everything/",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#2563eb"
+      }
+    },
+    {
+      "id": "google-ai",
+      "name": "Google AI Blog",
+      "type": "rss",
+      "url": "https://blog.google/innovation-and-ai/technology/ai/rss/",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#4285f4"
+      }
+    },
+    {
+      "id": "marktechpost",
+      "name": "MarkTechPost",
+      "type": "rss",
+      "url": "https://www.marktechpost.com/feed/",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#e11d48"
+      }
+    },
+    {
+      "id": "the-gradient",
+      "name": "The Gradient",
+      "type": "rss",
+      "url": "https://thegradient.pub/rss/",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#059669"
+      }
     }
   ]
 }
