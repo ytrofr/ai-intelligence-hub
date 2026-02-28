@@ -21,4 +21,4 @@ keywords:
   - developer-tools
   - anthropic-skills
   - claude-cookbooks
-abstract: "Track 14 AI sources (GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills Library, Claude Cookbooks) with SQLite FTS5 full-text search, keyword scoring, and bookmarks. Zero external dependencies — runs on free APIs."
+abstract: "Track 19 AI sources (GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills Library, Claude Cookbooks, arXiv, Google AI Blog, Simon Willison, MarkTechPost, The Gradient) with SQLite FTS5 full-text search, keyword scoring, and bookmarks. Parallel fetching (~5s). Zero external dependencies — runs on free APIs."

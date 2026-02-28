@@ -1,11 +1,11 @@
 # AI Intelligence Hub
 
-**Track AI trends from 14 sources in one dashboard.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, and more — with full-text search and keyword scoring.
+**Track AI trends from 19 sources in one dashboard.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, arXiv, Google AI Blog, Simon Willison, and more — with full-text search and keyword scoring.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![Port](https://img.shields.io/badge/Port-4444-blue.svg)]()
-[![Sources](https://img.shields.io/badge/Sources-14-purple.svg)]()
+[![Sources](https://img.shields.io/badge/Sources-19-purple.svg)]()
 
 ---
 
@@ -19,7 +19,7 @@ node server.js
 # Open http://localhost:4444
 ```
 
-No external services required. All 14 sources use free, unauthenticated APIs.
+No external services required. All 19 sources use free, unauthenticated APIs. Fetches all sources in parallel (~5 seconds).
 
 > **Optional**: Add a `GITHUB_TOKEN` in `.env` to increase GitHub API rate limit from 60/h to 5,000/h. See `.env.example`.
 
@@ -27,7 +27,7 @@ No external services required. All 14 sources use free, unauthenticated APIs.
 
 ## Features
 
-- **14 AI Sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Anthropic Skills Library, Claude Cookbooks, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News
+- **19 AI Sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Anthropic Skills Library, Claude Cookbooks, arXiv CS.AI, Google AI Blog, Simon Willison, MarkTechPost, The Gradient, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News, AI News
 - **Full-Text Search** — SQLite FTS5 indexes all items for instant keyword search
 - **Keyword Scoring** — Configurable categories with weighted keywords rank items by relevance
 - **Bookmarks** — Save items for later with persistent bookmarks
@@ -55,6 +55,11 @@ No external services required. All 14 sources use free, unauthenticated APIs.
 | Claude Code Docs     | changelog   | 360 min | 98 documentation pages             |
 | Anthropic Skills     | changelog   | 360 min | Official skill library (16 skills) |
 | Claude Cookbooks     | changelog   | 360 min | Agent patterns and notebooks       |
+| arXiv CS.AI          | rss         | 60 min  | AI research papers                 |
+| Simon Willison       | rss         | 60 min  | AI developer blog                  |
+| Google AI Blog       | rss         | 60 min  | Google AI research and products    |
+| MarkTechPost         | rss         | 60 min  | ML research summaries              |
+| The Gradient         | rss         | 60 min  | In-depth AI research analysis      |
 
 ---
 
@@ -66,7 +71,7 @@ server.js (port 4444)
 │   ├── base-module.js # Abstract base with normalize()
 │   ├── github.js      # GitHub trending repos
 │   ├── huggingface.js # HuggingFace models
-│   ├── rss.js         # RSS/Atom feeds (7 sources)
+│   ├── rss.js         # RSS/Atom feeds (12 sources)
 │   ├── mcp-registry.js# MCP server registry
 │   └── changelog.js   # Claude Code releases + docs
 ├── config/
@@ -171,7 +176,7 @@ Edit `config/sources.json` to add or modify sources:
 A: Port 4444. This is hardcoded in `server.js` and does not conflict with other common development ports.
 
 **Q: Do I need any API keys?**
-A: No. All 14 sources use free, unauthenticated APIs. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
+A: No. All 19 sources use free, unauthenticated APIs. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
 
 **Q: How is data stored?**
 A: SQLite with FTS5 (full-text search). The database is created automatically on first run. No setup needed.
