@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "PostCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'Re-read CLAUDE.md after compaction. Key: Node.js/Express, SQLite FTS5, port 4444.'"
+          }
+        ]
+      }
+    ]
+  }
+}
