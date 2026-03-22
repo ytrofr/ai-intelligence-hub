@@ -1,5 +1,15 @@
 {
   "hooks": {
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo 'BEFORE COMPACTION: Save any important context to memory or plan files now. Project: Node.js/Express, SQLite FTS5, port 4444.'"
+          }
+        ]
+      }
+    ],
     "PostCompact": [
       {
         "hooks": [
