@@ -67,4 +67,19 @@ const API = {
   saveSearch: (name, query, filters, sortBy) =>
     API.post("/search/saved", { name, query, filters, sortBy }),
   deleteSavedSearch: (id) => API.delete(`/search/saved/${id}`),
+
+  // Discovery/Recommendations
+  getRecommendations: async (project, limit) => {
+    const params = new URLSearchParams();
+    if (project) params.set('project', project);
+    if (limit) params.set('limit', limit);
+    const q = params.toString();
+    const res = await fetch(`/api/recommendations${q ? '?' + q : ''}`);
+    return res.json();
+  },
+
+  getProjects: async () => {
+    const res = await fetch('/api/recommendations/projects');
+    return res.json();
+  },
 };

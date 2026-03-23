@@ -100,6 +100,19 @@
         "permission"
       ],
       "color": "#cc785c"
+    },
+    {
+      "id": "project-stack",
+      "name": "Project Tech Stack",
+      "weight": 1.8,
+      "keywords": [
+        "google adk", "fastapi", "remotion", "pgvector", "fabric.js",
+        "zustand", "lottie", "firecrawl", "chart.js", "vertex ai",
+        "dnd-kit", "pywa", "whatsapp business", "gemini agent",
+        "hebrew", "rag routing", "embeddings", "mcp server",
+        "express dashboard", "react editor", "tailwind components"
+      ],
+      "color": "#1f6feb"
     }
   ]
 }

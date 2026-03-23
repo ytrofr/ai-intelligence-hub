@@ -1,0 +1,115 @@
+{
+  "projects": [
+    {
+      "id": "ogas",
+      "name": "OGAS - AI Agent Platform",
+      "languages": ["python", "typescript", "javascript"],
+      "dependencies": [
+        "google-adk", "fastapi", "react", "tailwindcss", "zustand",
+        "fabric.js", "@json-render/react", "@dnd-kit", "pywa", "firecrawl",
+        "lucide-react", "@radix-ui", "@tanstack/react-query", "vite",
+        "pillow", "beautifulsoup4", "anthropic", "playwright"
+      ],
+      "searchQueries": [
+        "google adk agent",
+        "fastapi react tailwind",
+        "website cloning ai",
+        "fabric.js react editor",
+        "whatsapp business api python",
+        "design system react radix",
+        "zustand react state",
+        "gemini api python agent",
+        "dnd-kit sortable react",
+        "tailwind component library"
+      ],
+      "topics": ["agent-framework", "web-scraping", "design-to-code", "image-generation"]
+    },
+    {
+      "id": "limorai",
+      "name": "LimorAI - Restaurant Business Intelligence",
+      "languages": ["javascript"],
+      "dependencies": [
+        "express", "pg", "redis", "@google-cloud/vertexai",
+        "chart.js", "socket.io", "zod", "@modelcontextprotocol/sdk",
+        "nodemailer", "multer", "mammoth", "unpdf", "helmet",
+        "bcrypt", "jsonwebtoken"
+      ],
+      "searchQueries": [
+        "express postgresql dashboard",
+        "pgvector embeddings node",
+        "chart.js dashboard template",
+        "rag routing llm",
+        "hebrew nlp javascript",
+        "restaurant pos api",
+        "socket.io realtime dashboard",
+        "zod validation express",
+        "vertex ai node javascript",
+        "pdf extraction node"
+      ],
+      "topics": ["rag", "embeddings", "business-intelligence", "pos-integration"]
+    },
+    {
+      "id": "remotion",
+      "name": "Claude Remotion Editor - Video Generation",
+      "languages": ["typescript", "javascript"],
+      "dependencies": [
+        "remotion", "react", "typescript", "vite", "lottie-web",
+        "@remotion/player", "@remotion/lottie", "@remotion/transitions",
+        "@remotion/captions"
+      ],
+      "searchQueries": [
+        "remotion plugin template",
+        "lottie animation react",
+        "react animation physics",
+        "video generation react",
+        "remotion video example",
+        "motion graphics react"
+      ],
+      "topics": ["remotion", "animation", "video-generation", "lottie"]
+    },
+    {
+      "id": "hub",
+      "name": "AI Intelligence Hub - Trends Dashboard",
+      "languages": ["javascript"],
+      "dependencies": [
+        "express", "better-sqlite3", "xml2js"
+      ],
+      "searchQueries": [
+        "sqlite fts5 dashboard",
+        "rss aggregator node",
+        "github trends api"
+      ],
+      "topics": ["dashboard", "aggregator", "trends"]
+    },
+    {
+      "id": "guide",
+      "name": "Claude Code Guide - Documentation",
+      "languages": ["ruby", "javascript"],
+      "dependencies": [
+        "jekyll"
+      ],
+      "searchQueries": [
+        "claude code best practices",
+        "jekyll documentation theme"
+      ],
+      "topics": ["documentation", "claude-code"]
+    }
+  ],
+  "curatedLists": [
+    {
+      "repo": "punkpeye/awesome-mcp-servers",
+      "description": "MCP ecosystem tools and servers",
+      "relevantProjects": ["ogas", "limorai", "hub"]
+    },
+    {
+      "repo": "e2b-dev/awesome-ai-agents",
+      "description": "AI agent frameworks and tools",
+      "relevantProjects": ["ogas"]
+    },
+    {
+      "repo": "remotion-dev/remotion",
+      "description": "Remotion ecosystem examples",
+      "relevantProjects": ["remotion"]
+    }
+  ]
+}
