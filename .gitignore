@@ -17,3 +17,7 @@ Thumbs.db
 # Editor files
 .vscode/
 .idea/
+
+# Internal project context (not for public repo)
+handoffs/
+screenshots/
