@@ -71,6 +71,14 @@ const UI = {
           ${metadata.comments ? `<span class="item-stat" title="Comments">${Icons.comment} ${metadata.comments}</span>` : ""}
           <span class="item-stat" title="Published">${Icons.clock} ${timeAgo}</span>
         </div>
+        ${metadata?.matched_projects?.length ? `
+          <div class="item-discovery">
+            ${metadata.matched_projects.map(mp =>
+              `<span class="badge" style="background:${UI.getProjectColor(mp.id)};color:#fff;font-size:0.7rem;padding:2px 6px;border-radius:3px;margin-right:4px;" title="Relevant to ${mp.name}: ${mp.overlap} shared deps">${Icons.discover || ''} ${mp.id}</span>`
+            ).join('')}
+          </div>
+        ` : ''}
+        ${metadata?.match_reason ? `<div class="item-match-reason" style="font-size:0.75rem;color:#8b949e;margin-top:4px;" title="${UI.escapeHtml(metadata.match_reason)}">${UI.escapeHtml(metadata.match_reason)}</div>` : ''}
       </div>
     `;
   },
@@ -165,6 +173,12 @@ const UI = {
           "'": "&#39;",
         })[m],
     );
+  },
+
+  // Helper: Get project color for discovery badges
+  getProjectColor(projectId) {
+    const colors = { apollo: '#1f6feb', atlas: '#2ea043', remotion: '#f78166', hub: '#8b5cf6', guide: '#d97706' };
+    return colors[projectId] || '#6e7681';
   },
 
   // Show toast notification

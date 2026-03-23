@@ -35,6 +35,7 @@ app.use("/api/sources", require("./routes/sources"));
 app.use("/api/bookmarks", require("./routes/bookmarks"));
 app.use("/api/stats", require("./routes/stats"));
 app.use("/api/search", require("./routes/search"));
+app.use("/api/recommendations", require("./routes/recommendations"));
 
 // Health endpoint
 app.get("/api/health", (req, res) => {
@@ -99,6 +100,7 @@ app.listen(PORT, () => {
 ║    GET  /api/bookmarks  - List bookmarks                      ║
 ║    GET  /api/stats      - Dashboard stats                     ║
 ║    GET  /api/search/*   - Search suggestions & saved          ║
+║    GET  /api/recommendations - Project recommendations        ║
 ║    GET  /api/health     - Health check                        ║
 ╚═══════════════════════════════════════════════════════════════╝
   `);

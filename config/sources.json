@@ -204,6 +204,47 @@
       "config": {
         "color": "#059669"
       }
+    },
+    {
+      "id": "github-discovery-tech",
+      "name": "GitHub Discovery: Tech Stack",
+      "type": "github-discovery",
+      "url": "https://api.github.com/search/repositories",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "strategy": "tech-stack",
+        "max_queries": 30,
+        "max_readme_fetches": 50
+      },
+      "color": "#1f6feb"
+    },
+    {
+      "id": "github-discovery-curated",
+      "name": "GitHub Discovery: Curated Lists",
+      "type": "github-discovery",
+      "url": "https://api.github.com/repos",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "strategy": "curated-lists",
+        "max_repos": 50
+      },
+      "color": "#2ea043"
+    },
+    {
+      "id": "github-discovery-rising",
+      "name": "GitHub Discovery: Rising Stars",
+      "type": "github-discovery",
+      "url": "https://api.github.com/search/repositories",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "strategy": "rising-stars",
+        "min_stars": 50,
+        "days_lookback": 90
+      },
+      "color": "#f78166"
     }
   ]
 }
