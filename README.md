@@ -15,9 +15,12 @@
 git clone https://github.com/ytrofr/ai-intelligence-hub.git
 cd ai-intelligence-hub
 npm install
+cp config/projects.example.json config/projects.json   # then edit with your own projects
 node server.js
 # Open http://localhost:4444
 ```
+
+> `config/projects.json` is gitignored — it holds your personal project portfolio. The repo ships `config/projects.example.json` as a template; copy it and customize the `projects` array. The `claude-ecosystem` entry works as-is.
 
 No external services required. All 19 sources use free, unauthenticated APIs. Fetches all sources in parallel (~5 seconds).
 

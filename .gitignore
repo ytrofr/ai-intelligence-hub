@@ -21,3 +21,6 @@ Thumbs.db
 # Internal project context (not for public repo)
 handoffs/
 screenshots/
+
+# Local project portfolio config — copy projects.example.json and customize
+config/projects.json
