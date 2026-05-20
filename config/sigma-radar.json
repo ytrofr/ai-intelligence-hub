@@ -46,6 +46,7 @@
     { "repo": "browser-use/browser-use", "topic": "scraping", "verdict": "ADOPT", "rationale": "Agent-driven browser automation — strong fit for SIGMA's render-and-capture step alongside Playwright." },
     { "repo": "GLips/Figma-Context-MCP", "topic": "web-gen", "verdict": "ADOPT", "rationale": "Feeds Figma layout to coding agents over MCP — a clean design-to-code input path SIGMA could expose as an input mode." },
     { "repo": "saadeghi/daisyui", "topic": "web-gen", "verdict": "ADOPT", "rationale": "Tailwind component library; SIGMA's frontend is Tailwind — a ready component vocabulary for generated pages." },
+    { "repo": "vercel-labs/json-render", "topic": "web-gen", "verdict": "ADOPT", "rationale": "The Generative UI framework — already a SIGMA dependency (@json-render/core + @json-render/react). Underpins the from-scratch generation path (JSON-schema-driven UI); track upstream for new schema/rendering capabilities." },
     { "repo": "obra/superpowers", "topic": "claude-code", "verdict": "ADOPT", "rationale": "Agentic skills framework already installed in this environment. Canonical pattern source for SIGMA's own skills." },
     { "repo": "anthropics/skills", "topic": "claude-code", "verdict": "ADOPT", "rationale": "Official Agent Skills repo — reference for authoring SIGMA's project skills." },
     { "repo": "anthropics/claude-code", "topic": "claude-code", "verdict": "ADOPT", "rationale": "The tool SIGMA is developed with. Track releases for hooks/skills/subagent changes." },
