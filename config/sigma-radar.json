@@ -1,0 +1,91 @@
+{
+  "project": "SIGMA",
+  "subtitle": "Adoption radar for the SIGMA / OGAS website-cloning agent platform (Google ADK · FastAPI · React · fabric.js · firecrawl · Gemini/Anthropic)",
+  "updated": "2026-05-20",
+  "starThreshold": 20000,
+  "verdicts": {
+    "ADOPT": "Directly useful to SIGMA now — pull patterns or integrate.",
+    "WATCH": "Relevant to SIGMA's roadmap — track, evaluate, revisit.",
+    "SKIP": "High-star and on-topic but not a fit for SIGMA's stack/mission."
+  },
+  "topics": [
+    {
+      "id": "web-gen",
+      "label": "Web / HTML / Webpage Generation",
+      "blurb": "SIGMA's core domain — cloning sites, design-to-code, AI-built UI.",
+      "keywords": ["website", "webpage", "html", "design-to-code", "design to code", "landing page", "ui generat", "site builder", "web design", "figma", "screenshot", "app builder", "clone"]
+    },
+    {
+      "id": "scraping",
+      "label": "Scraping & Web Data Extraction",
+      "blurb": "Feeds SIGMA's clone pipeline — fetch, render, extract source sites.",
+      "keywords": ["scrape", "scraping", "crawl", "browser automation", "browser-use", "firecrawl", "web data"]
+    },
+    {
+      "id": "agents",
+      "label": "AI Agent Frameworks & ADK",
+      "blurb": "SIGMA runs on Google ADK — adjacent agent frameworks and orchestration.",
+      "keywords": ["adk", "agent development kit", "agent framework", "multi-agent", "orchestrat", "langchain", "langgraph", "autogen", "crewai", "a2a"]
+    },
+    {
+      "id": "claude-code",
+      "label": "Claude Code & Agentic Coding",
+      "blurb": "The agentic-coding toolchain SIGMA is built and maintained with.",
+      "keywords": ["claude code", "claude-code", "agentic coding", "agentic engineering", "spec-driven", "agent harness", "agent skill", "coding agent", "skills"]
+    },
+    {
+      "id": "openclaw",
+      "label": "OpenClaw / IronClaw Ecosystem",
+      "blurb": "The OpenClaw assistant ecosystem the team already tracks.",
+      "keywords": ["openclaw", "ironclaw", "openclaude", "nanoclaw", "nemoclaw", "the lobster way"]
+    }
+  ],
+  "audit": [
+    { "repo": "JCodesMore/ai-website-cloner-template", "topic": "web-gen", "verdict": "ADOPT", "rationale": "Clone any website with one AI command — SIGMA's exact problem. Study its prompt + pipeline structure as a benchmark for the OGAS clone agent." },
+    { "repo": "firecrawl/firecrawl", "topic": "scraping", "verdict": "ADOPT", "rationale": "Already a SIGMA dependency. Track upstream for new scrape/clean modes that improve clone-source fidelity." },
+    { "repo": "browser-use/browser-use", "topic": "scraping", "verdict": "ADOPT", "rationale": "Agent-driven browser automation — strong fit for SIGMA's render-and-capture step alongside Playwright." },
+    { "repo": "GLips/Figma-Context-MCP", "topic": "web-gen", "verdict": "ADOPT", "rationale": "Feeds Figma layout to coding agents over MCP — a clean design-to-code input path SIGMA could expose as an input mode." },
+    { "repo": "saadeghi/daisyui", "topic": "web-gen", "verdict": "ADOPT", "rationale": "Tailwind component library; SIGMA's frontend is Tailwind — a ready component vocabulary for generated pages." },
+    { "repo": "obra/superpowers", "topic": "claude-code", "verdict": "ADOPT", "rationale": "Agentic skills framework already installed in this environment. Canonical pattern source for SIGMA's own skills." },
+    { "repo": "anthropics/skills", "topic": "claude-code", "verdict": "ADOPT", "rationale": "Official Agent Skills repo — reference for authoring SIGMA's project skills." },
+    { "repo": "anthropics/claude-code", "topic": "claude-code", "verdict": "ADOPT", "rationale": "The tool SIGMA is developed with. Track releases for hooks/skills/subagent changes." },
+    { "repo": "bytedance/deer-flow", "topic": "agents", "verdict": "ADOPT", "rationale": "Long-horizon SuperAgent harness; already cited in the delegation rule (max-3 parallel). Mine for orchestration patterns." },
+    { "repo": "bhancockio/agent-development-kit-crash-course", "topic": "agents", "verdict": "ADOPT", "rationale": "Worked examples for Google ADK — SIGMA's exact framework; direct learning and reference material." },
+    { "repo": "nexu-io/open-design", "topic": "web-gen", "verdict": "WATCH", "rationale": "Local-first Claude Design alternative with brand/design skills — overlaps SIGMA's design-quality goal for generated sites." },
+    { "repo": "pbakaus/impeccable", "topic": "web-gen", "verdict": "WATCH", "rationale": "A 'design language' that lifts an AI harness's design output — could raise SIGMA clone aesthetics." },
+    { "repo": "nextlevelbuilder/ui-ux-pro-max-skill", "topic": "web-gen", "verdict": "WATCH", "rationale": "Design-intelligence skill for building professional UI — evaluate as an inspiration source for SIGMA's generator." },
+    { "repo": "dyad-sh/dyad", "topic": "web-gen", "verdict": "WATCH", "rationale": "Local open-source AI app builder (v0/Lovable/Bolt class) — closest full-product competitor to SIGMA; study UX and output." },
+    { "repo": "heygen-com/hyperframes", "topic": "web-gen", "verdict": "WATCH", "rationale": "'Write HTML, render video, built for agents' — adjacent to SIGMA's HTML-first agent output model." },
+    { "repo": "CopilotKit/CopilotKit", "topic": "web-gen", "verdict": "WATCH", "rationale": "Frontend for agents + generative UI in React — relevant if SIGMA adds an in-app agent surface." },
+    { "repo": "franken-ui/ui", "topic": "web-gen", "verdict": "WATCH", "rationale": "HTML-first component library — useful primitive set for agent-generated markup." },
+    { "repo": "AmitDigga/fabric-video-editor", "topic": "web-gen", "verdict": "WATCH", "rationale": "fabric.js + React + Tailwind editor — SIGMA's inline editor uses fabric.js; study its canvas integration." },
+    { "repo": "grab/cursor-talk-to-figma-mcp", "topic": "web-gen", "verdict": "WATCH", "rationale": "MCP bridge letting an agent read/write Figma — relevant if SIGMA adds Figma round-tripping." },
+    { "repo": "github/spec-kit", "topic": "claude-code", "verdict": "WATCH", "rationale": "Spec-driven development toolkit — could structure how SIGMA features are planned and generated." },
+    { "repo": "gsd-build/get-shit-done", "topic": "claude-code", "verdict": "WATCH", "rationale": "Meta-prompting + context-engineering + spec-driven dev framework — pattern source for the SIGMA workflow." },
+    { "repo": "affaan-m/everything-claude-code", "topic": "claude-code", "verdict": "WATCH", "rationale": "Agent-harness performance optimization (skills, memory, security) — harvest applicable harness tuning." },
+    { "repo": "wshobson/agents", "topic": "claude-code", "verdict": "WATCH", "rationale": "Multi-agent orchestration for Claude Code — compare against SIGMA's delegation patterns." },
+    { "repo": "davila7/claude-code-templates", "topic": "claude-code", "verdict": "WATCH", "rationale": "CLI for configuring/monitoring Claude Code — possible scaffolding aid for the SIGMA repo setup." },
+    { "repo": "hesreallyhim/awesome-claude-code", "topic": "claude-code", "verdict": "WATCH", "rationale": "Curated index of skills/hooks/orchestrators — periodic scan for SIGMA-applicable tooling." },
+    { "repo": "anthropics/claude-plugins-official", "topic": "claude-code", "verdict": "WATCH", "rationale": "Anthropic-curated plugin directory — vetted plugins that could slot into SIGMA's workflow." },
+    { "repo": "anthropics/claude-cookbooks", "topic": "claude-code", "verdict": "WATCH", "rationale": "Official Claude recipes — patterns for SIGMA's Anthropic-model calls (citations, tool use, vision)." },
+    { "repo": "github/awesome-copilot", "topic": "claude-code", "verdict": "WATCH", "rationale": "Community agent/skill configs — cross-reference for agentic-coding patterns transferable to SIGMA." },
+    { "repo": "langchain-ai/langgraph", "topic": "agents", "verdict": "WATCH", "rationale": "Graph-based resilient agents — compare control-flow model against ADK for SIGMA's clone pipeline." },
+    { "repo": "langchain-ai/deepagents", "topic": "agents", "verdict": "WATCH", "rationale": "Batteries-included agent harness — evaluate harness ergonomics vs SIGMA's current ADK setup." },
+    { "repo": "microsoft/autogen", "topic": "agents", "verdict": "WATCH", "rationale": "Mature multi-agent framework — reference for agent-to-agent collaboration shapes." },
+    { "repo": "crewAIInc/crewAI", "topic": "agents", "verdict": "WATCH", "rationale": "Role-playing autonomous agent orchestration — pattern source for SIGMA's specialized clone agents." },
+    { "repo": "openai/openai-agents-python", "topic": "agents", "verdict": "WATCH", "rationale": "Lightweight multi-agent framework — a cross-vendor comparison point for ADK." },
+    { "repo": "google-gemini/gemini-cli", "topic": "agents", "verdict": "WATCH", "rationale": "Open-source Gemini agent in the terminal — SIGMA uses Gemini; track its tool-calling conventions." },
+    { "repo": "AIDC-AI/Agentic-ADK", "topic": "agents", "verdict": "WATCH", "rationale": "Alibaba's agent app framework on ADK — alternative ADK patterns worth comparing." },
+    { "repo": "kweinmeister/agentic-trading", "topic": "agents", "verdict": "WATCH", "rationale": "Demonstrates Google ADK + A2A interoperability — a concrete A2A reference for SIGMA's multi-agent setup." },
+    { "repo": "johnson7788/MultiAgentPPT", "topic": "agents", "verdict": "WATCH", "rationale": "Integrates A2A + MCP + ADK end-to-end — useful blueprint for wiring SIGMA's agent stack together." },
+    { "repo": "D4Vinci/Scrapling", "topic": "scraping", "verdict": "WATCH", "rationale": "Adaptive scraping framework resilient to layout change — hardening option for SIGMA's source fetch." },
+    { "repo": "openclaw/openclaw", "topic": "openclaw", "verdict": "WATCH", "rationale": "The OpenClaw assistant the team already tracks (rules cite OpenClaw Entry #295). Ecosystem anchor, not a direct SIGMA dependency." },
+    { "repo": "Gitlawb/openclaude", "topic": "openclaw", "verdict": "WATCH", "rationale": "'Runs anywhere, uses anything' OpenClaw-family assistant — watch for portable-runtime ideas." },
+    { "repo": "qwibitai/nanoclaw", "topic": "openclaw", "verdict": "WATCH", "rationale": "Lightweight containerized OpenClaw alternative — more AgentSmith-adjacent, but relevant for sandboxed agent runs." },
+    { "repo": "farion1231/cc-switch", "topic": "openclaw", "verdict": "WATCH", "rationale": "All-in-one desktop assistant spanning Claude Code, Codex, OpenClaw — useful if the team juggles multiple agent CLIs." },
+    { "repo": "NVIDIA/NemoClaw", "topic": "openclaw", "verdict": "SKIP", "rationale": "Runs OpenClaw inside NVIDIA OpenShell with managed inference — infrastructure play, not SIGMA's concern." },
+    { "repo": "tw93/Pake", "topic": "web-gen", "verdict": "SKIP", "rationale": "Turns a webpage into a desktop app — opposite direction from SIGMA's generate-the-webpage mission." },
+    { "repo": "jackwener/OpenCLI", "topic": "web-gen", "verdict": "SKIP", "rationale": "Turns any website into a CLI for agents — inverse of SIGMA's build-the-website goal." },
+    { "repo": "n8n-io/n8n", "topic": "agents", "verdict": "SKIP", "rationale": "Visual workflow automation — large and AI-capable, but not aligned with SIGMA's code-generation pipeline." }
+  ]
+}

@@ -36,6 +36,8 @@ app.use("/api/bookmarks", require("./routes/bookmarks"));
 app.use("/api/stats", require("./routes/stats"));
 app.use("/api/search", require("./routes/search"));
 app.use("/api/recommendations", require("./routes/recommendations"));
+app.use("/api/digest", require("./routes/digest"));
+app.use("/api/sigma-radar", require("./routes/sigma-radar"));
 
 // Health endpoint
 app.get("/api/health", (req, res) => {

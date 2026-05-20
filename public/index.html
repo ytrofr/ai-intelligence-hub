@@ -13,6 +13,7 @@
     <link rel="stylesheet" href="/css/variables.css" />
     <link rel="stylesheet" href="/css/components.css" />
     <link rel="stylesheet" href="/css/layout.css" />
+    <script src="http://localhost:9876/inject.js?project=ai-intelligence-hub" defer onerror="this.remove()"></script>
   </head>
   <body>
     <div class="container">
@@ -23,7 +24,9 @@
           AI Intelligence Hub
         </h1>
         <div class="header-actions">
+          <div id="section-toggle"></div>
           <div id="view-toggle"></div>
+          <a href="/sigma-radar.html" class="btn btn-secondary">SIGMA Radar</a>
           <button id="fetch-btn" class="btn btn-primary">
             <span id="refresh-icon"></span>
             Fetch Now
@@ -120,6 +123,11 @@
           <div class="spinner"></div>
         </div>
       </div>
+
+      <!-- Digest view (peer of feed; toggled via header section-toggle) -->
+      <section id="digest-view" class="digest-view" hidden>
+        <div class="loading"><div class="spinner"></div></div>
+      </section>
     </div>
 
     <!-- Toast container -->
@@ -151,6 +159,7 @@
     <script src="/js/api.js"></script>
     <script src="/js/ui.js"></script>
     <script src="/js/filters.js"></script>
+    <script src="/js/digest-view.js"></script>
     <script src="/js/app.js"></script>
     <script>
       // Initialize icons after DOM load
