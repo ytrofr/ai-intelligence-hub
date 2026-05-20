@@ -1,0 +1,112 @@
+{
+  "_comment": "Copy this file to config/projects.json and replace the sample projects with your own. The 'claude-ecosystem' entry and 'curatedLists' are generic and can be kept as-is.",
+  "projects": [
+    {
+      "id": "apollo",
+      "name": "Apollo - Example API Service",
+      "languages": ["python", "typescript"],
+      "dependencies": [
+        "fastapi", "react", "tailwindcss", "vite", "anthropic", "playwright"
+      ],
+      "searchQueries": [
+        "fastapi react tailwind",
+        "python api agent",
+        "design system react"
+      ],
+      "topics": ["agent-framework", "web-app", "design-to-code"]
+    },
+    {
+      "id": "atlas",
+      "name": "Atlas - Example Dashboard",
+      "languages": ["javascript"],
+      "dependencies": [
+        "express", "pg", "redis", "chart.js", "socket.io", "zod"
+      ],
+      "searchQueries": [
+        "express postgresql dashboard",
+        "chart.js dashboard template",
+        "socket.io realtime dashboard"
+      ],
+      "topics": ["dashboard", "business-intelligence", "realtime"]
+    },
+    {
+      "id": "claude-ecosystem",
+      "name": "Claude Code Ecosystem - Weekly Discovery",
+      "description": "Highly-starred repos that extend Claude Code, Claude Agent SDK, MCP, ADK, and AI-developer tooling. Used by the weekly digest.",
+      "languages": ["typescript", "javascript", "python"],
+      "dependencies": [
+        "@anthropic-ai/sdk", "@modelcontextprotocol/sdk", "anthropic",
+        "google-adk", "openai", "langchain", "langgraph", "crewai", "autogen",
+        "remotion", "@remotion/player", "@remotion/lottie",
+        "fastapi", "express", "vite"
+      ],
+      "topics": [
+        "claude-code", "mcp", "model-context-protocol", "ai-agents",
+        "agent-framework", "claude", "anthropic", "rag",
+        "prompt-engineering", "llm-evaluation", "llm-tools", "llm-ops"
+      ],
+      "topics_as_specific": [
+        "claude-code", "mcp", "model-context-protocol", "ai-agents",
+        "claude", "anthropic", "rag", "agent-framework", "llm",
+        "agent", "machine-learning"
+      ],
+      "searchQueries": [
+        "topic:claude-code stars:>=1000",
+        "topic:mcp stars:>=1000",
+        "topic:model-context-protocol stars:>=200",
+        "topic:ai-agents stars:>=1000",
+        "topic:claude stars:>=1000",
+        "topic:anthropic stars:>=1000",
+        "topic:agent-framework stars:>=200",
+        "topic:rag stars:>=1000",
+        "topic:prompt-engineering stars:>=1000",
+        "topic:llm-tools stars:>=200",
+        "topic:llm-evaluation stars:>=200",
+        "\"agent development kit\" stars:>=200",
+        "\"claude agent sdk\" stars:>=100",
+        "\"mcp server\" stars:>=500"
+      ],
+      "watchlist": [
+        "anthropics", "modelcontextprotocol", "remotion-dev", "pbakaus",
+        "simonw", "eyaltoledano", "obra", "punkpeye", "e2b-dev", "jxnl",
+        "crewAIInc", "langchain-ai", "bytedance", "google-deepmind",
+        "openai", "google"
+      ],
+      "watchlist_star_floor": 100,
+      "rising_star_threshold": {
+        "stars": 200,
+        "max_age_days": 90
+      },
+      "established_star_floor": 1000,
+      "star_velocity_bonus": 1.5,
+      "perplexity_prompt": "List up to 30 GitHub repositories shipped or with significant activity in the last 7 days that are useful for AI/agent developers using Claude Code, Claude Agent SDK, MCP servers, Google ADK, Anthropic SDK, Remotion, agent frameworks (LangGraph/CrewAI/AutoGen), or LLM tooling. ONLY include repos with 1000+ stars OR repos created in the last 90 days with 200+ stars. Return as a JSON array (no markdown fences) with shape: [{\"repo\": \"owner/name\", \"stars\": number, \"summary\": \"one sentence\", \"category\": \"claude-code|mcp|adk|agent-fw|video-ai|rag|eval|other\"}]. Do not include repositories already widely known unless they had a major release. No duplicates."
+    }
+  ],
+  "curatedLists": [
+    {
+      "repo": "punkpeye/awesome-mcp-servers",
+      "description": "MCP ecosystem tools and servers",
+      "relevantProjects": ["apollo", "atlas", "claude-ecosystem"]
+    },
+    {
+      "repo": "e2b-dev/awesome-ai-agents",
+      "description": "AI agent frameworks and tools",
+      "relevantProjects": ["apollo", "claude-ecosystem"]
+    },
+    {
+      "repo": "hesreallyhim/awesome-claude-code",
+      "description": "Curated Claude Code skills, hooks, agents, MCP servers",
+      "relevantProjects": ["claude-ecosystem"]
+    },
+    {
+      "repo": "modelcontextprotocol/servers",
+      "description": "Official MCP server implementations",
+      "relevantProjects": ["claude-ecosystem", "apollo"]
+    },
+    {
+      "repo": "punkpeye/awesome-mcp-clients",
+      "description": "MCP client implementations across IDEs and tools",
+      "relevantProjects": ["claude-ecosystem"]
+    }
+  ]
+}
