@@ -8,6 +8,10 @@ const UI = {
 
   // Render stats cards
   renderStats(stats) {
+    const lastDigest = stats.latestDigest || "—";
+    const digestAttrs = stats.latestDigest
+      ? `onclick="App.setView('digests')" style="cursor:pointer" title="Open Digests view"`
+      : `title="No digests yet"`;
     return `
       <div class="stat-card">
         <div class="stat-value">${stats.totalItems || 0}</div>
@@ -24,6 +28,10 @@ const UI = {
       <div class="stat-card">
         <div class="stat-value">${Object.keys(stats.bySource || {}).length}</div>
         <div class="stat-label">Source Types</div>
+      </div>
+      <div class="stat-card" ${digestAttrs}>
+        <div class="stat-value" style="font-size:1.1rem;">${lastDigest}</div>
+        <div class="stat-label">Last digest</div>
       </div>
     `;
   },
@@ -241,6 +249,16 @@ const UI = {
           <div class="filter-item">
             <label class="filter-label">Max Score</label>
             <input type="number" id="score-max" class="input" placeholder="100" value="${state.scoreMax}" onchange="App.applyFilters()">
+          </div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-item">
+            <label class="filter-label">Min Stars</label>
+            <input type="number" id="stars-min" class="input" placeholder="e.g. 20000" value="${state.starsMin}" onchange="App.applyFilters()">
+          </div>
+          <div class="filter-item">
+            <label class="filter-label">Max Stars</label>
+            <input type="number" id="stars-max" class="input" placeholder="∞" value="${state.starsMax}" onchange="App.applyFilters()">
           </div>
         </div>
         <div class="filter-row">

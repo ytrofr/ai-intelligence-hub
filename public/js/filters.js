@@ -10,14 +10,25 @@ const Filters = {
     dateTo: "",
     scoreMin: "",
     scoreMax: "",
+    starsMin: "",
+    starsMax: "",
     bookmarksOnly: false,
     sortBy: "score",
     sortOrder: "DESC",
+    view: "items",
+    date: "",
   },
 
   init() {
     // Load from URL params
     const params = new URLSearchParams(window.location.search);
+    if (params.has("view")) {
+      const v = params.get("view");
+      if (v === "items" || v === "digests") this.state.view = v;
+    }
+    if (params.has("date")) {
+      this.state.date = params.get("date");
+    }
     if (params.has("sources")) {
       this.state.sources = params.get("sources").split(",").filter(Boolean);
     }
@@ -35,6 +46,12 @@ const Filters = {
     }
     if (params.has("scoreMax")) {
       this.state.scoreMax = params.get("scoreMax");
+    }
+    if (params.has("starsMin")) {
+      this.state.starsMin = params.get("starsMin");
+    }
+    if (params.has("starsMax")) {
+      this.state.starsMax = params.get("starsMax");
     }
     if (params.has("bookmarksOnly")) {
       this.state.bookmarksOnly = params.get("bookmarksOnly") === "true";
@@ -75,6 +92,12 @@ const Filters = {
     this.updateUrl();
   },
 
+  setStarsRange(min, max) {
+    this.state.starsMin = min !== undefined ? min : "";
+    this.state.starsMax = max !== undefined ? max : "";
+    this.updateUrl();
+  },
+
   setBookmarksOnly(value) {
     this.state.bookmarksOnly = !!value;
     this.updateUrl();
@@ -94,6 +117,8 @@ const Filters = {
       dateTo: "",
       scoreMin: "",
       scoreMax: "",
+      starsMin: "",
+      starsMax: "",
       bookmarksOnly: false,
       sortBy: "score",
       sortOrder: "DESC",
@@ -103,6 +128,12 @@ const Filters = {
 
   getParams() {
     const params = {};
+    if (this.state.view && this.state.view !== "items") {
+      params.view = this.state.view;
+    }
+    if (this.state.date) {
+      params.date = this.state.date;
+    }
     if (this.state.sources.length > 0) {
       params.sources = this.state.sources.join(",");
     }
@@ -120,6 +151,12 @@ const Filters = {
     }
     if (this.state.scoreMax !== "") {
       params.scoreMax = this.state.scoreMax;
+    }
+    if (this.state.starsMin !== "") {
+      params.starsMin = this.state.starsMin;
+    }
+    if (this.state.starsMax !== "") {
+      params.starsMax = this.state.starsMax;
     }
     if (this.state.bookmarksOnly) {
       params.bookmarksOnly = "true";
@@ -149,6 +186,8 @@ const Filters = {
       this.state.dateTo ||
       this.state.scoreMin !== "" ||
       this.state.scoreMax !== "" ||
+      this.state.starsMin !== "" ||
+      this.state.starsMax !== "" ||
       this.state.bookmarksOnly
     );
   },
@@ -167,6 +206,8 @@ const Filters = {
       this.state.dateTo = saved.filters.dateTo || "";
       this.state.scoreMin = saved.filters.scoreMin ?? "";
       this.state.scoreMax = saved.filters.scoreMax ?? "";
+      this.state.starsMin = saved.filters.starsMin ?? "";
+      this.state.starsMax = saved.filters.starsMax ?? "";
       this.state.bookmarksOnly = saved.filters.bookmarksOnly || false;
     }
     this.state.sortBy = saved.sort_by || "score";

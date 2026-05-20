@@ -57,7 +57,7 @@
       "name": "Anthropic Blog",
       "type": "rss",
       "url": "https://www.anthropic.com/news/rss",
-      "enabled": true,
+      "enabled": false,
       "rate_limit_minutes": 60,
       "config": {},
       "color": "#d97706"
@@ -214,7 +214,7 @@
       "rate_limit_minutes": 360,
       "config": {
         "strategy": "tech-stack",
-        "max_queries": 30,
+        "max_queries": 45,
         "max_readme_fetches": 50
       },
       "color": "#1f6feb"
@@ -245,6 +245,49 @@
         "days_lookback": 90
       },
       "color": "#f78166"
+    },
+    {
+      "id": "github-discovery-deps",
+      "name": "GitHub Discovery: Dependency-Backed",
+      "type": "github-discovery",
+      "url": "https://api.github.com/repos",
+      "enabled": true,
+      "rate_limit_minutes": 360,
+      "config": {
+        "strategy": "dependency-backed",
+        "max_deps": 120
+      },
+      "color": "#8957e5"
+    },
+    {
+      "id": "github-watchlist",
+      "name": "GitHub Watchlist (claude-ecosystem authors)",
+      "type": "github-watchlist",
+      "url": "https://api.github.com/users",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "project_id": "claude-ecosystem",
+        "max_repos_per_owner": 30,
+        "first_run_max_repos_per_owner": 5,
+        "min_stars": 100,
+        "days_pushed_within": 30
+      },
+      "color": "#a371f7"
+    },
+    {
+      "id": "perplexity-weekly",
+      "name": "Perplexity Weekly Catch-all (claude-ecosystem)",
+      "type": "perplexity-weekly",
+      "url": "https://api.perplexity.ai/chat/completions",
+      "enabled": true,
+      "rate_limit_minutes": 10080,
+      "config": {
+        "project_id": "claude-ecosystem",
+        "model": "sonar",
+        "max_items": 30
+      },
+      "color": "#20b2aa"
     }
   ]
 }

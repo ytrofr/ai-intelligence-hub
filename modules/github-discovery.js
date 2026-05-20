@@ -7,13 +7,21 @@ const BaseModule = require('./base-module');
 const fs = require('fs');
 const path = require('path');
 
-// Generic deps appear in 80%+ of web projects — low signal
+// Generic deps appear in 80%+ of projects — low signal, must NOT boost relevance
 const GENERIC_DEPS = new Set([
+  // JS / frontend
   'react', 'react-dom', 'typescript', 'vite', 'tailwindcss',
   'zustand', 'next', 'express', 'axios', 'lodash', 'dotenv',
   'eslint', 'prettier', 'jest', 'vitest', 'webpack', 'postcss',
   'autoprefixer', 'lucide-react', 'clsx', 'uuid', 'zod',
   'cors', 'helmet', 'nodemon', 'ts-node', 'tslib',
+  // Python — web framework / HTTP / packaging / data base layer.
+  // These say "it's a Python backend", not "it's relevant to this project".
+  'fastapi', 'uvicorn', 'pydantic', 'pydantic-settings', 'python-dotenv',
+  'httpx', 'requests', 'starlette', 'aiohttp', 'anyio', 'sniffio',
+  'click', 'rich', 'pyyaml', 'gunicorn', 'flask', 'sqlalchemy',
+  'numpy', 'pandas', 'scipy', 'setuptools', 'pytest', 'python-multipart',
+  'typing-extensions', 'aiofiles',
 ]);
 
 // Broad topics match too many unrelated repos — low signal
@@ -48,6 +56,7 @@ class GitHubDiscoveryModule extends BaseModule {
     if (strategy === 'tech-stack') return this.fetchTechStack();
     if (strategy === 'curated-lists') return this.fetchCuratedLists();
     if (strategy === 'rising-stars') return this.fetchRisingStars();
+    if (strategy === 'dependency-backed') return this.fetchDependencyBacked();
     throw new Error(`Unknown GitHub Discovery strategy: ${strategy}`);
   }
 
@@ -278,6 +287,155 @@ class GitHubDiscoveryModule extends BaseModule {
     return results;
   }
 
+  // -- Strategy 4: Dependency-Backed -----------------------------------------
+  // Resolves the GitHub repo behind each declared project dependency and ingests
+  // it tagged to that project at full weight. Without this, a repo a project
+  // literally depends on can sit in the index unranked forever — the scorer
+  // compares dependency *lists*, never "which repo publishes this package".
+
+  async fetchDependencyBacked() {
+    const { projects } = this.loadProjects();
+    const headers = this.githubHeaders();
+    const maxDeps = this.config.max_deps || 120;
+
+    // Pass 1: resolve every (project, dep) -> "owner/repo" slug
+    const slugMap = new Map(); // slug -> { slug, sources: [{id,name,dep}] }
+    let resolveCount = 0;
+    for (const project of projects) {
+      for (const dep of project.dependencies || []) {
+        if (resolveCount >= maxDeps) break;
+        resolveCount++;
+        const slug = await this.resolveDependencyRepo(dep);
+        if (!slug) continue;
+        if (!slugMap.has(slug)) slugMap.set(slug, { slug, sources: [] });
+        slugMap.get(slug).sources.push({
+          id: project.id, name: project.name, dep,
+        });
+      }
+    }
+    console.log(
+      `  Dependency-backed: ${slugMap.size} repos resolved from ${resolveCount} declared dependencies`,
+    );
+
+    // Pass 2: fetch each unique repo, tag it to the project(s) that declare it
+    const results = [];
+    const entries = [...slugMap.values()];
+    let stopped = false;
+    for (let i = 0; i < entries.length && !stopped; i += 10) {
+      const batch = entries.slice(i, i + 10);
+      const batchResults = await Promise.all(
+        batch.map(async (entry) => {
+          try {
+            const res = await this.fetchWithRateCheck(
+              `https://api.github.com/repos/${entry.slug}`, headers,
+            );
+            if (res.status === 403 || res.status === 429) { stopped = true; return null; }
+            if (!res.ok) return null;
+            const repo = await res.json();
+            const analysis = await this.analyzeRepo(repo);
+            const relevance = this.buildDependencyRelevance(repo, analysis, entry.sources);
+            return this.normalizeRepo(repo, analysis, relevance, {
+              query: null, strategy: 'dependency-backed',
+            });
+          } catch (err) {
+            if (err.message.includes('rate limit')) stopped = true;
+            return null;
+          }
+        }),
+      );
+      results.push(...batchResults.filter(Boolean));
+    }
+
+    console.log(`  Dependency-backed: ${results.length} repos analyzed and scored`);
+    return results;
+  }
+
+  /** Resolve a package name to an "owner/repo" GitHub slug — npm first, then PyPI. */
+  async resolveDependencyRepo(dep) {
+    const name = String(dep || '').trim();
+    if (!name) return null;
+    const npmSlug = await this.resolveNpmRepo(name);
+    if (npmSlug) return npmSlug;
+    if (name.startsWith('@')) return null; // scoped names are npm-only
+    return this.resolvePypiRepo(name);
+  }
+
+  async resolveNpmRepo(pkg) {
+    try {
+      const encoded = pkg.replace('/', '%2F'); // @scope/name -> @scope%2Fname
+      const res = await fetch(`https://registry.npmjs.org/${encoded}`, {
+        headers: { 'User-Agent': 'AI-Intelligence-Hub/1.0' },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      const repo = data.repository;
+      const url = typeof repo === 'string' ? repo : repo && repo.url;
+      return this.repoSlugFromUrl(url);
+    } catch {
+      return null;
+    }
+  }
+
+  async resolvePypiRepo(pkg) {
+    try {
+      const res = await fetch(`https://pypi.org/pypi/${encodeURIComponent(pkg)}/json`, {
+        headers: { 'User-Agent': 'AI-Intelligence-Hub/1.0' },
+      });
+      if (!res.ok) return null;
+      const info = (await res.json()).info || {};
+      const candidates = Object.values(info.project_urls || {});
+      if (info.home_page) candidates.push(info.home_page);
+      for (const url of candidates) {
+        const slug = this.repoSlugFromUrl(url);
+        if (slug) return slug;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Extract "owner/repo" from any GitHub URL form (https, git+, ssh). */
+  repoSlugFromUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    const m = url.match(/github\.com[/:]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);
+    if (!m) return null;
+    const owner = m[1];
+    const repo = m[2].replace(/\.git$/, '');
+    if (!owner || !repo || repo === '.' || repo === '..') return null;
+    return `${owner}/${repo}`;
+  }
+
+  /** Relevance for a repo that IS a declared dependency — forced strong match. */
+  buildDependencyRelevance(repoData, analysis, sources) {
+    const matchedProjects = sources.map((s) => ({
+      id: s.id, name: s.name,
+      overlap: 10.0, // a confirmed direct dependency is the strongest signal
+      sharedDeps: [s.dep], sharedTopics: [],
+      specificDeps: [s.dep], genericDeps: [],
+      specificTopics: [], genericTopics: [],
+    }));
+    const daysSinceCreation = Math.max(
+      1, (Date.now() - new Date(repoData.created_at).getTime()) / 86400000,
+    );
+    const starVelocity = repoData.stargazers_count / daysSinceCreation;
+    const recencyScore = this.getRecencyMultiplier(repoData.pushed_at);
+    const readmeQuality = Math.min((analysis.readmeLength || 0) / 10000, 1);
+    const score =
+      10.0 +                                 // forced dependency overlap
+      3.5 +                                  // dependency-backed strategy weight
+      Math.min(starVelocity, 10) * 2.0 +
+      recencyScore * 10.0 +
+      readmeQuality * 0.5;
+    const names = [...new Set(sources.map((s) => s.name))].join(', ');
+    const deps = [...new Set(sources.map((s) => s.dep))].join(', ');
+    return {
+      score,
+      matchedProjects,
+      matchReason: `Direct dependency of ${names} (${deps})`,
+    };
+  }
+
   // -- Repo Analysis (CDN only, no API calls) --------------------------------
 
   async analyzeRepo(repoData) {
@@ -371,10 +529,18 @@ class GitHubDiscoveryModule extends BaseModule {
       const projectTopics = new Set((project.topics || []).map((t) => t.toLowerCase()));
       const repoTopics = (repoData.topics || []).map((t) => t.toLowerCase());
 
+      // Per-project override: topics in `topics_as_specific` opt OUT of the BROAD_TOPICS
+      // demotion. claude-ecosystem uses this so claude-code/mcp/rag count as specific (5x)
+      // for that project, while staying generic (0.3x) for everyone else.
+      const projectAsSpecific = new Set(
+        (project.topics_as_specific || []).map((t) => t.toLowerCase()),
+      );
+      const isBroadFor = (t) => BROAD_TOPICS.has(t) && !projectAsSpecific.has(t);
+
       const specificDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && !GENERIC_DEPS.has(d));
       const genericDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && GENERIC_DEPS.has(d));
-      const specificTopics = repoTopics.filter((t) => projectTopics.has(t) && !BROAD_TOPICS.has(t));
-      const genericTopics = repoTopics.filter((t) => projectTopics.has(t) && BROAD_TOPICS.has(t));
+      const specificTopics = repoTopics.filter((t) => projectTopics.has(t) && !isBroadFor(t));
+      const genericTopics = repoTopics.filter((t) => projectTopics.has(t) && isBroadFor(t));
 
       const weightedOverlap =
         specificDeps.length * 5.0 + genericDeps.length * 0.5 +
@@ -392,6 +558,33 @@ class GitHubDiscoveryModule extends BaseModule {
         });
       }
       if (weightedOverlap > maxOverlap) maxOverlap = weightedOverlap;
+    }
+
+    // Credit the project whose own targeted searchQuery surfaced this repo,
+    // even when dependency/topic overlap is zero. A repo found by a project's
+    // domain query (e.g. "hebrew nlp llm") IS relevant to that project — but
+    // many such repos share none of its npm/PyPI deps. Without this, the
+    // tech-stack strategy searches per-project queries yet the repo never gets
+    // tagged to the project that searched for it. Weaker signal than a real
+    // dep/topic match, so a modest overlap.
+    if (
+      queryInfo.projectId &&
+      !matchedProjects.some((p) => p.id === queryInfo.projectId)
+    ) {
+      // 6.0 ≈ one shared specific dependency — a repo surfaced by a project's
+      // own domain query ranks alongside a single-key-dep match, above the
+      // long tail of repos that merely share one common library.
+      const QUERY_OVERLAP = 6.0;
+      matchedProjects.push({
+        id: queryInfo.projectId,
+        name: queryInfo.projectName || queryInfo.projectId,
+        overlap: QUERY_OVERLAP,
+        sharedDeps: [], sharedTopics: [],
+        specificDeps: [], genericDeps: [],
+        specificTopics: [], genericTopics: [],
+        viaQuery: queryInfo.query || null,
+      });
+      if (maxOverlap < QUERY_OVERLAP) maxOverlap = QUERY_OVERLAP;
     }
 
     const strategyWeights = { 'tech-stack': 3.0, 'curated-lists': 2.5, 'rising-stars': 2.0 };
@@ -421,7 +614,11 @@ class GitHubDiscoveryModule extends BaseModule {
       if (parts.length === 0 && best.genericDeps && best.genericDeps.length > 0) {
         parts.push(`${best.genericDeps.length} common deps (${best.genericDeps.slice(0, 3).join(', ')})`);
       }
-      matchReason = parts.length > 0 ? `Shares ${parts.join(' + ')} with ${best.name}` : `Matched to ${best.name}`;
+      matchReason = parts.length > 0
+        ? `Shares ${parts.join(' + ')} with ${best.name}`
+        : (best.viaQuery
+            ? `Found via "${best.viaQuery}" search (${best.name})`
+            : `Matched to ${best.name}`);
     } else if (strategy === 'rising-stars') {
       matchReason = `Rising: ${repoData.stargazers_count} stars in ${Math.round(daysSinceCreation)} days`;
     } else {
@@ -468,6 +665,7 @@ class GitHubDiscoveryModule extends BaseModule {
         topics: repoData.topics || [],
         star_velocity: repoData.stargazers_count / daysSinceCreation,
         open_issues: repoData.open_issues_count,
+        created_at: repoData.created_at, // for rising-star detection in weekly digest
       },
     });
   }
