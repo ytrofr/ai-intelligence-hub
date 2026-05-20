@@ -7,13 +7,21 @@ const BaseModule = require('./base-module');
 const fs = require('fs');
 const path = require('path');
 
-// Generic deps appear in 80%+ of web projects — low signal
+// Generic deps appear in 80%+ of projects — low signal, must NOT boost relevance
 const GENERIC_DEPS = new Set([
+  // JS / frontend
   'react', 'react-dom', 'typescript', 'vite', 'tailwindcss',
   'zustand', 'next', 'express', 'axios', 'lodash', 'dotenv',
   'eslint', 'prettier', 'jest', 'vitest', 'webpack', 'postcss',
   'autoprefixer', 'lucide-react', 'clsx', 'uuid', 'zod',
   'cors', 'helmet', 'nodemon', 'ts-node', 'tslib',
+  // Python — web framework / HTTP / packaging / data base layer.
+  // These say "it's a Python backend", not "it's relevant to this project".
+  'fastapi', 'uvicorn', 'pydantic', 'pydantic-settings', 'python-dotenv',
+  'httpx', 'requests', 'starlette', 'aiohttp', 'anyio', 'sniffio',
+  'click', 'rich', 'pyyaml', 'gunicorn', 'flask', 'sqlalchemy',
+  'numpy', 'pandas', 'scipy', 'setuptools', 'pytest', 'python-multipart',
+  'typing-extensions', 'aiofiles',
 ]);
 
 // Broad topics match too many unrelated repos — low signal

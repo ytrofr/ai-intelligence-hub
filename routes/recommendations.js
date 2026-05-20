@@ -20,51 +20,96 @@ router.get('/', (req, res) => {
     ];
     const wanted = parseInt(limit) || 20;
 
-    // When filtering by project, pull a larger pool first — the project filter
-    // is applied after the SQL limit, so a small limit would starve the result.
+    // When filtering by project, pull the full discovery pool — the project
+    // filter and the stack/discoveries split run after the SQL fetch, so a
+    // small limit would starve the result (esp. lower-scored stack repos).
     let items = db.getItems({
       sources: discoverySources,
       sortBy: 'score',
       sortOrder: 'DESC',
-      limit: project ? Math.min(wanted * 12, 600) : wanted,
+      limit: project ? 2000 : wanted,
     });
 
-    // Filter by project if specified
-    if (project) {
-      items = items
-        .filter(item => {
-          try {
-            const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-            const matched = metadata?.matched_projects || [];
-            return matched.some(mp => mp.id === project);
-          } catch { return false; }
-        })
-        .slice(0, wanted);
-    }
-
-    // Enrich with parsed metadata
-    const enriched = items.map(item => {
+    // Enrich a raw item with parsed metadata + a flattened relevance block.
+    // When forProject is given, matchReason/overlap reflect THAT project's own
+    // matched_projects entry — not the global best-overlap project.
+    const enrich = (item, forProject) => {
       try {
         const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+        const mps = metadata?.matched_projects || [];
+        const own = forProject ? mps.find(mp => mp.id === forProject) : null;
+        let reason = metadata?.match_reason || '';
+        if (own) {
+          const parts = [];
+          if (own.specificDeps && own.specificDeps.length) {
+            parts.push(`${own.specificDeps.length} key deps (${own.specificDeps.slice(0, 4).join(', ')})`);
+          }
+          if (own.specificTopics && own.specificTopics.length) {
+            parts.push(`${own.specificTopics.length} topics (${own.specificTopics.slice(0, 3).join(', ')})`);
+          }
+          if (!parts.length && own.genericDeps && own.genericDeps.length) {
+            parts.push(`${own.genericDeps.length} common deps`);
+          }
+          reason = parts.length
+            ? `Shares ${parts.join(' + ')}`
+            : (own.overlap >= 10 ? 'Direct dependency' : reason);
+        }
         return {
           ...item,
           metadata,
           relevance: {
-            matchedProjects: metadata?.matched_projects || [],
-            matchReason: metadata?.match_reason || '',
-            dependencyOverlap: metadata?.dependency_overlap || 0,
+            matchedProjects: mps,
+            matchReason: reason,
+            dependencyOverlap: own ? own.overlap : (metadata?.dependency_overlap || 0),
             strategy: metadata?.discovery_strategy || 'unknown',
-          }
+          },
         };
       } catch {
-        return item;
+        return { ...item, relevance: { strategy: 'unknown' } };
       }
+    };
+
+    // No project filter — flat top-N feed
+    if (!project) {
+      const enriched = items.map(enrich);
+      return res.json({
+        project: 'all',
+        count: enriched.length,
+        recommendations: enriched,
+        stack: [],
+        discoveries: [],
+      });
+    }
+
+    // Project filter — keep the full matched set, then split into:
+    //   stack       = repos this project already depends on (dependency-backed)
+    //   discoveries = everything else — candidates to consider adopting
+    const matched = items
+      .filter(item => {
+        try {
+          const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+          return (metadata?.matched_projects || []).some(mp => mp.id === project);
+        } catch { return false; }
+      })
+      .map(item => enrich(item, project));
+
+    // Dedup by repo title across both lists (a repo can be indexed by >1 source)
+    const seen = new Set();
+    const dedup = (list) => list.filter(r => {
+      if (seen.has(r.title)) return false;
+      seen.add(r.title);
+      return true;
     });
 
+    const stack = dedup(matched.filter(r => r.relevance.strategy === 'dependency-backed')).slice(0, wanted);
+    const discoveries = dedup(matched.filter(r => r.relevance.strategy !== 'dependency-backed')).slice(0, wanted);
+
     res.json({
-      project: project || 'all',
-      count: enriched.length,
-      recommendations: enriched,
+      project,
+      count: stack.length + discoveries.length,
+      stack,
+      discoveries,
+      recommendations: [...stack, ...discoveries],
     });
   } catch (error) {
     console.error('Recommendations error:', error.message);

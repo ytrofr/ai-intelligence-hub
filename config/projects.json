@@ -80,6 +80,43 @@
       "topics": ["rag", "embeddings", "business-intelligence", "pos-integration"]
     },
     {
+      "id": "agentsmith",
+      "name": "AgentSmith - Personal Multi-Channel AI Agent",
+      "description": "Personal AI agent on WhatsApp/voice/email with a broad tool ecosystem (browser, calendar, contacts, email, documents, financial research, investor outreach, Google Workspace). FastAPI + Gemini/Claude + Postgres.",
+      "languages": ["python", "typescript"],
+      "dependencies": [
+        "fastapi", "uvicorn", "anthropic", "google-genai", "httpx",
+        "google-auth", "google-auth-oauthlib", "google-api-python-client",
+        "asyncpg", "croniter", "playwright", "twilio", "aiosmtplib",
+        "pymupdf", "youtube-transcript-api", "yfinance", "pandas", "numpy",
+        "rapidfuzz", "scipy", "opentelemetry-sdk", "python-bidi",
+        "unidecode", "metaphone", "pydantic"
+      ],
+      "searchQueries": [
+        "personal ai assistant agent",
+        "whatsapp ai agent python",
+        "ai agent tool framework",
+        "gemini function calling python",
+        "claude tool use agent",
+        "voice ai agent",
+        "ai phone call agent twilio",
+        "ai email automation agent",
+        "ai calendar assistant",
+        "pdf document ai extraction",
+        "ai stock research agent",
+        "investor outreach automation",
+        "google workspace ai agent",
+        "ai agent memory system",
+        "multi-channel chatbot framework",
+        "ai scheduling agent",
+        "llm agent observability"
+      ],
+      "topics": [
+        "ai-agent", "whatsapp", "personal-assistant", "automation",
+        "tool-use", "voice-assistant", "llm-agent"
+      ]
+    },
+    {
       "id": "remotion",
       "name": "Claude Remotion Editor - Video Generation",
       "languages": ["typescript", "javascript"],
