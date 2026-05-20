@@ -12,24 +12,34 @@ const path = require('path');
 router.get('/', (req, res) => {
   try {
     const { project, limit = 20 } = req.query;
-    const discoverySources = ['github-discovery-tech', 'github-discovery-curated', 'github-discovery-rising'];
+    const discoverySources = [
+      'github-discovery-tech',
+      'github-discovery-curated',
+      'github-discovery-rising',
+      'github-discovery-deps',
+    ];
+    const wanted = parseInt(limit) || 20;
 
+    // When filtering by project, pull a larger pool first — the project filter
+    // is applied after the SQL limit, so a small limit would starve the result.
     let items = db.getItems({
       sources: discoverySources,
       sortBy: 'score',
       sortOrder: 'DESC',
-      limit: parseInt(limit) || 20,
+      limit: project ? Math.min(wanted * 12, 600) : wanted,
     });
 
     // Filter by project if specified
     if (project) {
-      items = items.filter(item => {
-        try {
-          const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
-          const matched = metadata?.matched_projects || [];
-          return matched.some(mp => mp.id === project);
-        } catch { return false; }
-      });
+      items = items
+        .filter(item => {
+          try {
+            const metadata = typeof item.metadata === 'string' ? JSON.parse(item.metadata) : item.metadata;
+            const matched = metadata?.matched_projects || [];
+            return matched.some(mp => mp.id === project);
+          } catch { return false; }
+        })
+        .slice(0, wanted);
     }
 
     // Enrich with parsed metadata
