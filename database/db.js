@@ -26,9 +26,11 @@ db.exec(schema);
 
 // Prepared statements
 const stmts = {
+  // first_seen_at is set on INSERT only — omitted from UPDATE SET so it's preserved
+  // across upserts. This is the cross-run dedup signal for weekly digest.
   upsertItem: db.prepare(`
-    INSERT INTO items (id, source, title, url, description, author, stars, score, published_at, fetched_at, metadata)
-    VALUES (@id, @source, @title, @url, @description, @author, @stars, @score, @published_at, @fetched_at, @metadata)
+    INSERT INTO items (id, source, title, url, description, author, stars, score, published_at, fetched_at, metadata, first_seen_at)
+    VALUES (@id, @source, @title, @url, @description, @author, @stars, @score, @published_at, @fetched_at, @metadata, @first_seen_at)
     ON CONFLICT(id) DO UPDATE SET
       title = @title,
       description = @description,
@@ -37,6 +39,28 @@ const stmts = {
       published_at = @published_at,
       fetched_at = @fetched_at,
       metadata = @metadata
+  `),
+
+  // Digest query: items first seen on/after a given ISO date, with star floor filter.
+  // Star floor: established (>=1000) OR rising-star (>=200 AND created in last 90d via metadata).
+  getItemsFirstSeenSince: db.prepare(`
+    SELECT i.*
+    FROM items i
+    WHERE i.first_seen_at >= @since
+      AND (
+        i.stars >= 1000
+        OR (
+          i.stars >= 200
+          AND COALESCE(json_extract(i.metadata, '$.created_at'), i.published_at) >= @ninetyDaysAgo
+        )
+      )
+    ORDER BY i.score DESC
+    LIMIT @limit
+  `),
+
+  insertWeeklyRun: db.prepare(`
+    INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd)
+    VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd)
   `),
 
   // Basic item queries with sorting
@@ -158,6 +182,8 @@ function buildAdvancedQuery(options) {
     dateTo,
     scoreMin,
     scoreMax,
+    starsMin,
+    starsMax,
     bookmarksOnly,
     sortBy = "score",
     sortOrder = "DESC",
@@ -199,6 +225,16 @@ function buildAdvancedQuery(options) {
     params.scoreMax = scoreMax;
   }
 
+  // Stars filter (GitHub repo star count)
+  if (starsMin !== undefined) {
+    query += ` AND i.stars >= @starsMin`;
+    params.starsMin = starsMin;
+  }
+  if (starsMax !== undefined) {
+    query += ` AND i.stars <= @starsMax`;
+    params.starsMax = starsMax;
+  }
+
   // Bookmarks only filter
   if (bookmarksOnly) {
     query += ` AND b.id IS NOT NULL`;
@@ -226,26 +262,51 @@ function buildAdvancedQuery(options) {
 
 module.exports = {
   // Items
-  upsertItem: (item) =>
-    stmts.upsertItem.run({
+  upsertItem: (item) => {
+    const now = new Date().toISOString();
+    return stmts.upsertItem.run({
       ...item,
       metadata: JSON.stringify(item.metadata || {}),
-      fetched_at: new Date().toISOString(),
-    }),
+      fetched_at: now,
+      first_seen_at: now, // ignored on UPDATE — original timestamp preserved
+    });
+  },
 
   upsertItems: (items) => {
     const insert = db.transaction((items) => {
       for (const item of items) {
+        const now = new Date().toISOString();
         stmts.upsertItem.run({
           ...item,
           metadata: JSON.stringify(item.metadata || {}),
-          fetched_at: new Date().toISOString(),
+          fetched_at: now,
+          first_seen_at: now, // ignored on UPDATE — original timestamp preserved
         });
       }
     });
     insert(items);
     return items.length;
   },
+
+  // Digest query helper
+  getItemsFirstSeenSince: (sinceIso, { limit = 80 } = {}) => {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
+    return stmts.getItemsFirstSeenSince.all({
+      since: sinceIso,
+      ninetyDaysAgo,
+      limit,
+    });
+  },
+
+  // Weekly run ledger
+  insertWeeklyRun: (run) =>
+    stmts.insertWeeklyRun.run({
+      run_date: run.run_date,
+      item_count: run.item_count,
+      channels_run: run.channels_run,
+      runtime_ms: run.runtime_ms,
+      cost_usd: run.cost_usd || 0,
+    }),
 
   // Advanced search with FTS5 + filters
   getItems: (options = {}) => {
@@ -293,6 +354,12 @@ module.exports = {
         }
         if (filterOptions.scoreMin !== undefined) {
           results = results.filter((r) => r.score >= filterOptions.scoreMin);
+        }
+        if (filterOptions.starsMin !== undefined) {
+          results = results.filter((r) => r.stars >= filterOptions.starsMin);
+        }
+        if (filterOptions.starsMax !== undefined) {
+          results = results.filter((r) => r.stars <= filterOptions.starsMax);
         }
 
         return results;

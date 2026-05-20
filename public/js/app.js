@@ -15,14 +15,77 @@ const App = {
     Filters.init();
     await this.loadSources();
     await this.loadStats();
-    await this.loadItems();
+
+    // View-aware initial load: digests view skips items fetch (digest-view.js
+    // handles its own loading) to avoid duplicate work + race conditions.
+    if (Filters.state.view === "digests") {
+      this._showDigestView();
+      if (typeof DigestView !== "undefined") await DigestView.init();
+    } else {
+      this._showItemsView();
+      await this.loadItems();
+    }
+
     await this.loadSavedSearches();
     this.renderSortControls();
     this.renderAdvancedFiltersPanel();
+    this.renderSectionToggle();
     this.bindEvents();
 
     // Sync UI with filter state
     document.getElementById("search-input").value = Filters.state.search;
+  },
+
+  // ── View switching ──────────────────────────────────────────────────────
+  async setView(view) {
+    if (view !== "items" && view !== "digests") return;
+    if (Filters.state.view === view) return;
+    Filters.state.view = view;
+    Filters.updateUrl();
+    this.renderSectionToggle();
+
+    if (view === "digests") {
+      this._showDigestView();
+      if (typeof DigestView !== "undefined") await DigestView.init();
+    } else {
+      this._showItemsView();
+      if (this.items.length === 0) await this.loadItems();
+    }
+  },
+
+  _showItemsView() {
+    const feed = document.getElementById("feed");
+    const dv = document.getElementById("digest-view");
+    const searchPanel = document.querySelector(".search-panel");
+    if (feed) feed.hidden = false;
+    if (dv) dv.hidden = true;
+    if (searchPanel) searchPanel.hidden = false;
+  },
+
+  _showDigestView() {
+    const feed = document.getElementById("feed");
+    const dv = document.getElementById("digest-view");
+    const searchPanel = document.querySelector(".search-panel");
+    if (feed) feed.hidden = true;
+    if (dv) dv.hidden = false;
+    // Hide items-only search/filter panel in digest view to keep header clean
+    if (searchPanel) searchPanel.hidden = true;
+  },
+
+  renderSectionToggle() {
+    const slot = document.getElementById("section-toggle");
+    if (!slot) return;
+    const view = Filters.state.view || "items";
+    slot.innerHTML = `
+      <div class="section-toggle">
+        <button class="btn ${
+          view === "items" ? "btn-primary" : "btn-secondary"
+        }" onclick="App.setView('items')">Items</button>
+        <button class="btn ${
+          view === "digests" ? "btn-primary" : "btn-secondary"
+        }" onclick="App.setView('digests')">Digests</button>
+      </div>
+    `;
   },
 
   async loadSources() {
@@ -39,6 +102,19 @@ const App = {
     try {
       this.stats = await API.getStats();
       this.stats.enabledSources = this.sources.filter((s) => s.enabled).length;
+
+      // Best-effort: latest digest date for 5th stat card. Failure is silent.
+      try {
+        const list = await API.getDigestList();
+        if (list && list.digests && list.digests.length > 0) {
+          this.stats.latestDigest = list.digests[0]
+            .replace("weekly-", "")
+            .replace(".md", "");
+        }
+      } catch (_e) {
+        /* no digest yet — card shows "—" */
+      }
+
       document.getElementById("stats-grid").innerHTML = UI.renderStats(
         this.stats,
       );
@@ -148,11 +224,14 @@ const App = {
     const dateTo = document.getElementById("date-to")?.value || "";
     const scoreMin = document.getElementById("score-min")?.value || "";
     const scoreMax = document.getElementById("score-max")?.value || "";
+    const starsMin = document.getElementById("stars-min")?.value || "";
+    const starsMax = document.getElementById("stars-max")?.value || "";
     const bookmarksOnly =
       document.getElementById("bookmarks-only")?.checked || false;
 
     Filters.setDateRange(dateFrom, dateTo);
     Filters.setScoreRange(scoreMin, scoreMax);
+    Filters.setStarsRange(starsMin, starsMax);
     Filters.setBookmarksOnly(bookmarksOnly);
     this.loadItems();
   },
