@@ -560,6 +560,33 @@ class GitHubDiscoveryModule extends BaseModule {
       if (weightedOverlap > maxOverlap) maxOverlap = weightedOverlap;
     }
 
+    // Credit the project whose own targeted searchQuery surfaced this repo,
+    // even when dependency/topic overlap is zero. A repo found by a project's
+    // domain query (e.g. "hebrew nlp llm") IS relevant to that project — but
+    // many such repos share none of its npm/PyPI deps. Without this, the
+    // tech-stack strategy searches per-project queries yet the repo never gets
+    // tagged to the project that searched for it. Weaker signal than a real
+    // dep/topic match, so a modest overlap.
+    if (
+      queryInfo.projectId &&
+      !matchedProjects.some((p) => p.id === queryInfo.projectId)
+    ) {
+      // 6.0 ≈ one shared specific dependency — a repo surfaced by a project's
+      // own domain query ranks alongside a single-key-dep match, above the
+      // long tail of repos that merely share one common library.
+      const QUERY_OVERLAP = 6.0;
+      matchedProjects.push({
+        id: queryInfo.projectId,
+        name: queryInfo.projectName || queryInfo.projectId,
+        overlap: QUERY_OVERLAP,
+        sharedDeps: [], sharedTopics: [],
+        specificDeps: [], genericDeps: [],
+        specificTopics: [], genericTopics: [],
+        viaQuery: queryInfo.query || null,
+      });
+      if (maxOverlap < QUERY_OVERLAP) maxOverlap = QUERY_OVERLAP;
+    }
+
     const strategyWeights = { 'tech-stack': 3.0, 'curated-lists': 2.5, 'rising-stars': 2.0 };
     const strategyWeight = strategyWeights[strategy] || 2.0;
     const daysSinceCreation = Math.max(1, (Date.now() - new Date(repoData.created_at).getTime()) / 86400000);
@@ -587,7 +614,11 @@ class GitHubDiscoveryModule extends BaseModule {
       if (parts.length === 0 && best.genericDeps && best.genericDeps.length > 0) {
         parts.push(`${best.genericDeps.length} common deps (${best.genericDeps.slice(0, 3).join(', ')})`);
       }
-      matchReason = parts.length > 0 ? `Shares ${parts.join(' + ')} with ${best.name}` : `Matched to ${best.name}`;
+      matchReason = parts.length > 0
+        ? `Shares ${parts.join(' + ')} with ${best.name}`
+        : (best.viaQuery
+            ? `Found via "${best.viaQuery}" search (${best.name})`
+            : `Matched to ${best.name}`);
     } else if (strategy === 'rising-stars') {
       matchReason = `Rising: ${repoData.stargazers_count} stars in ${Math.round(daysSinceCreation)} days`;
     } else {

@@ -52,7 +52,9 @@ router.get('/', (req, res) => {
           }
           reason = parts.length
             ? `Shares ${parts.join(' + ')}`
-            : (own.overlap >= 10 ? 'Direct dependency' : reason);
+            : (own.overlap >= 10
+                ? 'Direct dependency'
+                : (own.viaQuery ? `Found via "${own.viaQuery}" search` : reason));
         }
         return {
           ...item,
