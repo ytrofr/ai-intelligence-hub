@@ -93,6 +93,15 @@ router.get('/', (req, res) => {
       })
       .map(item => enrich(item, project));
 
+    // Sort by THIS project's own overlap first — not the item's global score
+    // (which reflects its best-matching project). Otherwise a repo strongly
+    // matched to another project outranks one strongly matched to the queried
+    // project. Global score breaks ties within the same overlap.
+    matched.sort((a, b) =>
+      (b.relevance.dependencyOverlap || 0) - (a.relevance.dependencyOverlap || 0) ||
+      (b.score || 0) - (a.score || 0)
+    );
+
     // Dedup by repo title across both lists (a repo can be indexed by >1 source)
     const seen = new Set();
     const dedup = (list) => list.filter(r => {

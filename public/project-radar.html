@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Radar — AI Intelligence Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/variables.css" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        font-size: var(--font-base);
+        line-height: 1.55;
+        padding: var(--spacing-xl) var(--spacing-lg) 4rem;
+      }
+      a { color: var(--color-primary-hover); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap { max-width: 1080px; margin: 0 auto; }
+      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
+
+      /* Header */
+      .radar-head {
+        border-left: 4px solid var(--color-primary);
+        padding-left: var(--spacing-lg);
+        margin: var(--spacing-md) 0 var(--spacing-lg);
+      }
+      .radar-head .eyebrow {
+        font-family: var(--font-mono);
+        font-size: var(--font-xs);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--color-primary-hover);
+      }
+      .radar-head h1 { font-size: var(--font-2xl); margin: var(--spacing-xs) 0; }
+      .radar-head p { color: var(--color-text-muted); font-size: var(--font-sm); max-width: 70ch; }
+
+      /* Controls */
+      .controls {
+        display: flex; align-items: center; gap: var(--spacing-md);
+        flex-wrap: wrap; margin-bottom: var(--spacing-lg);
+      }
+      .controls label {
+        font-family: var(--font-mono); font-size: var(--font-xs);
+        text-transform: uppercase; letter-spacing: 0.1em; color: var(--color-text-dim);
+      }
+      select {
+        background: var(--color-surface);
+        color: var(--color-text);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-sm) var(--spacing-md);
+        font-family: var(--font-sans); font-size: var(--font-base);
+        cursor: pointer; min-width: 260px;
+      }
+      select:hover { border-color: var(--color-border-hover); }
+
+      /* Stat strip */
+      .stat-strip { display: flex; flex-wrap: wrap; gap: var(--spacing-md); margin-bottom: var(--spacing-xl); }
+      .stat {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md) var(--spacing-lg);
+        min-width: 140px; flex: 1;
+      }
+      .stat .num { font-size: var(--font-xl); font-weight: 700; font-family: var(--font-mono); }
+      .stat .lbl { font-size: var(--font-xs); color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+      .stat.stack .num { color: var(--color-info); }
+      .stat.disc .num { color: var(--color-success); }
+
+      /* Section */
+      .section { margin-bottom: var(--spacing-xl); }
+      .section-head { display: flex; align-items: baseline; gap: var(--spacing-md); margin-bottom: var(--spacing-xs); }
+      .section-head h2 { font-size: var(--font-lg); }
+      .section-head .count {
+        font-family: var(--font-mono); font-size: var(--font-xs);
+        background: var(--color-surface); border: 1px solid var(--color-border);
+        border-radius: var(--radius-full); padding: 2px 10px; color: var(--color-text-muted);
+      }
+      .section-blurb { color: var(--color-text-dim); font-size: var(--font-sm); margin-bottom: var(--spacing-md); }
+
+      /* Stack — compact 2-col grid */
+      .stack-grid {
+        display: grid; grid-template-columns: 1fr 1fr; gap: var(--spacing-sm);
+      }
+      .stack-item {
+        display: grid; grid-template-columns: 64px 1fr; gap: var(--spacing-sm);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-left: 3px solid var(--color-info);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-sm) var(--spacing-md);
+      }
+      .stack-item:hover { background: var(--color-surface-hover); }
+      .stack-item .stars { font-family: var(--font-mono); font-weight: 600; color: var(--color-warning); align-self: center; text-align: center; font-size: var(--font-sm); }
+      .stack-item .name { font-family: var(--font-mono); font-weight: 600; font-size: var(--font-xs); }
+      .stack-item .desc { color: var(--color-text-dim); font-size: 0.78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+      /* Discovery — detailed cards */
+      .repo {
+        display: grid; grid-template-columns: 86px 1fr; gap: var(--spacing-md);
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-left: 3px solid var(--color-success);
+        border-radius: var(--radius-md);
+        padding: var(--spacing-md);
+        margin-bottom: var(--spacing-sm);
+      }
+      .repo:hover { background: var(--color-surface-hover); }
+      .repo .stars {
+        font-family: var(--font-mono); font-weight: 600;
+        text-align: center; align-self: center; color: var(--color-warning);
+      }
+      .repo .stars .k { display: block; font-size: var(--font-md); }
+      .repo .stars .sub { font-size: var(--font-xs); color: var(--color-text-dim); }
+      .repo .body { min-width: 0; }
+      .repo .name-row { display: flex; align-items: center; gap: var(--spacing-sm); flex-wrap: wrap; }
+      .repo .name { font-family: var(--font-mono); font-weight: 600; font-size: var(--font-sm); }
+      .repo .score {
+        font-family: var(--font-mono); font-size: 0.72rem; font-weight: 600;
+        background: var(--color-primary-muted); color: var(--color-primary-hover);
+        padding: 2px 8px; border-radius: var(--radius-sm);
+      }
+      .repo .desc { color: var(--color-text-dim); font-size: var(--font-xs); margin: 3px 0 6px; }
+      .repo .why {
+        font-size: var(--font-sm); color: var(--color-text);
+        border-top: 1px dashed var(--color-border); padding-top: 6px;
+      }
+      .repo .why b { color: var(--color-primary-hover); font-weight: 600; }
+
+      .foot { margin-top: 2.5rem; color: var(--color-text-dim); font-size: var(--font-xs); font-family: var(--font-mono); }
+      .loading, .error, .empty { padding: 2.5rem; text-align: center; color: var(--color-text-muted); }
+      .error { color: var(--color-error); }
+      @media (max-width: 720px) {
+        .stack-grid { grid-template-columns: 1fr; }
+        .repo { grid-template-columns: 64px 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
+      <div class="radar-head">
+        <div class="eyebrow">Per-Project Discovery</div>
+        <h1>Project Radar</h1>
+        <p>
+          For each project: the libraries it already depends on (Your Stack) and
+          GitHub repos worth considering (Suggested), scored by tech-stack and
+          topic overlap. Live algorithmic feed — for SIGMA's curated audit see
+          <a href="/sigma-radar.html">SIGMA Radar</a>.
+        </p>
+      </div>
+      <div class="controls">
+        <label for="project-select">Project</label>
+        <select id="project-select" aria-label="Select project"></select>
+      </div>
+      <div id="root"><div class="loading">Loading…</div></div>
+    </div>
+
+    <script>
+      const fmtStars = (n) => {
+        if (n === null || n === undefined) return "—";
+        if (n >= 1000) return (n / 1000).toFixed(n >= 100000 ? 0 : 1) + "k";
+        return String(n);
+      };
+      const esc = (s) =>
+        String(s || "").replace(/[&<>"]/g, (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+        );
+
+      function stackItem(r) {
+        return `
+          <div class="stack-item">
+            <span class="stars">${fmtStars(r.stars)}</span>
+            <span>
+              <a class="name" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+              <div class="desc">${esc(r.description) || "—"}</div>
+            </span>
+          </div>`;
+      }
+
+      function discoveryCard(r) {
+        const reason = (r.relevance && r.relevance.matchReason) || "";
+        return `
+          <div class="repo">
+            <div class="stars">
+              <span class="k">${fmtStars(r.stars)}</span>
+              <span class="sub">★ stars</span>
+            </div>
+            <div class="body">
+              <div class="name-row">
+                <a class="name" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
+                <span class="score">score ${Math.round(r.score || 0)}</span>
+              </div>
+              <div class="desc">${esc((r.description || "").slice(0, 160)) || "no description in index"}</div>
+              ${reason ? `<div class="why"><b>Why:</b> ${esc(reason)}</div>` : ""}
+            </div>
+          </div>`;
+      }
+
+      function render(d) {
+        const stack = d.stack || [];
+        const disc = d.discoveries || [];
+        const root = document.getElementById("root");
+        if (!stack.length && !disc.length) {
+          root.innerHTML = `<div class="empty">No discovery data for <b>${esc(d.project)}</b> yet — run a fetch from the dashboard.</div>`;
+          return;
+        }
+        root.innerHTML = `
+          <div class="stat-strip">
+            <div class="stat stack"><div class="num">${stack.length}</div><div class="lbl">Stack libraries</div></div>
+            <div class="stat disc"><div class="num">${disc.length}</div><div class="lbl">Suggested repos</div></div>
+          </div>
+          <section class="section">
+            <div class="section-head">
+              <h2>Your Stack</h2><span class="count">${stack.length}</span>
+            </div>
+            <div class="section-blurb">Libraries this project already declares as dependencies.</div>
+            ${stack.length ? `<div class="stack-grid">${stack.map(stackItem).join("")}</div>`
+                            : `<div class="empty">No dependency repos resolved yet.</div>`}
+          </section>
+          <section class="section">
+            <div class="section-head">
+              <h2>Suggested</h2><span class="count">${disc.length}</span>
+            </div>
+            <div class="section-blurb">Repos to consider — surfaced by shared tech-stack and topic overlap.</div>
+            ${disc.length ? disc.map(discoveryCard).join("")
+                          : `<div class="empty">No suggestions matched yet.</div>`}
+          </section>
+          <div class="foot">
+            Project: ${esc(d.project)} · live discovery feed · generated ${new Date().toISOString()}
+          </div>`;
+      }
+
+      async function loadProject(id) {
+        const root = document.getElementById("root");
+        root.innerHTML = `<div class="loading">Loading ${esc(id)}…</div>`;
+        const params = new URLSearchParams(window.location.search);
+        params.set("project", id);
+        window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
+        try {
+          const res = await fetch(`/api/recommendations?project=${encodeURIComponent(id)}&limit=20`);
+          if (!res.ok) throw new Error("API " + res.status);
+          render(await res.json());
+        } catch (e) {
+          root.innerHTML = `<div class="error">Failed to load ${esc(id)}: ${esc(e.message)}</div>`;
+        }
+      }
+
+      async function init() {
+        const select = document.getElementById("project-select");
+        let projects = [];
+        try {
+          const res = await fetch("/api/recommendations/projects");
+          projects = (await res.json()).projects || [];
+        } catch (e) {
+          document.getElementById("root").innerHTML =
+            `<div class="error">Failed to load project list: ${esc(e.message)}</div>`;
+          return;
+        }
+        select.innerHTML = projects
+          .map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`)
+          .join("");
+
+        const wanted = new URLSearchParams(window.location.search).get("project");
+        const initial = projects.some((p) => p.id === wanted)
+          ? wanted
+          : (projects[0] && projects[0].id);
+        if (!initial) {
+          document.getElementById("root").innerHTML =
+            `<div class="empty">No projects configured.</div>`;
+          return;
+        }
+        select.value = initial;
+        select.addEventListener("change", () => loadProject(select.value));
+        loadProject(initial);
+      }
+
+      init();
+    </script>
+  </body>
+</html>
