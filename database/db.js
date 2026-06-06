@@ -82,6 +82,17 @@ const stmts = {
     LIMIT @limit
   `),
 
+  // Resilient fallback when an FTS5 query errors (e.g. exotic operator chars):
+  // a REAL term-filtered LIKE search — never silently return unrelated items.
+  searchLike: db.prepare(`
+    SELECT i.*, b.id as bookmark_id, b.note as bookmark_note
+    FROM items i
+    LEFT JOIN bookmarks b ON i.id = b.item_id
+    WHERE i.title LIKE @like ESCAPE '\\' OR i.description LIKE @like ESCAPE '\\'
+    ORDER BY i.stars DESC, i.score DESC
+    LIMIT @limit
+  `),
+
   getItemCount: db.prepare("SELECT COUNT(*) as count FROM items"),
   getItemCountBySource: db.prepare(
     "SELECT source, COUNT(*) as count FROM items GROUP BY source",
@@ -326,13 +337,29 @@ module.exports = {
         // Ignore history errors
       }
 
-      // Convert to FTS5 query format
-      // Support: AND, OR, NOT, phrases "like this", prefix*
-      let ftsQuery = searchQuery;
-
-      // If it's a simple query without operators, add wildcards
-      if (!/["\s]/.test(searchQuery) && !/\*$/.test(searchQuery)) {
-        ftsQuery = `${searchQuery}*`;
+      // Convert to FTS5 query format.
+      // Respect explicit advanced syntax (quotes / AND OR NOT NEAR); otherwise
+      // sanitize each whitespace token: phrase-quote any token containing an FTS5
+      // operator char (- : . / etc.) so hyphenated terms like "context-mode" are
+      // NOT parsed as a NOT-operator. A lone clean token keeps prefix matching.
+      let ftsQuery;
+      if (/["]/.test(searchQuery) || /\b(AND|OR|NOT|NEAR)\b/.test(searchQuery)) {
+        ftsQuery = searchQuery; // user opted into advanced FTS syntax — pass through
+      } else {
+        const toks = searchQuery.split(/\s+/).filter(Boolean);
+        if (
+          toks.length === 1 &&
+          /^[A-Za-z0-9_]+$/.test(toks[0]) &&
+          !/\*$/.test(toks[0])
+        ) {
+          ftsQuery = `${toks[0]}*`; // single clean token → as-you-type prefix
+        } else {
+          ftsQuery = toks
+            .map((t) =>
+              /[^A-Za-z0-9_*]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t,
+            )
+            .join(" ");
+        }
       }
 
       try {
@@ -364,8 +391,19 @@ module.exports = {
 
         return results;
       } catch (e) {
-        // FTS query syntax error, fall back to LIKE
+        // FTS syntax error → REAL term-filtered LIKE fallback (never return
+        // unrelated top-scored items — that would violate no-mock-data).
         console.warn("FTS5 query failed, falling back to LIKE:", e.message);
+        try {
+          const like = `%${searchQuery.replace(/[%_\\]/g, "\\$&")}%`;
+          return stmts.searchLike.all({
+            like,
+            limit: filterOptions.limit || 100,
+          });
+        } catch (e2) {
+          console.warn("LIKE fallback also failed:", e2.message);
+          return [];
+        }
       }
     }
 
