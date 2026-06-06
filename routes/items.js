@@ -11,7 +11,9 @@ router.get("/", (req, res) => {
   try {
     const {
       sources,
+      source, // forgiving alias for `sources`
       search,
+      q, // forgiving alias for `search`
       dateFrom,
       dateTo,
       scoreMin,
@@ -25,11 +27,15 @@ router.get("/", (req, res) => {
       offset = 0,
     } = req.query;
 
-    const sourceList = sources ? sources.split(",").filter(Boolean) : null;
+    const effectiveSources = sources || source;
+    const effectiveSearch = search || q;
+    const sourceList = effectiveSources
+      ? effectiveSources.split(",").filter(Boolean)
+      : null;
 
     const items = db.getItems({
       sources: sourceList,
-      search,
+      search: effectiveSearch,
       dateFrom,
       dateTo,
       scoreMin: scoreMin !== undefined ? parseFloat(scoreMin) : undefined,
@@ -68,7 +74,7 @@ router.get("/", (req, res) => {
       total: db.getStats().totalItems,
       filters: {
         sources: sourceList,
-        search,
+        search: effectiveSearch,
         dateFrom,
         dateTo,
         scoreMin,
