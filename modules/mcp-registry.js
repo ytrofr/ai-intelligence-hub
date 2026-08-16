@@ -1,100 +1,70 @@
 /**
- * MCP Registry Module - Fetch MCP servers from glama.ai
+ * MCP Registry Module - official Model Context Protocol registry
+ * https://registry.modelcontextprotocol.io/v0/servers  (JSON, cursor-paginated)
+ *
+ * No fallback data: if the registry is unreachable this THROWS and the fetch
+ * runner records the error. An honest empty/error beats 5 invented servers
+ * (the previous glama.ai URL returns HTML and had been serving a hardcoded
+ * fallback on every run since it changed).
  */
 
 const BaseModule = require("./base-module");
+const { fetchJson } = require("./http");
+
+const OFFICIAL_META = "io.modelcontextprotocol.registry/official";
 
 class MCPRegistryModule extends BaseModule {
   async fetch() {
+    const limit = Math.min(this.config.max_items || 100, 100);
+    const pages = Math.max(1, Math.min(this.config.max_pages || 3, 10));
+    const timeoutMs = this.config.timeout_ms || 20000;
     const items = [];
+    let cursor = null;
 
-    try {
-      // Fetch from glama.ai MCP registry
-      const res = await fetch("https://glama.ai/mcp/servers", {
-        headers: {
-          "User-Agent": "AI-Intelligence-Hub/1.0",
-          Accept: "application/json",
-        },
-      });
-
-      if (!res.ok) {
-        // Fallback: try fetching the HTML and parsing
-        console.log("MCP JSON API not available, using fallback");
-        return await this.fetchFallback();
+    for (let page = 0; page < pages; page++) {
+      const url = new URL(this.url);
+      url.searchParams.set("limit", String(limit));
+      url.searchParams.set("version", "latest");
+      if (cursor) url.searchParams.set("cursor", cursor);
+      const data = await fetchJson(url.toString(), { timeoutMs });
+      const servers = Array.isArray(data.servers) ? data.servers : [];
+      for (const entry of servers) {
+        const item = this.mapServer(entry);
+        if (item) items.push(item);
       }
-
-      const data = await res.json();
-      const servers = data.servers || data || [];
-
-      for (const server of servers) {
-        items.push(
-          this.normalize({
-            id: server.id || server.name,
-            title: `🔌 ${server.name}`,
-            url:
-              server.url ||
-              server.repository ||
-              `https://glama.ai/mcp/servers/${server.name}`,
-            description: server.description,
-            author: server.author,
-            stars: server.stars || 0,
-            score: (server.stars || 0) + (server.downloads || 0) / 10,
-            published_at: server.updated_at || server.created_at,
-            metadata: {
-              type: "mcp-server",
-              category: server.category,
-              tools: server.tools,
-            },
-          }),
-        );
-      }
-    } catch (err) {
-      console.error("MCP Registry fetch error:", err.message);
-      return await this.fetchFallback();
+      cursor = data.metadata && data.metadata.nextCursor;
+      if (!cursor || servers.length === 0) break;
     }
-
     return items;
   }
 
-  async fetchFallback() {
-    // Hardcoded popular MCP servers as fallback
-    const popularServers = [
-      {
-        name: "filesystem",
-        desc: "File system operations",
-        url: "https://github.com/anthropics/mcp-server-filesystem",
+  /** Map one registry entry to a hub item; null when it has no linkable URL. */
+  mapServer(entry) {
+    const server = entry.server || entry;
+    const meta = (entry._meta && entry._meta[OFFICIAL_META]) || {};
+    const repoUrl = server.repository && server.repository.url;
+    const url = repoUrl || server.websiteUrl;
+    if (!server.name || !url) return null;
+    return this.normalize({
+      id: server.name,
+      title: server.title ? `${server.title} (${server.name})` : server.name,
+      url,
+      description: server.description || "",
+      author: server.name.split("/")[0],
+      stars: 0,
+      score: meta.isLatest ? 60 : 40,
+      published_at: meta.updatedAt || meta.publishedAt || null,
+      metadata: {
+        type: "mcp-server",
+        registry: "modelcontextprotocol.io",
+        version: server.version,
+        status: meta.status,
+        remotes: (server.remotes || []).map((r) => r.type),
+        packages: (server.packages || []).map((p) => p.registryType || p.registry_type).filter(Boolean),
+        repository: repoUrl || null,
+        website: server.websiteUrl || null,
       },
-      {
-        name: "github",
-        desc: "GitHub API integration",
-        url: "https://github.com/anthropics/mcp-server-github",
-      },
-      {
-        name: "postgres",
-        desc: "PostgreSQL database access",
-        url: "https://github.com/anthropics/mcp-server-postgres",
-      },
-      {
-        name: "slack",
-        desc: "Slack workspace integration",
-        url: "https://github.com/anthropics/mcp-server-slack",
-      },
-      {
-        name: "brave-search",
-        desc: "Brave Search API",
-        url: "https://github.com/anthropics/mcp-server-brave-search",
-      },
-    ];
-
-    return popularServers.map((s, i) =>
-      this.normalize({
-        id: s.name,
-        title: `🔌 ${s.name}`,
-        url: s.url,
-        description: s.desc,
-        score: 100 - i * 10,
-      }),
-    );
+    });
   }
 }
 

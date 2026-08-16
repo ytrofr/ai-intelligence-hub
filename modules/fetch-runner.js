@@ -32,7 +32,8 @@ async function runSource(source, { db, createModule, timeoutMs, now = () => new 
   if (!module.canFetch(source.last_fetched_at)) {
     return { source: source.id, status: "rate_limited", items: 0, ms: 0 };
   }
-  const budget = timeoutMs || (source.config && source.config.timeout_ms) || DEFAULT_SOURCE_TIMEOUT_MS;
+  // budget_ms = whole-source wall clock (config); timeout_ms is the per-request cap used inside modules
+  const budget = timeoutMs || (source.config && source.config.budget_ms) || DEFAULT_SOURCE_TIMEOUT_MS;
   try {
     const items = await withTimeout(module.fetch(), budget, source.id);
     const count = db.upsertItems(items);
