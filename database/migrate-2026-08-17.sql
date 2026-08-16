@@ -1,0 +1,18 @@
+-- Migration 2026-08-17 — upstream tracker tables.
+--
+-- Applied automatically on boot by database/tracked-store.js `applyTrackedSchema()`
+-- (called from db.js), which is idempotent. This file is the readable record of
+-- what that adds; running it by hand is safe but unnecessary.
+--
+-- tracked_repos  : one row per repo, CURRENT snapshot beside the PREVIOUS one.
+-- tracked_events : APPEND-ONLY. Two BEFORE triggers ABORT any UPDATE or DELETE —
+--                  the record of what upstream told us must not be rewritable.
+--
+-- Rollback (nothing else references these; items/sources are untouched):
+--   DROP TRIGGER IF EXISTS tracked_events_no_update;
+--   DROP TRIGGER IF EXISTS tracked_events_no_delete;
+--   DROP TABLE IF EXISTS tracked_events;
+--   DROP TABLE IF EXISTS tracked_repos;
+
+-- The authoritative DDL is the SCHEMA constant in database/tracked-store.js.
+-- Keep this file in step with it if the columns change.

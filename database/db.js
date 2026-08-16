@@ -39,6 +39,13 @@ ensureColumns("sources", {
   last_run_at: "TEXT",
 });
 
+// Upstream tracker tables (tracked_repos + append-only tracked_events).
+// The DDL and every statement live in tracked-store.js so tests can drive the
+// same code against an in-memory handle; here we only bind it to the real DB.
+const { applyTrackedSchema, TrackedStore } = require("./tracked-store");
+applyTrackedSchema(db);
+const trackedStore = new TrackedStore(db);
+
 // Prepared statements
 const stmts = {
   // first_seen_at is set on INSERT only — omitted from UPDATE SET so it's preserved
@@ -587,6 +594,9 @@ module.exports = {
   clearOldItemsBySource: (source, days) => stmts.clearOldItemsBySource.run({ source, days: -Math.abs(days) }).changes,
   countOldItemsBySource: (source, days) => stmts.countOldItemsBySource.get({ source, days: -Math.abs(days) }).n,
   vacuum: () => db.exec("VACUUM"),
+
+  // Upstream tracker — see database/tracked-store.js
+  tracked: trackedStore,
 
   close: () => db.close(),
 };
