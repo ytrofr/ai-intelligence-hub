@@ -54,9 +54,9 @@
     },
     {
       "id": "ainews",
-      "name": "AI News",
+      "name": "AI News (smol.ai)",
       "type": "rss",
-      "url": "https://buttondown.com/ainews/rss",
+      "url": "https://news.smol.ai/rss.xml",
       "enabled": true,
       "rate_limit_minutes": 60,
       "config": {},
