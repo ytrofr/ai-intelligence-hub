@@ -21,6 +21,13 @@ Thumbs.db
 # Internal project context (not for public repo)
 handoffs/
 screenshots/
+# Adoption radar DATA - same class as handoffs/: names internal source paths,
+# line numbers and architecture of private products. Code (routes/, public/) is public;
+# the verdict rows are not. Schema: config/radar/example.json
+config/radar/*.json
+!config/radar/example.json
+# Local project portfolio config - copy projects.example.json and customize
+config/projects.json
 
 # Generated at runtime (not for public repo)
 digests/*.md

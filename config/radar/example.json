@@ -1,0 +1,32 @@
+{
+  "project": "example",
+  "title": "Example Project",
+  "subtitle": "One line describing the project this radar tracks.",
+  "updated": "2026-08-16",
+  "starThreshold": 20000,
+  "verdicts": {
+    "ADOPT": "Directly useful now - pull patterns or integrate.",
+    "WATCH": "Relevant to the roadmap - track, evaluate, revisit.",
+    "SKIP": "High-star and on-topic but not a fit for this stack/mission."
+  },
+  "topics": [
+    {
+      "id": "agents",
+      "label": "Agent Frameworks",
+      "blurb": "What this topic covers for this project.",
+      "keywords": ["agent", "tool use", "orchestration"]
+    }
+  ],
+  "audit": [
+    {
+      "repo": "owner/name",
+      "topic": "agents",
+      "verdict": "ADOPT",
+      "status": "proposed",
+      "why": "Why it matters here, and what to copy.",
+      "project": "example",
+      "added_at": "2026-08-16T00:00:00.000Z",
+      "updated_at": "2026-08-16T00:00:00.000Z"
+    }
+  ]
+}
