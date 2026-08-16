@@ -28,7 +28,8 @@
       "rate_limit_minutes": 30,
       "config": {
         "sort": "trendingScore",
-        "timeout_ms": 20000
+        "timeout_ms": 20000,
+        "retention_days": 30
       },
       "color": "#ff9d00"
     },
@@ -39,7 +40,19 @@
       "url": "https://hnrss.org/frontpage",
       "enabled": true,
       "rate_limit_minutes": 5,
-      "config": {},
+      "config": {
+        "retention_days": 30,
+        "keyword_boost": {
+          "categories": [
+            "claude",
+            "ai",
+            "devtools",
+            "project-stack",
+            "claude-code-updates"
+          ],
+          "factor": 10
+        }
+      },
       "color": "#ff6600"
     },
     {
@@ -49,7 +62,9 @@
       "url": "https://www.producthunt.com/feed",
       "enabled": true,
       "rate_limit_minutes": 15,
-      "config": {},
+      "config": {
+        "retention_days": 30
+      },
       "color": "#da552f"
     },
     {
@@ -59,7 +74,9 @@
       "url": "https://news.smol.ai/rss.xml",
       "enabled": true,
       "rate_limit_minutes": 60,
-      "config": {},
+      "config": {
+        "retention_days": 60
+      },
       "color": "#8b5cf6"
     },
     {
@@ -103,7 +120,9 @@
       "url": "https://techcrunch.com/category/artificial-intelligence/feed/",
       "enabled": true,
       "rate_limit_minutes": 15,
-      "config": {},
+      "config": {
+        "retention_days": 60
+      },
       "color": "#0a0"
     },
     {
@@ -113,7 +132,9 @@
       "url": "https://news.mit.edu/rss/topic/artificial-intelligence2",
       "enabled": true,
       "rate_limit_minutes": 60,
-      "config": {},
+      "config": {
+        "retention_days": 90
+      },
       "color": "#750014"
     },
     {
@@ -181,7 +202,18 @@
       "enabled": true,
       "rate_limit_minutes": 60,
       "config": {
-        "color": "#b31b1b"
+        "color": "#b31b1b",
+        "retention_days": 14,
+        "keyword_gate": {
+          "categories": [
+            "claude",
+            "ai",
+            "devtools",
+            "project-stack",
+            "claude-code-updates"
+          ],
+          "threshold": 3.0
+        }
       }
     },
     {
@@ -192,7 +224,8 @@
       "enabled": true,
       "rate_limit_minutes": 60,
       "config": {
-        "color": "#2563eb"
+        "color": "#2563eb",
+        "retention_days": 90
       }
     },
     {
@@ -214,7 +247,8 @@
       "enabled": true,
       "rate_limit_minutes": 60,
       "config": {
-        "color": "#e11d48"
+        "color": "#e11d48",
+        "retention_days": 60
       }
     },
     {

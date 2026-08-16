@@ -175,6 +175,17 @@ const stmts = {
     DELETE FROM items WHERE fetched_at < datetime('now', @days || ' days')
     AND id NOT IN (SELECT item_id FROM bookmarks)
   `),
+  // Per-source retention (2026-08-16): age by first_seen_at when known, else fetched_at
+  clearOldItemsBySource: db.prepare(`
+    DELETE FROM items WHERE source = @source
+    AND COALESCE(first_seen_at, fetched_at) < datetime('now', @days || ' days')
+    AND id NOT IN (SELECT item_id FROM bookmarks)
+  `),
+  countOldItemsBySource: db.prepare(`
+    SELECT COUNT(*) AS n FROM items WHERE source = @source
+    AND COALESCE(first_seen_at, fetched_at) < datetime('now', @days || ' days')
+    AND id NOT IN (SELECT item_id FROM bookmarks)
+  `),
 
   // Search history
   upsertSearchHistory: db.prepare(`
@@ -572,6 +583,9 @@ module.exports = {
 
   // Maintenance
   clearOldItems: (days = -30) => stmts.clearOldItems.run({ days }),
+  clearOldItemsBySource: (source, days) => stmts.clearOldItemsBySource.run({ source, days: -Math.abs(days) }).changes,
+  countOldItemsBySource: (source, days) => stmts.countOldItemsBySource.get({ source, days: -Math.abs(days) }).n,
+  vacuum: () => db.exec("VACUUM"),
 
   close: () => db.close(),
 };

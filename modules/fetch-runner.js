@@ -7,6 +7,8 @@
  * /api/sources and /api/health can show it after the request is gone.
  */
 
+const { applyIngestPolicy } = require("./item-filter");
+
 const DEFAULT_SOURCE_TIMEOUT_MS = 120000;
 
 function withTimeout(promise, ms, label) {
@@ -35,7 +37,10 @@ async function runSource(source, { db, createModule, timeoutMs, now = () => new 
   // budget_ms = whole-source wall clock (config); timeout_ms is the per-request cap used inside modules
   const budget = timeoutMs || (source.config && source.config.budget_ms) || DEFAULT_SOURCE_TIMEOUT_MS;
   try {
-    const items = await withTimeout(module.fetch(), budget, source.id);
+    const fetched = await withTimeout(module.fetch(), budget, source.id);
+    // Ingest policy from config (keyword_gate / keyword_boost) - see modules/item-filter.js
+    const keywords = typeof db.getKeywords === "function" ? db.getKeywords() : [];
+    const items = applyIngestPolicy(fetched, source.config || {}, keywords);
     const count = db.upsertItems(items);
     db.updateSourceLastFetched(source.id);
     db.updateSourceStatus({ id: source.id, last_status: "success", last_error: null, last_item_count: count, last_run_at: now().toISOString() });
