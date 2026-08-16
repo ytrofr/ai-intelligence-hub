@@ -22,7 +22,9 @@ if (fs.existsSync(envPath)) {
 const db = require("./database/db");
 
 const app = express();
-const PORT = 4444;
+// 4444 is the registered hub port and stays the default; PORT lets a dev instance
+// run beside the live service instead of fighting it for the socket.
+const PORT = Number(process.env.PORT) || 4444;
 
 // Middleware
 app.use(express.json());
@@ -40,6 +42,7 @@ app.use("/api/digest", require("./routes/digest"));
 app.use("/api/radar", require("./routes/radar"));
 app.use("/api/tracked", require("./routes/tracked"));
 app.use("/api/inventory", require("./routes/inventory"));
+app.use("/api/ledger", require("./routes/ledger"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 // Back-compat alias: the old Apollo-only endpoint, forced to project=apollo
 app.use("/api/hermes-radar", (req, _res, next) => { req.forcedProject = "apollo"; next(); }, require("./routes/radar"));
