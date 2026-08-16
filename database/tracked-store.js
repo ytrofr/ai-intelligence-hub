@@ -103,6 +103,7 @@ class TrackedStore {
         latest_at        = excluded.latest_at,
         last_checked_at  = excluded.last_checked_at,
         last_error       = NULL
+      RETURNING *
     `);
 
     // A failed check records the failure and NOTHING else. Overwriting a good
@@ -129,8 +130,9 @@ class TrackedStore {
     this.countEventOf = db.prepare("SELECT COUNT(*) AS n FROM tracked_events WHERE repo = ? AND event = ?");
   }
 
+  /** Returns the merged row (current + prev_*), so callers need no second read. */
   recordSnapshot(s) {
-    this.upsert.run({
+    return hydrate(this.upsert.get({
       repo: s.repo,
       projects: JSON.stringify(s.projects || []),
       role: s.role || null,
@@ -141,7 +143,7 @@ class TrackedStore {
       latest_tag: s.latest_tag || null,
       latest_at: s.latest_at || null,
       checked_at: s.checked_at || nowIso(),
-    });
+    }));
   }
 
   recordError(repo, error, checkedAt) {
@@ -178,11 +180,6 @@ class TrackedStore {
     return this.selectEventsSince.all(iso).map((e) => ({ ...e, from: e.from_value, to: e.to_value }));
   }
 
-  /** Repos actually checked since `iso` — excludes rows retired from the pool. */
-  activeCount(iso) {
-    return this.db.prepare("SELECT COUNT(*) AS n FROM tracked_repos WHERE last_checked_at >= ?").get(iso).n;
-  }
-
   /**
    * How many repos the MOST RECENT run checked. A fixed window cannot answer
    * this: a row retired this morning is still inside a two-day window, and even
@@ -202,6 +199,33 @@ class TrackedStore {
 
   hasEvent(repo, event) {
     return this.countEventOf.get(repo, event).n > 0;
+  }
+
+  /**
+   * repo -> where it moved to, LATEST WINS.
+   *
+   * This is a decision, not a lookup: a rename chain A -> B -> C must resolve to
+   * C, and anything reading it as first-wins lands on a slug that moved again.
+   * Ascending id with Map overwrite gives latest; keeping it here, beside the
+   * append-only triggers that guarantee the ordering, means the choice is made
+   * once instead of once per route.
+   */
+  /** Only the repos asked for — a page needs 56 rows, not the whole pool. */
+  getMany(repos) {
+    if (!repos || !repos.length) return new Map();
+    const q = this.db.prepare(
+      `SELECT * FROM tracked_repos WHERE repo IN (${repos.map(() => "?").join(",")})`
+    );
+    return new Map(q.all(...repos).map((r) => [r.repo, hydrate(r)]));
+  }
+
+  movedToMap() {
+    return new Map(
+      this.db
+        .prepare("SELECT repo, to_value FROM tracked_events WHERE event = 'renamed' ORDER BY id")
+        .all()
+        .map((e) => [e.repo, e.to_value])
+    );
   }
 
   /** Cache adapter for modules/dep-resolve.js — 247 package lookups a day otherwise. */

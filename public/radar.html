@@ -164,6 +164,17 @@
     </div>
 
     <style>
+      .close-form { margin-top:.55rem; padding:.6rem .7rem; border:1px solid currentColor;
+                    border-radius:8px; display:flex; flex-direction:column; gap:.4rem; opacity:.95; }
+      .close-q { font-size:.82rem; }
+      .close-form input { padding:.35rem .5rem; font:inherit; font-size:.82rem;
+                          border:1px solid var(--color-border, #999); border-radius:5px;
+                          background:transparent; color:inherit; }
+      .close-actions { display:flex; gap:.4rem; }
+      .close-form button { font:inherit; font-size:.78rem; padding:.25rem .7rem; cursor:pointer;
+                           border:1px solid currentColor; border-radius:5px; background:transparent; color:inherit; }
+      .cf-err:empty { display:none; }
+      .cf-err { font-size:.78rem; font-weight:600; text-decoration:underline; text-underline-offset:3px; }
       .upstream { display:flex; align-items:center; gap:.5rem; margin-top:.4rem;
                   font-size:.82rem; letter-spacing:.01em; }
       .upstream .up-mark { font-weight:700; }
@@ -223,6 +234,7 @@
                 <span class="status-lbl">status</span>
                 ${STATUSES.map((st) => `<button class="status-btn ${r.status === st ? "on" : ""}" data-repo="${esc(r.repo)}" data-status="${st}">${st}</button>`).join("")}
               </div>
+              <div class="repo-close" data-repo="${esc(r.repo)}"></div>
             </div>
           </div>`;
       }
@@ -312,15 +324,53 @@
         }
       }
 
-      async function setStatus(repo, status) {
+      // done and rejected CLOSE a row, and a closed row needs evidence and a
+      // lesson. The buttons used to look uniform and all four posted the same
+      // bare payload, so clicking "done" hit the server gate and failed with a
+      // raw alert - the layer that gained the rule did not bring its one caller
+      // along. Closing now asks for what it needs, inline, before posting.
+      const CLOSING = new Set(["done", "rejected"]);
+
+      function closeForm(repo, status) {
+        const card = document.querySelector(`.repo-close[data-repo="${CSS.escape(repo)}"]`);
+        if (!card) return;
+        const isDone = status === "done";
+        card.innerHTML = `
+          <div class="close-form">
+            <div class="close-q">Closing as <b>${status}</b> — what settled it?</div>
+            <input class="cf-ev" placeholder="${isDone ? "commit, PR or URL — apollo@3f9a12c" : "commit, PR, URL or a report path"}" />
+            <input class="cf-le" placeholder="what it taught us, or: none - <why not>" />
+            <div class="close-actions">
+              <button class="cf-go">save</button>
+              <button class="cf-no">cancel</button>
+            </div>
+            <div class="cf-err"></div>
+          </div>`;
+        const ev = card.querySelector(".cf-ev");
+        ev.focus();
+        card.querySelector(".cf-no").onclick = () => { card.innerHTML = ""; };
+        card.querySelector(".cf-go").onclick = () =>
+          post(repo, status, { evidence: ev.value, lesson: card.querySelector(".cf-le").value },
+               (msg) => { card.querySelector(".cf-err").textContent = msg; });
+      }
+
+      async function post(repo, status, fields, onError) {
         try {
           const r = await fetch("/api/radar/status", { method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ project: CURRENT_PROJECT, repo, status }) });
+            body: JSON.stringify({ project: CURRENT_PROJECT, repo, status, ...fields }) });
           if (!r.ok) throw new Error((await r.json()).error || "API " + r.status);
           load(CURRENT_PROJECT);
         } catch (e) {
-          alert("Status update failed: " + e.message);
+          // The server's refusal names exactly what is missing - show it where
+          // the operator is typing, not in a modal they have to dismiss first.
+          if (onError) onError(e.message);
+          else alert("Status update failed: " + e.message);
         }
+      }
+
+      function setStatus(repo, status) {
+        if (CLOSING.has(status)) return closeForm(repo, status);
+        return post(repo, status, {});
       }
 
       function load(project) {

@@ -15,7 +15,27 @@
  */
 
 const express = require("express");
+const fs = require("fs");
+/**
+ * The staleness window the TRACKER is configured with. Hardcoding a second copy
+ * in the view means tuning `stale_days` in config would move the digest's alarms
+ * and leave the page's label behind — a config edit that appears to work and
+ * only half applies, with nothing to signal the gap.
+ */
+function configuredStaleDays() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config", "sources.json"), "utf-8"));
+    const list = Array.isArray(cfg) ? cfg : cfg.sources || [];
+    const src = list.find((s) => s.id === "tracked-repos");
+    const n = Number(src && src.config && src.config.stale_days);
+    return Number.isFinite(n) && n > 0 ? n : undefined;
+  } catch {
+    return undefined; // the view's own default stands
+  }
+}
+
 const router = express.Router();
+const staleDays = configuredStaleDays();
 const path = require("path");
 const Database = require("better-sqlite3");
 const { RadarStore } = require("./lib/radar-store");
@@ -65,18 +85,14 @@ router.get("/", (req, res) => {
       FROM items WHERE title = ? AND source LIKE 'github%' GROUP BY title
     `);
 
-    // One read of the tracker for the whole page, keyed by repo. This route
-    // holds its own READ-ONLY handle, so the store is constructed on it rather
-    // than reaching for the writable singleton in database/db.js.
-    const tracked = new Map(new TrackedStore(db).all().map((r) => [r.repo, r]));
+    // Only this project's repos, not the whole pool — apollo is the largest at 56
+    // of 257 tracked. This route holds its own READ-ONLY handle, so the store is
+    // constructed on it rather than reaching for the writable singleton.
+    const trackedStore = new TrackedStore(db);
+    const tracked = trackedStore.getMany(config.audit.map((a) => a.repo));
     // Where a moved repo went — the destination lives in the event log, and a
     // rename that cannot say where it went is not actionable.
-    const movedTo = new Map(
-      db
-        .prepare("SELECT repo, to_value FROM tracked_events WHERE event = 'renamed' ORDER BY id")
-        .all()
-        .map((e) => [e.repo, e.to_value])
-    );
+    const movedTo = trackedStore.movedToMap();
 
     const auditedRepos = config.audit.map((entry) => {
       const row = repoStmt.get(entry.repo);
@@ -91,7 +107,7 @@ router.get("/", (req, res) => {
         tier: stars !== null && stars >= threshold ? "top" : "sub",
         // Upstream state where the adopt/skip decision is actually made. A repo
         // we do not track says "not tracked" rather than implying health.
-        upstream: upstreamView(tracked.get(entry.repo), { movedTo: movedTo.get(entry.repo) }),
+        upstream: upstreamView(tracked.get(entry.repo), { movedTo: movedTo.get(entry.repo), staleDays }),
       };
     });
 

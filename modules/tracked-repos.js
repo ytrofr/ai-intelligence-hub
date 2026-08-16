@@ -98,7 +98,7 @@ async function runTracker({ pool, gh, store, now = new Date().toISOString(), sta
     }
 
     const b = meta.body || {};
-    store.recordSnapshot({
+    const merged = store.recordSnapshot({
       repo: slug,
       projects: entry.projects || [],
       role: entry.role,
@@ -111,7 +111,7 @@ async function runTracker({ pool, gh, store, now = new Date().toISOString(), sta
       checked_at: now,
     });
 
-    for (const e of diffRepo(store.get(slug), { now, staleDays })) {
+    for (const e of diffRepo(merged, { now, staleDays })) {
       // diffRepo is pure on the row and the row has no column for a new name,
       // so the destination is grafted on here rather than smuggled into it.
       if (e.event === "renamed" && meta.movedTo) e.to = meta.movedTo;

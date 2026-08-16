@@ -115,6 +115,8 @@
 
       .empty { padding: var(--spacing-xl); text-align: center; color: var(--color-text-muted); }
       footer { margin-top: var(--spacing-xl); color: var(--color-text-dim); font-size: var(--font-xs); }
+      .from-project { display:inline-block; margin-left:.6rem; font-size:.78rem;
+                      opacity:.75; font-style:italic; }
     </style>
   </head>
   <body>
@@ -255,6 +257,21 @@
           render();
         });
       });
+      // Arriving from the inventory's project lens: ?project=apollo pre-fills the
+      // filter so the deep-link lands on that project's repos rather than on all
+      // 291. The box is left editable and visibly populated - a filter applied
+      // invisibly is worse than none, because the row count silently lies.
+      (function applyProjectFromUrl() {
+        const wanted = new URLSearchParams(location.search).get("project");
+        if (!wanted) return;
+        const box = document.getElementById("q");
+        box.value = wanted;
+        const note = document.createElement("span");
+        note.className = "from-project";
+        note.textContent = `filtered to ${wanted} — clear the box for all repos`;
+        box.insertAdjacentElement("afterend", note);
+      })();
+
       document.getElementById("q").addEventListener("input", render);
       document.getElementById("filter").addEventListener("change", render);
       // Click a row to unclamp its reason. Nothing is hidden by the clamp - the

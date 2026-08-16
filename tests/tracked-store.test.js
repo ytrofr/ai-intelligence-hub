@@ -123,12 +123,34 @@ test("eventsSince hands back the SAME shape diffRepo emits, not the column names
   assert.equal(e.to_value, "react/react", "the raw column stays available");
 });
 
-test("activeCount excludes repos retired from the pool", () => {
+test("getMany returns only the repos asked for", () => {
+  // A page needs its own project's rows, not the whole pool.
   const { store } = freshStore();
-  store.recordSnapshot({ repo: "a/current", http_status: 200, checked_at: "2026-08-16T00:00:00Z" });
-  store.recordSnapshot({ repo: "a/retired", http_status: 200, checked_at: "2026-07-01T00:00:00Z" });
-  assert.equal(store.count(), 2);
-  assert.equal(store.activeCount("2026-08-14T00:00:00Z"), 1);
+  for (const r of ["a/one", "b/two", "c/three"]) store.recordSnapshot({ repo: r, http_status: 200 });
+  const got = store.getMany(["a/one", "c/three", "d/absent"]);
+  assert.deepEqual([...got.keys()].sort(), ["a/one", "c/three"]);
+  assert.deepEqual(got.get("a/one").projects, [], "rows come back hydrated");
+  assert.equal(store.getMany([]).size, 0, "an empty ask must not become a whole-table read");
+});
+
+test("movedToMap resolves a rename CHAIN to where it ended up, not where it first went", () => {
+  // A -> B -> C must answer C. First-wins lands on a slug that moved again.
+  const { store } = freshStore();
+  store.appendEvent({ repo: "a/one", event: "renamed", to: "b/two", severity: "ALARM", detected_at: "2026-08-01T00:00:00Z" });
+  store.appendEvent({ repo: "a/one", event: "renamed", to: "c/three", severity: "ALARM", detected_at: "2026-08-05T00:00:00Z" });
+  store.appendEvent({ repo: "z/other", event: "archived", to: "true", severity: "ALARM" });
+  const m = store.movedToMap();
+  assert.equal(m.get("a/one"), "c/three");
+  assert.equal(m.has("z/other"), false, "only renames carry a destination");
+});
+
+test("recordSnapshot hands back the merged row, so no caller needs a second read", () => {
+  const { store } = freshStore();
+  store.recordSnapshot(snap());
+  const merged = store.recordSnapshot(snap({ stars: 1300 }));
+  assert.equal(merged.stars, 1300);
+  assert.equal(merged.prev_stars, 1234);
+  assert.deepEqual(merged.projects, ["atlas"], "and it is hydrated like get()");
 });
 
 test("lastRunCount counts the LAST RUN, not a window that still holds retired rows", () => {
