@@ -163,6 +163,24 @@
       <div id="root"><div class="loading">Loading radar…</div></div>
     </div>
 
+    <style>
+      .upstream { display:flex; align-items:center; gap:.5rem; margin-top:.4rem;
+                  font-size:.82rem; letter-spacing:.01em; }
+      .upstream .up-mark { font-weight:700; }
+      .upstream .up-lbl { text-transform:uppercase; opacity:.55; font-size:.7rem;
+                          letter-spacing:.08em; }
+      .upstream .up-val { font-variant-numeric:tabular-nums; }
+      /* Shape and weight carry the meaning; the tints are a second channel only. */
+      .tone-alarm   .up-val { font-weight:700; text-decoration:underline; text-underline-offset:3px; }
+      .tone-alarm   { color:#b3261e; }
+      .tone-warn    .up-val { font-weight:600; }
+      .tone-warn    { color:#8a6100; }
+      .tone-ok      { opacity:.72; }
+      .tone-unknown { opacity:.45; font-style:italic; }
+      @media (prefers-color-scheme: dark) {
+        .tone-alarm { color:#f2b8b5; } .tone-warn { color:#e0c07a; }
+      }
+    </style>
     <script>
       const fmtStars = (n) => {
         if (n === null || n === undefined) return "—";
@@ -173,6 +191,18 @@
         String(s || "").replace(/[&<>"]/g, (c) =>
           ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
         );
+
+      // Upstream state, shown where the adopt/skip decision is actually made.
+      // Marker is a SHAPE first (the palette is a second channel, never the only
+      // one) and the text always says which state it is in.
+      function upstreamLine(u) {
+        if (!u) return "";
+        return `<div class="upstream tone-${esc(u.tone)}">
+            <span class="up-mark">${esc(u.mark)}</span>
+            <span class="up-lbl">upstream</span>
+            <span class="up-val">${esc(u.label)}</span>
+          </div>`;
+      }
 
       function repoCard(r) {
         return `
@@ -188,6 +218,7 @@
               </div>
               <div class="desc">${esc(r.description) || "<span class='not-indexed'>no description in index</span>"}</div>
               <div class="why"><b>Why:</b> ${esc(r.why || r.rationale)}</div>
+              ${upstreamLine(r.upstream)}
               <div class="status-row">
                 <span class="status-lbl">status</span>
                 ${STATUSES.map((st) => `<button class="status-btn ${r.status === st ? "on" : ""}" data-repo="${esc(r.repo)}" data-status="${st}">${st}</button>`).join("")}

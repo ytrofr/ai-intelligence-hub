@@ -38,6 +38,7 @@ app.use("/api/search", require("./routes/search"));
 app.use("/api/recommendations", require("./routes/recommendations"));
 app.use("/api/digest", require("./routes/digest"));
 app.use("/api/radar", require("./routes/radar"));
+app.use("/api/tracked", require("./routes/tracked"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 // Back-compat alias: the old Apollo-only endpoint, forced to project=apollo
 app.use("/api/hermes-radar", (req, _res, next) => { req.forcedProject = "apollo"; next(); }, require("./routes/radar"));

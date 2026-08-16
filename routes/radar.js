@@ -18,6 +18,8 @@ const router = express.Router();
 const path = require("path");
 const Database = require("better-sqlite3");
 const { RadarStore } = require("./lib/radar-store");
+const { upstreamView } = require("../modules/upstream-view");
+const { TrackedStore } = require("../database/tracked-store");
 const { requireLoopback } = require("./lib/net");
 const { DB_PATH } = require("../database/db");
 
@@ -61,6 +63,19 @@ router.get("/", (req, res) => {
       FROM items WHERE title = ? AND source LIKE 'github%' GROUP BY title
     `);
 
+    // One read of the tracker for the whole page, keyed by repo. This route
+    // holds its own READ-ONLY handle, so the store is constructed on it rather
+    // than reaching for the writable singleton in database/db.js.
+    const tracked = new Map(new TrackedStore(db).all().map((r) => [r.repo, r]));
+    // Where a moved repo went — the destination lives in the event log, and a
+    // rename that cannot say where it went is not actionable.
+    const movedTo = new Map(
+      db
+        .prepare("SELECT repo, to_value FROM tracked_events WHERE event = 'renamed' ORDER BY id")
+        .all()
+        .map((e) => [e.repo, e.to_value])
+    );
+
     const auditedRepos = config.audit.map((entry) => {
       const row = repoStmt.get(entry.repo);
       const stars = row ? row.stars : null;
@@ -72,6 +87,9 @@ router.get("/", (req, res) => {
         description: row ? row.description : "",
         inIndex: !!row,
         tier: stars !== null && stars >= threshold ? "top" : "sub",
+        // Upstream state where the adopt/skip decision is actually made. A repo
+        // we do not track says "not tracked" rather than implying health.
+        upstream: upstreamView(tracked.get(entry.repo), { movedTo: movedTo.get(entry.repo) }),
       };
     });
 
