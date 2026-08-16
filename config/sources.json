@@ -351,6 +351,20 @@
         "budget_ms": 600000
       },
       "color": "#20b2aa"
+    },
+    {
+      "id": "tracked-repos",
+      "name": "Tracked Repos (upstream watch)",
+      "type": "tracked-repos",
+      "url": "https://api.github.com",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "timeout_ms": 15000,
+        "budget_ms": 900000,
+        "stale_days": 180,
+        "description": "Daily upstream check of every repo we adopted, are watching, or depend on. Findings land in tracked_events and are reported in the Monday digest; a broken run shows up in /api/health the same morning."
+      }
     }
   ]
 }

@@ -1,7 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const http = require("node:http");
-const { fetchJson, fetchText, HttpError } = require("../modules/http");
+const { fetchJson, fetchText, fetchResponse, HttpError } = require("../modules/http");
 
 function startServer() {
   const server = http.createServer((req, res) => {
@@ -76,4 +76,25 @@ test("fetchText rejects with a timeout error when the server is slow", async () 
 
 test("fetchJson rejects on connection refused (network down)", async () => {
   await assert.rejects(fetchJson("http://127.0.0.1:9/", { timeoutMs: 1000 }));
+});
+
+test("redirect:'manual' is forwarded, so a 3xx is visible instead of followed", async () => {
+  const server = http.createServer((req, res) => {
+    if (req.url === "/moved") {
+      res.writeHead(301, { Location: "/here" });
+      return res.end();
+    }
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+  });
+  await new Promise((r) => server.listen(0, r));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  try {
+    // Without the pass-through, fetch follows the redirect and this is a 200.
+    await assert.rejects(() => fetchResponse(`${base}/moved`, { redirect: "manual" }), (e) => e.status === 301);
+    const followed = await fetchResponse(`${base}/moved`);
+    assert.equal(followed.status, 200);
+  } finally {
+    server.close();
+  }
 });

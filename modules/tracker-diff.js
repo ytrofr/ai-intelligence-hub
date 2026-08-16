@@ -74,6 +74,9 @@ function diffRepo(row, { now = new Date().toISOString(), staleDays = STALE_DAYS 
 
   // Stale is judged at both checks so a long-dormant repo is reported once, not
   // every morning — and a repo that revives and dies again is reported again.
+  // An archived repo is obviously not being pushed to; saying so as well is
+  // noise on the one line that most needs to be read.
+  if (row.archived) return events;
   const isStale = olderThan(row.pushed_at, staleDays, now);
   const wasStale = olderThan(row.prev_pushed_at, staleDays, row.prev_checked_at);
   if (isStale && !wasStale) add("stale", SEVERITY.WARN, row.prev_pushed_at, row.pushed_at);

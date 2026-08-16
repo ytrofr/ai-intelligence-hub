@@ -127,3 +127,10 @@ test("every event carries the repo and a detected_at stamp", () => {
   assert.equal(e.repo, "acme/widget");
   assert.equal(e.detected_at, NOW);
 });
+
+test("an archived repo does not ALSO report stale — that is noise on the one line that matters", () => {
+  // Seen on the first real run: the positive control alarmed 'archived' and then
+  // warned 'stale' about the same fact.
+  const r = row({ archived: 1, prev_archived: 0, pushed_at: daysAgo(250), prev_pushed_at: null, prev_checked_at: null, prev_latest_tag: null });
+  assert.deepEqual(names(diffRepo(r, { now: NOW })), ["archived"]);
+});

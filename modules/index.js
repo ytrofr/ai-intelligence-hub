@@ -10,6 +10,7 @@ const ChangelogModule = require("./changelog");
 const GitHubDiscoveryModule = require("./github-discovery");
 const WatchlistDiscoveryModule = require("./watchlist-discovery");
 const PerplexityWeeklyModule = require("./perplexity-discovery");
+const TrackedReposModule = require("./tracked-repos");
 
 const moduleTypes = {
   github: GitHubModule,
@@ -20,6 +21,7 @@ const moduleTypes = {
   "github-discovery": GitHubDiscoveryModule,
   "github-watchlist": WatchlistDiscoveryModule,
   "perplexity-weekly": PerplexityWeeklyModule,
+  "tracked-repos": TrackedReposModule,
 };
 
 function createModule(sourceConfig) {

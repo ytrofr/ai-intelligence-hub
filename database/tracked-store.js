@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS tracked_events (
   detected_at  TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS dep_cache (
+  pkg          TEXT PRIMARY KEY,
+  repo         TEXT NOT NULL,      -- "owner/repo" or the literal 'unresolved'
+  resolved_at  TEXT NOT NULL
+);
+
 CREATE INDEX IF NOT EXISTS idx_tracked_events_detected ON tracked_events(detected_at);
 CREATE INDEX IF NOT EXISTS idx_tracked_events_repo ON tracked_events(repo, event);
 
@@ -175,6 +181,18 @@ class TrackedStore {
 
   hasEvent(repo, event) {
     return this.countEventOf.get(repo, event).n > 0;
+  }
+
+  /** Cache adapter for modules/dep-resolve.js — 247 package lookups a day otherwise. */
+  depCache() {
+    const get = this.db.prepare("SELECT repo, resolved_at FROM dep_cache WHERE pkg = ?");
+    const set = this.db.prepare(
+      "INSERT INTO dep_cache (pkg, repo, resolved_at) VALUES (?, ?, ?) ON CONFLICT(pkg) DO UPDATE SET repo = excluded.repo, resolved_at = excluded.resolved_at"
+    );
+    return {
+      get: (pkg) => get.get(pkg) || undefined,
+      set: (pkg, v) => set.run(pkg, v.repo, v.resolved_at),
+    };
   }
 }
 

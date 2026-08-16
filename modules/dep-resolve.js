@@ -24,12 +24,27 @@ const UA = { "User-Agent": "AI-Intelligence-Hub/1.0" };
 // reach has not. Only the first may be cached as UNRESOLVED.
 const answered = (err) => Boolean(err && Number.isFinite(err.status));
 
+// github.com/<x>/<y> is only a repo for SOME x. A funding link
+// (github.com/sponsors/encode) has the exact shape of a repo URL and parses into
+// a confident, wrong slug — which then gets tracked and reports 404 'deleted'
+// forever. Found live: 3 of 4 first-run deletions were this, not real deletions.
+const RESERVED_OWNERS = new Set([
+  "sponsors", "orgs", "apps", "marketplace", "settings", "features", "pricing",
+  "about", "security", "topics", "collections", "events", "explore", "site",
+  "notifications", "login", "join", "users", "user", "blog", "contact", "search",
+  "new", "issues", "pulls", "codespaces", "enterprise", "readme", "account",
+]);
+
 /** Extract "owner/repo" from any GitHub URL form (https, git+, ssh). */
 function slugFromUrl(url) {
   if (!url || typeof url !== "string") return null;
   const m = url.match(/github\.com[/:]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)/);
   if (!m) return null;
-  return `${m[1]}/${m[2].replace(/\.git$/, "")}`;
+  const owner = m[1];
+  const repo = m[2].replace(/\.git$/, "");
+  if (RESERVED_OWNERS.has(owner.toLowerCase())) return null;
+  if (repo.toLowerCase() === "repo" && owner.toLowerCase() === "user") return null;
+  return `${owner}/${repo}`;
 }
 
 function createResolver({ fetchJson = httpFetchJson, cache, ttlDays = TTL_DAYS, now = () => new Date().toISOString(), timeoutMs = 15000 } = {}) {
@@ -109,4 +124,4 @@ function createResolver({ fetchJson = httpFetchJson, cache, ttlDays = TTL_DAYS, 
   return { resolve, resolveAll };
 }
 
-module.exports = { createResolver, slugFromUrl, UNRESOLVED, TTL_DAYS };
+module.exports = { createResolver, slugFromUrl, UNRESOLVED, TTL_DAYS, RESERVED_OWNERS };

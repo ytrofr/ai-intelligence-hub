@@ -19,12 +19,15 @@ class HttpError extends Error {
   }
 }
 
-async function fetchResponse(url, { headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, method = "GET", body } = {}) {
+async function fetchResponse(url, { headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS, method = "GET", body, redirect } = {}) {
   let res;
   try {
     res = await fetch(url, {
       method,
       body,
+      // redirect:"manual" lets a caller SEE a 301 instead of silently following
+      // it — the tracker needs that to tell "renamed" from "fine".
+      ...(redirect ? { redirect } : {}),
       headers: { "User-Agent": USER_AGENT, ...headers },
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -38,7 +41,11 @@ async function fetchResponse(url, { headers = {}, timeoutMs = DEFAULT_TIMEOUT_MS
   }
   if (!res.ok) {
     const snippet = (await res.text().catch(() => "")).slice(0, 120).replace(/\s+/g, " ");
-    throw new HttpError(res.status, url, snippet);
+    const err = new HttpError(res.status, url, snippet);
+    // A 3xx carries its destination in a header; losing it makes "it moved"
+    // unactionable for any caller that asked to see redirects.
+    err.location = res.headers.get("location");
+    throw err;
   }
   return res;
 }

@@ -114,3 +114,14 @@ test("resolveAll returns one entry per input and reports the counts", async () =
   assert.equal(out.resolved.get("widget"), "acme/widget");
   assert.deepEqual(out.unresolved, ["mystery"]);
 });
+
+test("a GitHub URL that is not a repo does NOT become a slug", () => {
+  // Live finding: 3 of 4 first-run 'deleted' alarms were funding and placeholder
+  // links parsed as repos. A wrong slug alarms 404 forever and looks like news.
+  assert.equal(slugFromUrl("https://github.com/sponsors/encode"), null);
+  assert.equal(slugFromUrl("https://github.com/sponsors/samuelcolvin"), null);
+  assert.equal(slugFromUrl("https://github.com/user/repo"), null);
+  assert.equal(slugFromUrl("https://github.com/orgs/acme/projects/1"), null);
+  // ...while a real repo whose name merely looks generic is untouched.
+  assert.equal(slugFromUrl("https://github.com/acme/settings"), "acme/settings");
+});
