@@ -152,7 +152,7 @@
         <div class="eyebrow">Per-Project Discovery</div>
         <h1>Project Radar</h1>
         <p>
-          For each project: the libraries it already depends on (Your Stack) and
+          For each project: the health of the libraries it already depends on (Your Stack) and
           GitHub repos worth considering (Suggested), scored by tech-stack and
           topic overlap. Live algorithmic feed — for Hermes's curated audit see
           <a href="/hermes-radar.html">Hermes Radar</a>.
@@ -177,12 +177,14 @@
         );
 
       function stackItem(r) {
+        const age = r.daysSincePush == null ? "" : ` · pushed ${r.daysSincePush}d ago`;
+        const stale = r.daysSincePush != null && r.daysSincePush > 180 ? " [stale]" : "";
         return `
           <div class="stack-item">
             <span class="stars">${fmtStars(r.stars)}</span>
             <span>
-              <a class="name" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>
-              <div class="desc">${esc(r.description) || "—"}</div>
+              <a class="name" href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>${stale}
+              <div class="desc">${esc(r.description) || "—"}${age}</div>
             </span>
           </div>`;
       }
@@ -207,7 +209,7 @@
       }
 
       function render(d) {
-        const stack = d.stack || [];
+        const stack = d.stackHealth || d.stack || [];
         const disc = d.discoveries || [];
         const root = document.getElementById("root");
         if (!stack.length && !disc.length) {
@@ -216,14 +218,14 @@
         }
         root.innerHTML = `
           <div class="stat-strip">
-            <div class="stat stack"><div class="num">${stack.length}</div><div class="lbl">Stack libraries</div></div>
-            <div class="stat disc"><div class="num">${disc.length}</div><div class="lbl">Suggested repos</div></div>
+            <div class="stat stack"><div class="num">${stack.length}</div><div class="lbl">Your stack (upstream health)</div></div>
+            <div class="stat disc"><div class="num">${disc.length}</div><div class="lbl">Suggested repos (&ge;${d.starsMin ?? 200}&#9733;, no forks/dupes)</div></div>
           </div>
           <section class="section">
             <div class="section-head">
-              <h2>Your Stack</h2><span class="count">${stack.length}</span>
+              <h2>Your Stack — upstream health</h2><span class="count">${stack.length}</span>
             </div>
-            <div class="section-blurb">Libraries this project already declares as dependencies.</div>
+            <div class="section-blurb">Libraries this project already depends on, stalest first. Not recommendations — a health check on what you run.</div>
             ${stack.length ? `<div class="stack-grid">${stack.map(stackItem).join("")}</div>`
                             : `<div class="empty">No dependency repos resolved yet.</div>`}
           </section>
@@ -231,7 +233,7 @@
             <div class="section-head">
               <h2>Suggested</h2><span class="count">${disc.length}</span>
             </div>
-            <div class="section-blurb">Repos to consider — surfaced by shared tech-stack and topic overlap.</div>
+            <div class="section-blurb">Repos to consider — shared tech-stack/topic overlap, then recency-decayed score. Star floor ${d.starsMin ?? 200}; forks, archived and mirrors removed.</div>
             ${disc.length ? disc.map(discoveryCard).join("")
                           : `<div class="empty">No suggestions matched yet.</div>`}
           </section>

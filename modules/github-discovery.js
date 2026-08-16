@@ -31,6 +31,8 @@ const BROAD_TOPICS = new Set([
   'machine-learning', 'deep-learning', 'api', 'cli',
 ]);
 
+const { readDeps, mergeProjectDeps } = require('./project-deps');
+
 class GitHubDiscoveryModule extends BaseModule {
   constructor(config) {
     super(config);
@@ -63,7 +65,16 @@ class GitHubDiscoveryModule extends BaseModule {
   loadProjects() {
     if (this._projectsCache) return this._projectsCache;
     const filePath = path.join(__dirname, '..', 'config', 'projects.json');
-    this._projectsCache = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    const cfg = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    // Live deps from the repo checkout (config.repoPath) widen the SCORING
+    // overlap set; `dependencies` stays the curated list used for the
+    // dependency-backed (stack health) strategy. Unreadable repo -> curated only.
+    for (const project of cfg.projects || []) {
+      const live = readDeps(project.repoPath);
+      project.scoringDependencies = mergeProjectDeps(project.dependencies || [], live);
+      if (live.length) console.log(`  Project ${project.id}: ${live.length} live deps from ${project.repoPath}`);
+    }
+    this._projectsCache = cfg;
     return this._projectsCache;
   }
 
@@ -241,7 +252,9 @@ class GitHubDiscoveryModule extends BaseModule {
       for (const lang of project.languages || []) langSet.add(lang);
     }
     const languages = [...langSet].slice(0, 5);
-    const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString().split('T')[0];
+    const minStars = this.config.min_stars || 50;
+    const lookback = this.config.days_lookback || 90;
+    const ninetyDaysAgo = new Date(Date.now() - lookback * 86400000).toISOString().split('T')[0];
 
     const seen = new Set();
     const results = [];
@@ -249,7 +262,7 @@ class GitHubDiscoveryModule extends BaseModule {
 
     for (const lang of languages) {
       if (stopped) break;
-      const q = `created:>${ninetyDaysAgo} stars:>50 language:${lang}`;
+      const q = `created:>${ninetyDaysAgo} stars:>${minStars} language:${lang}`;
       const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=15`;
 
       let res;
@@ -525,7 +538,7 @@ class GitHubDiscoveryModule extends BaseModule {
     const matchedProjects = [];
 
     for (const project of projects) {
-      const projectDeps = new Set((project.dependencies || []).map((d) => d.toLowerCase()));
+      const projectDeps = new Set((project.scoringDependencies || project.dependencies || []).map((d) => d.toLowerCase()));
       const projectTopics = new Set((project.topics || []).map((t) => t.toLowerCase()));
       const repoTopics = (repoData.topics || []).map((t) => t.toLowerCase());
 
@@ -666,6 +679,8 @@ class GitHubDiscoveryModule extends BaseModule {
         star_velocity: repoData.stargazers_count / daysSinceCreation,
         open_issues: repoData.open_issues_count,
         created_at: repoData.created_at, // for rising-star detection in weekly digest
+        fork: !!repoData.fork,
+        archived: !!repoData.archived,
       },
     });
   }

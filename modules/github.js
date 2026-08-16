@@ -10,18 +10,32 @@ class GitHubModule extends BaseModule {
    * One search per topic. A topic that fails is collected; if EVERY topic
    * fails the source throws (dead / network down); partial failure warns.
    */
+  /**
+   * Two windows per topic so "trending" means something:
+   *   active = pushed within `active_days` (default 7), sorted by stars
+   *   new    = created within `new_days`   (default 30), sorted by stars
+   * (was: all-time stars per topic - openai/whisper forever)
+   */
   async fetch() {
     const topics = this.config.topics || ["ai", "llm", "claude", "anthropic"];
     const headers = { Accept: "application/vnd.github.v3+json" };
     if (process.env.GITHUB_TOKEN) {
       headers["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
     }
+    const day = (n) => new Date(Date.now() - n * 86400000).toISOString().split("T")[0];
+    const windows = [
+      { key: "active", q: `pushed:>${day(this.config.active_days || 7)}` },
+      { key: "new", q: `created:>${day(this.config.new_days || 30)}` },
+    ];
+    const jobs = [];
+    for (const topic of topics) for (const w of windows) jobs.push({ topic, ...w });
     const failures = [];
 
     const topicResults = await Promise.all(
-      topics.map(async (topic) => {
+      jobs.map(async ({ topic, key, q }) => {
         try {
-          const url = `https://api.github.com/search/repositories?q=topic:${topic}&sort=stars&order=desc&per_page=20`;
+          const query = encodeURIComponent(`topic:${topic} ${q}`);
+          const url = `https://api.github.com/search/repositories?q=${query}&sort=stars&order=desc&per_page=20`;
           const data = await fetchJson(url, { headers, timeoutMs: this.config.timeout_ms || 45000 });
           return (data.items || []).map((repo) =>
             this.normalize({
@@ -38,20 +52,30 @@ class GitHubModule extends BaseModule {
                 forks: repo.forks_count,
                 topics: repo.topics,
                 open_issues: repo.open_issues_count,
+                window: key,
+                fork: !!repo.fork,
+                archived: !!repo.archived,
+                created_at: repo.created_at,
               },
             }),
           );
         } catch (err) {
-          failures.push(`${topic}: ${err.message}`);
+          failures.push(`${topic}/${key}: ${err.message}`);
           return [];
         }
       }),
     );
-    if (failures.length === topics.length) {
-      throw new Error(`All ${topics.length} GitHub topic searches failed - ${failures[0]}`);
+    if (failures.length === jobs.length) {
+      throw new Error(`All ${jobs.length} GitHub topic searches failed - ${failures[0]}`);
     }
-    if (failures.length) console.warn(`GitHub: ${failures.length}/${topics.length} topics failed: ${failures.join("; ")}`);
-    return topicResults.flat();
+    if (failures.length) console.warn(`GitHub: ${failures.length}/${jobs.length} searches failed: ${failures.join("; ")}`);
+    // A repo can appear in both windows - keep one row, prefer "new"
+    const byId = new Map();
+    for (const item of topicResults.flat()) {
+      const prev = byId.get(item.id);
+      if (!prev || item.metadata.window === "new") byId.set(item.id, item);
+    }
+    return [...byId.values()];
   }
 
   calculateScore(repo) {
