@@ -25,52 +25,50 @@ class RSSModule extends BaseModule {
     if (!parsed || (!parsed.rss && !parsed.feed)) {
       throw new Error(`Not an RSS/Atom document: ${this.url} (${xml.slice(0, 60).replace(/\s+/g, " ")}...)`);
     }
-    {
 
-      // Handle RSS 2.0
-      if (parsed.rss?.channel?.item) {
-        const feedItems = Array.isArray(parsed.rss.channel.item)
-          ? parsed.rss.channel.item
-          : [parsed.rss.channel.item];
+    // Handle RSS 2.0
+    if (parsed.rss?.channel?.item) {
+      const feedItems = Array.isArray(parsed.rss.channel.item)
+        ? parsed.rss.channel.item
+        : [parsed.rss.channel.item];
 
-        for (const item of feedItems) {
-          items.push(
-            this.normalize({
-              id: item.guid?._ || item.guid || item.link,
-              title: item.title,
-              url: item.link,
-              description: this.stripHtml(item.description || ""),
-              author: this.extractAuthor(item.author || item["dc:creator"]),
-              published_at: this.toIso(item.pubDate),
-              score: this.getRecencyScore(item.pubDate) * 10,
-            }),
-          );
-        }
+      for (const item of feedItems) {
+        items.push(
+          this.normalize({
+            id: item.guid?._ || item.guid || item.link,
+            title: item.title,
+            url: item.link,
+            description: this.stripHtml(item.description || ""),
+            author: this.extractAuthor(item.author || item["dc:creator"]),
+            published_at: this.toIso(item.pubDate),
+            score: this.getRecencyScore(item.pubDate) * 10,
+          }),
+        );
       }
+    }
 
-      // Handle Atom
-      if (parsed.feed?.entry) {
-        const entries = Array.isArray(parsed.feed.entry)
-          ? parsed.feed.entry
-          : [parsed.feed.entry];
+    // Handle Atom
+    if (parsed.feed?.entry) {
+      const entries = Array.isArray(parsed.feed.entry)
+        ? parsed.feed.entry
+        : [parsed.feed.entry];
 
-        for (const entry of entries) {
-          const link = entry.link?.href || entry.link?.[0]?.href || entry.link;
-          items.push(
-            this.normalize({
-              id: entry.id || link,
-              title: entry.title?._ || entry.title,
-              url: typeof link === "string" ? link : link?.href,
-              description: this.stripHtml(
-                entry.summary?._ || entry.summary || entry.content?._ || "",
-              ),
-              author: entry.author?.name,
-              published_at: this.toIso(entry.published || entry.updated),
-              score:
-                this.getRecencyScore(entry.published || entry.updated) * 10,
-            }),
-          );
-        }
+      for (const entry of entries) {
+        const link = entry.link?.href || entry.link?.[0]?.href || entry.link;
+        items.push(
+          this.normalize({
+            id: entry.id || link,
+            title: entry.title?._ || entry.title,
+            url: typeof link === "string" ? link : link?.href,
+            description: this.stripHtml(
+              entry.summary?._ || entry.summary || entry.content?._ || "",
+            ),
+            author: entry.author?.name,
+            published_at: this.toIso(entry.published || entry.updated),
+            score:
+              this.getRecencyScore(entry.published || entry.updated) * 10,
+          }),
+        );
       }
     }
 

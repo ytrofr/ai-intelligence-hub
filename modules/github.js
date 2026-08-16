@@ -27,8 +27,7 @@ class GitHubModule extends BaseModule {
       { key: "active", q: `pushed:>${day(this.config.active_days || 7)}` },
       { key: "new", q: `created:>${day(this.config.new_days || 30)}` },
     ];
-    const jobs = [];
-    for (const topic of topics) for (const w of windows) jobs.push({ topic, ...w });
+    const jobs = topics.flatMap((topic) => windows.map((w) => ({ topic, ...w })));
     const failures = [];
 
     const topicResults = await Promise.all(

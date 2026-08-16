@@ -8,12 +8,11 @@
  *   node scripts/rescore-discovery.js            # dry run: prints what would change
  *   node scripts/rescore-discovery.js --apply    # writes metadata + score
  */
-const path = require("path");
 const Database = require("better-sqlite3");
 const GitHubDiscoveryModule = require("../modules/github-discovery");
 
 const APPLY = process.argv.includes("--apply");
-const DB_PATH = path.join(__dirname, "..", "data", "hub.db");
+const { DB_PATH } = require("../database/db");
 const SOURCES = ["github-discovery-tech", "github-discovery-curated", "github-discovery-rising", "github-discovery-deps", "github-watchlist"];
 
 const db = new Database(DB_PATH);

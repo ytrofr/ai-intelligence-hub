@@ -21,7 +21,7 @@ router.get('/', (req, res) => {
 
     if (!project) {
       const enriched = topFeed(db, wanted);
-      return res.json({ project: 'all', count: enriched.length, recommendations: enriched, stack: [], stackHealth: [], discoveries: [] });
+      return res.json({ project: 'all', count: enriched.length, recommendations: enriched, stackHealth: [], discoveries: [] });
     }
 
     const { discoveries, stackHealth, poolSize } = recommendForProject(db, project, { limit: wanted, starsMin: floor, raw: useRaw });
@@ -31,7 +31,6 @@ router.get('/', (req, res) => {
       count: discoveries.length,
       starsMin: useRaw ? 0 : floor,
       stackHealth,
-      stack: stackHealth, // deprecated alias (project-radar.html) - remove after 2026-09
       discoveries,
       recommendations: discoveries,
     });

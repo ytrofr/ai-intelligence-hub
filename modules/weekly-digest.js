@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
-const { recommendForProject } = require('./recommend');
+const { loadPool, recommendFromPool, parseMeta } = require('./recommend');
 
 const DIGESTS_DIR = path.join(__dirname, '..', 'digests');
 
@@ -27,7 +27,7 @@ const CATEGORY_MATCHERS = [
 ];
 
 function classify(item) {
-  const meta = parseMeta(item.metadata);
+  const meta = parseMeta(item);
   const repoTopics = (meta.topics || []).map((t) => String(t).toLowerCase());
   const description = (item.description || '').toLowerCase();
   const title = (item.title || '').toLowerCase();
@@ -47,25 +47,16 @@ function classify(item) {
   return { id: 'other', label: '✨ Other', topics: [] };
 }
 
-function parseMeta(metadataField) {
-  if (!metadataField) return {};
-  if (typeof metadataField === 'object') return metadataField;
-  try {
-    return JSON.parse(metadataField);
-  } catch {
-    return {};
-  }
-}
 
 function isRisingStar(item) {
-  const meta = parseMeta(item.metadata);
+  const meta = parseMeta(item);
   if (!meta.created_at) return false;
   const ageDays = (Date.now() - new Date(meta.created_at).getTime()) / 86400000;
   return ageDays <= 90 && (item.stars || 0) >= 200 && (item.stars || 0) < 5000;
 }
 
 function renderItem(item) {
-  const meta = parseMeta(item.metadata);
+  const meta = parseMeta(item);
   const stars = (item.stars || 0).toLocaleString();
   const reason = meta.match_reason || meta.perplexity_summary || meta.discovery_strategy || '';
   const lang = meta.language ? ` · ${meta.language}` : '';
@@ -179,10 +170,11 @@ function formatProjectSections({ perProject = 5 } = {}) {
     return '';
   }
   const lines = ['', '## 🎯 Per-project suggestions (star floor 200, no forks/dupes)', ''];
+  const pool = loadPool(db); // one read + parse for all projects
   for (const p of projects) {
     let recs;
     try {
-      recs = recommendForProject(db, p.id, { limit: perProject });
+      recs = recommendFromPool(pool, p.id, { limit: perProject });
     } catch (err) {
       lines.push(`### ${p.name} — error: ${err.message}`, '');
       continue;

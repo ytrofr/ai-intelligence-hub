@@ -209,7 +209,7 @@
       }
 
       function render(d) {
-        const stack = d.stackHealth || d.stack || [];
+        const stack = d.stackHealth || [];
         const disc = d.discoveries || [];
         const root = document.getElementById("root");
         if (!stack.length && !disc.length) {

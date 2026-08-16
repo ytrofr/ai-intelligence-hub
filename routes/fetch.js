@@ -22,8 +22,9 @@ router.post("/", async (req, res) => {
       return res.status(404).json({ error: `Unknown or disabled source: ${sourceId}` });
     }
 
+    const keywords = db.getKeywords(); // once per fetch, shared by every source's ingest policy
     const results = await Promise.all(
-      toFetch.map((source) => runSource(source, { db, createModule })),
+      toFetch.map((source) => runSource(source, { db, createModule, keywords })),
     );
     const summary = summarize(results);
     summary.duration_ms = Date.now() - started;

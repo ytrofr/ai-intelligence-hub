@@ -39,6 +39,7 @@ class WatchlistDiscoveryModule extends GitHubDiscoveryModule {
     const seen = new Set();
     const results = [];
     let stopped = false;
+    let ownersFetched = 0;
 
     for (const owner of owners) {
       if (stopped) break;
@@ -67,6 +68,7 @@ class WatchlistDiscoveryModule extends GitHubDiscoveryModule {
       }
 
       const repos = await res.json();
+      ownersFetched += 1;
       for (const repo of repos) {
         if (!repo || repo.archived || repo.fork) continue;
         if ((repo.stargazers_count || 0) < minStars) continue;
@@ -83,7 +85,10 @@ class WatchlistDiscoveryModule extends GitHubDiscoveryModule {
       }
     }
 
-    console.log(`  [watchlist] ${results.length} repos from ${owners.length} owners (>=${minStars}★, pushed within ${daysWithin}d, cap=${maxPerOwner}/owner)`);
+    if (ownersFetched === 0 && owners.length > 0) {
+      throw new Error(`watchlist: 0 of ${owners.length} owners fetched (${stopped ? 'rate limited / network' : 'all requests failed'})`);
+    }
+    console.log(`  [watchlist] ${results.length} repos from ${ownersFetched}/${owners.length} owners (>=${minStars}★, pushed within ${daysWithin}d, cap=${maxPerOwner}/owner)`);
     return results;
   }
 }

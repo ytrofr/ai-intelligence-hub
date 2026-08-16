@@ -83,8 +83,4 @@ class RadarStore {
   }
 }
 
-function isLoopback(addr) {
-  return addr === "127.0.0.1" || addr === "::1" || addr === "::ffff:127.0.0.1";
-}
-
-module.exports = { RadarStore, isLoopback, VERDICTS, STATUSES };
+module.exports = { RadarStore, VERDICTS, STATUSES };

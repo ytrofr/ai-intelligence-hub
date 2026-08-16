@@ -11,7 +11,6 @@ class HuggingFaceModule extends BaseModule {
    * "trending" value with 400). Both endpoints failing -> throw; one -> warn.
    */
   async fetch() {
-    const items = [];
     const sort = this.config.sort || "trendingScore";
     const timeoutMs = this.config.timeout_ms || 20000;
     const modelsUrl = `https://huggingface.co/api/models?sort=${sort}&direction=-1&limit=30`;
@@ -25,64 +24,37 @@ class HuggingFaceModule extends BaseModule {
     if (failures.length === 2) throw new Error(`HuggingFace models+spaces failed - ${failures[0]}`);
     if (failures.length) console.warn(`HuggingFace: one endpoint failed: ${failures[0]}`);
 
-    // Process models
-    {
-      if (modelsRes.status === "fulfilled") {
-        const models = modelsRes.value;
-        for (const model of models) {
-          items.push(
-            this.normalize({
-              id: `model-${model.id}`,
-              title: model.id,
-              url: `https://huggingface.co/${model.id}`,
-              description: model.pipeline_tag
-                ? `${model.pipeline_tag} model`
-                : "ML Model",
-              author: model.author,
-              stars: model.downloads || 0,
-              score: this.calculateScore(model),
-              published_at: model.lastModified,
-              metadata: {
-                type: "model",
-                pipeline: model.pipeline_tag,
-                library: model.library_name,
-                likes: model.likes,
-              },
-            }),
-          );
-        }
-      }
-    }
+    const models = modelsRes.status === "fulfilled" ? modelsRes.value : [];
+    const spaces = spacesRes.status === "fulfilled" ? spacesRes.value : [];
+    return [...models.map((m) => this.modelItem(m)), ...spaces.map((s) => this.spaceItem(s))];
+  }
 
-    // Process spaces
-    {
-      if (spacesRes.status === "fulfilled") {
-        const spaces = spacesRes.value;
-        for (const space of spaces) {
-          items.push(
-            this.normalize({
-              id: `space-${space.id}`,
-              title: `🚀 ${space.id}`,
-              url: `https://huggingface.co/spaces/${space.id}`,
-              description: space.sdk
-                ? `${space.sdk} Space`
-                : "HuggingFace Space",
-              author: space.author,
-              stars: space.likes || 0,
-              score: (space.likes || 0) * 10,
-              published_at: space.lastModified,
-              metadata: {
-                type: "space",
-                sdk: space.sdk,
-                likes: space.likes,
-              },
-            }),
-          );
-        }
-      }
-    }
+  modelItem(model) {
+    return this.normalize({
+      id: `model-${model.id}`,
+      title: model.id,
+      url: `https://huggingface.co/${model.id}`,
+      description: model.pipeline_tag ? `${model.pipeline_tag} model` : "ML Model",
+      author: model.author,
+      stars: model.downloads || 0,
+      score: this.calculateScore(model),
+      published_at: model.lastModified,
+      metadata: { type: "model", pipeline: model.pipeline_tag, library: model.library_name, likes: model.likes },
+    });
+  }
 
-    return items;
+  spaceItem(space) {
+    return this.normalize({
+      id: `space-${space.id}`,
+      title: `🚀 ${space.id}`,
+      url: `https://huggingface.co/spaces/${space.id}`,
+      description: space.sdk ? `${space.sdk} Space` : "HuggingFace Space",
+      author: space.author,
+      stars: space.likes || 0,
+      score: (space.likes || 0) * 10,
+      published_at: space.lastModified,
+      metadata: { type: "space", sdk: space.sdk, likes: space.likes },
+    });
   }
 
   calculateScore(model) {

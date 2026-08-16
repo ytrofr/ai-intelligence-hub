@@ -23,12 +23,16 @@ function withTimeout(promise, ms, label) {
   return Promise.race([promise, gate]).finally(() => clearTimeout(timer));
 }
 
-async function runSource(source, { db, createModule, timeoutMs, now = () => new Date() }) {
+// `timeoutMs`, `now` and `keywords` are injectable seams: production (routes/fetch.js)
+// passes keywords once per fetch; tests pass short budgets and a fake db.
+async function runSource(source, { db, createModule, timeoutMs, keywords = [], now = () => new Date() }) {
   const started = Date.now();
+  const saveStatus = (last_status, last_error, last_item_count) =>
+    db.updateSourceStatus({ id: source.id, last_status, last_error, last_item_count, last_run_at: now().toISOString() });
   const module = createModule(source);
   if (!module) {
     const error = "Unknown module type: " + source.type;
-    db.updateSourceStatus({ id: source.id, last_status: "error", last_error: error, last_item_count: 0, last_run_at: now().toISOString() });
+    saveStatus("error", error, 0);
     return { source: source.id, status: "error", error, ms: 0 };
   }
   if (!module.canFetch(source.last_fetched_at)) {
@@ -39,17 +43,16 @@ async function runSource(source, { db, createModule, timeoutMs, now = () => new 
   try {
     const fetched = await withTimeout(module.fetch(), budget, source.id);
     // Ingest policy from config (keyword_gate / keyword_boost) - see modules/item-filter.js
-    const keywords = typeof db.getKeywords === "function" ? db.getKeywords() : [];
     const items = applyIngestPolicy(fetched, source.config || {}, keywords);
     const count = db.upsertItems(items);
     db.updateSourceLastFetched(source.id);
-    db.updateSourceStatus({ id: source.id, last_status: "success", last_error: null, last_item_count: count, last_run_at: now().toISOString() });
+    saveStatus("success", null, count);
     return { source: source.id, status: "success", items: count, ms: Date.now() - started };
   } catch (err) {
     const status = err && err.name === "TimeoutError" ? "timeout" : "error";
     const error = String((err && err.message) || err).slice(0, 500);
     console.error(`[fetch] ${source.id} ${status}: ${error}`);
-    db.updateSourceStatus({ id: source.id, last_status: status, last_error: error, last_item_count: 0, last_run_at: now().toISOString() });
+    saveStatus(status, error, 0);
     return { source: source.id, status, error, ms: Date.now() - started };
   }
 }

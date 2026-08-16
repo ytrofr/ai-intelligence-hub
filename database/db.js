@@ -312,6 +312,7 @@ function buildAdvancedQuery(options) {
 }
 
 module.exports = {
+  DB_PATH,
   // Items
   upsertItem: (item) => {
     const now = new Date().toISOString();

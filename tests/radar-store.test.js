@@ -3,7 +3,8 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
-const { RadarStore, isLoopback, STATUSES } = require("../routes/lib/radar-store");
+const { RadarStore, STATUSES } = require("../routes/lib/radar-store");
+const { isLoopback } = require("../routes/lib/net");
 
 function tmpStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-"));

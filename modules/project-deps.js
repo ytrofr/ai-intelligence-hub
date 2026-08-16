@@ -17,8 +17,9 @@ const path = require("path");
 
 const SKIP_DIRS = new Set(["node_modules", ".git", ".venv", "venv", "dist", "build", "__pycache__", ".turbo", ".next", "coverage"]);
 const DEP_FILE = /^(package\.json|requirements[^/]*\.txt|pyproject\.toml|pnpm-workspace\.yaml)$/;
-const MAX_DEPTH_DEFAULT = 3;
-const _cache = new Map(); // repoPath -> { at, deps }
+const MAX_DEPTH = 3;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const _cache = new Map(); // repoPath|exclude -> { at, deps }
 
 function walk(root, maxDepth, excludeDirs = new Set()) {
   const found = [];
@@ -128,14 +129,14 @@ function parsePackageJson(text) {
   return { names: [...names], ownName };
 }
 
-function readDeps(repoPath, { maxDepth = MAX_DEPTH_DEFAULT, ttlMs = 10 * 60 * 1000, exclude = [] } = {}) {
+function readDeps(repoPath, { exclude = [] } = {}) {
   if (!repoPath) return [];
   const cacheKey = `${repoPath}|${exclude.join(",")}`;
   const cached = _cache.get(cacheKey);
-  if (cached && Date.now() - cached.at < ttlMs) return cached.deps;
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.deps;
   const deps = new Set();
   const internal = new Set();
-  for (const file of walk(repoPath, maxDepth, new Set(exclude))) {
+  for (const file of walk(repoPath, MAX_DEPTH, new Set(exclude))) {
     let text;
     try {
       text = fs.readFileSync(file, "utf-8");

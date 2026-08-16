@@ -17,18 +17,13 @@ const express = require("express");
 const router = express.Router();
 const path = require("path");
 const Database = require("better-sqlite3");
-const { RadarStore, isLoopback } = require("./lib/radar-store");
+const { RadarStore } = require("./lib/radar-store");
+const { requireLoopback } = require("./lib/net");
+const { DB_PATH } = require("../database/db");
 
 const CONFIG_DIR = path.join(__dirname, "..", "config", "radar");
-const DB_PATH = path.join(__dirname, "..", "data", "hub.db");
 const VERDICT_RANK = { ADOPT: 0, WATCH: 1, SKIP: 2 };
 const store = new RadarStore(CONFIG_DIR);
-
-function requireLoopback(req, res, next) {
-  const addr = req.socket && req.socket.remoteAddress;
-  if (!isLoopback(addr)) return res.status(403).json({ error: "radar writes are local-only" });
-  next();
-}
 
 router.get("/projects", (req, res) => {
   res.json({ projects: store.listProjects() });

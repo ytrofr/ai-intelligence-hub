@@ -7,10 +7,9 @@ const express = require("express");
 const router = express.Router();
 const db = require("../database/db");
 const { prune } = require("../modules/retention");
-const { isLoopback } = require("./lib/radar-store");
+const { requireLoopback } = require("./lib/net");
 
-router.post("/prune", (req, res) => {
-  if (!isLoopback(req.socket && req.socket.remoteAddress)) return res.status(403).json({ error: "local-only" });
+router.post("/prune", requireLoopback, (req, res) => {
   const dryRun = String(req.query.dryRun ?? req.body?.dryRun ?? "1") !== "0";
   try {
     const before = db.getStats().totalItems;

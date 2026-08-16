@@ -9,6 +9,7 @@
  * Graceful-degrade: PERPLEXITY_API_KEY missing -> warn + return [].
  */
 const BaseModule = require('./base-module');
+const { fetchJson } = require('./http');
 const fs = require('fs');
 const path = require('path');
 
@@ -84,28 +85,14 @@ class PerplexityWeeklyModule extends BaseModule {
       temperature: 0.2,
     };
 
-    let res;
-    try {
-      res = await fetch('https://api.perplexity.ai/chat/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      });
-    } catch (err) {
-      console.warn(`  [perplexity] network error: ${err.message}`);
-      return [];
-    }
-
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      console.warn(`  [perplexity] HTTP ${res.status}: ${txt.slice(0, 200)}`);
-      return [];
-    }
-
-    const json = await res.json();
+    // Network / HTTP / timeout failures THROW (fetch-runner records the error);
+    // only the missing-key / missing-prompt cases above are declared degrades.
+    const json = await fetchJson('https://api.perplexity.ai/chat/completions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      timeoutMs: this.config.timeout_ms || 60000,
+    });
     const text = json?.choices?.[0]?.message?.content || '';
     const usage = json?.usage || {};
     // Sonar pricing approx: $0.001/1K input + $0.001/1K output (cheap)
