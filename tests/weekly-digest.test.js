@@ -160,3 +160,55 @@ test('formatDigest: empty items still produces valid markdown with empty TL;DR',
   assert.match(md, /No items met the star floor this week/);
   assert.match(md, /No rising stars surfaced this week/);
 });
+
+// --- D5: the "Adopted & tracked" section -------------------------------------
+const { formatTrackedSection } = require("../modules/weekly-digest");
+
+test("a quiet week SAYS SO — the section is never omitted", () => {
+  // An omitted section is an absence of a result; '0 alarms' is a result.
+  const md = formatTrackedSection({ events: [], checked: 257 });
+  assert.match(md, /Adopted & tracked/);
+  assert.match(md, /Nothing changed upstream this week/);
+  assert.match(md, /\*\*0 alarms\*\*/);
+  assert.match(md, /257 repos/);
+});
+
+test("two releases and no alarms renders both and still states 0 alarms", () => {
+  const md = formatTrackedSection({
+    events: [
+      { repo: "a/one", event: "release", severity: "NOTE", from: "v1.0.0", to: "v1.1.0" },
+      { repo: "b/two", event: "release", severity: "NOTE", from: "v2.0.0", to: "v2.0.1" },
+    ],
+    checked: 257,
+    projectsByRepo: { "a/one": ["apollo"] },
+  });
+  assert.match(md, /\*\*0 alarms\*\*/);
+  assert.match(md, /2 releases/);
+  assert.match(md, /a\/one` v1\.0\.0 → \*\*v1\.1\.0\*\* — apollo/);
+  assert.match(md, /b\/two/);
+  assert.doesNotMatch(md, /Needs a look/, "no alarm heading when there are none");
+});
+
+test("alarms lead, and a rename says where it went", () => {
+  const md = formatTrackedSection({
+    events: [
+      { repo: "facebook/react", event: "renamed", severity: "ALARM", to: "react/react" },
+      { repo: "x/y", event: "archived", severity: "ALARM", to: "true" },
+    ],
+    checked: 257,
+    projectsByRepo: { "facebook/react": ["apollo", "hermes"] },
+  });
+  assert.match(md, /\*\*2 alarms\*\*/);
+  assert.match(md, /### ⛔ Needs a look/);
+  assert.match(md, /\*\*RENAMED\*\* `facebook\/react` → `react\/react` — apollo, hermes/);
+  assert.match(md, /\*\*ARCHIVED\*\* `x\/y`/);
+  assert.doesNotMatch(md, /ARCHIVED `x\/y` → /, "'archived → true' reads as nonsense");
+  assert.ok(md.indexOf("Needs a look") < md.indexOf("Gone quiet") || !md.includes("Gone quiet"));
+});
+
+test("the quiet-repo list is counted in its heading so it can be skipped", () => {
+  const events = Array.from({ length: 26 }, (_, i) => ({ repo: `q/${i}`, event: "stale", severity: "WARN" }));
+  const md = formatTrackedSection({ events, checked: 257 });
+  assert.match(md, /Gone quiet \(no push in 180 days\) — 26/);
+  assert.match(md, /26 gone quiet/);
+});

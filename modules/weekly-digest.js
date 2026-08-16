@@ -159,6 +159,65 @@ function formatDigest({ items, runDate, channelStats = {} }) {
 }
 
 /**
+ * "Adopted & tracked" — what changed upstream since the last digest.
+ *
+ * CHANGES ONLY. The tracker checks ~257 repos every day; listing them weekly
+ * would be a wall nobody reads, and then the week something is archived reads
+ * exactly like every other week. A quiet week says so in one sentence, which is
+ * the whole point of having checked.
+ *
+ * Alarm count is stated even when it is zero, because "0 alarms" is a result and
+ * an omitted section is an absence of one.
+ */
+function formatTrackedSection({ events = [], checked = null, projectsByRepo = {} } = {}) {
+  const lines = ['', '## 📡 Adopted & tracked — what changed upstream', ''];
+  const scope = checked === null ? '' : ` across ${checked} repos we adopted, watch, or depend on`;
+
+  const alarms = events.filter((e) => e.severity === 'ALARM');
+  const warns = events.filter((e) => e.severity === 'WARN');
+  const notes = events.filter((e) => e.severity === 'NOTE');
+
+  if (!events.length) {
+    lines.push(`Nothing changed upstream this week — **0 alarms**${scope}.`, '');
+    return lines.join('\n');
+  }
+
+  lines.push(
+    `**${alarms.length} alarm${alarms.length === 1 ? '' : 's'}**, ` +
+      `${notes.length} release${notes.length === 1 ? '' : 's'}, ` +
+      `${warns.length} gone quiet${scope}.`,
+    ''
+  );
+
+  const who = (repo) => {
+    const ps = projectsByRepo[repo] || [];
+    return ps.length ? ` — ${ps.join(', ')}` : '';
+  };
+  const label = { archived: 'ARCHIVED', deleted: 'DELETED', renamed: 'RENAMED', major_release: 'MAJOR', release: 'release', stale: 'quiet' };
+  const render = (e) => {
+    const arrow = e.to && e.event !== 'archived' ? ` → \`${e.to}\`` : '';
+    return `- **${label[e.event] || e.event}** \`${e.repo}\`${arrow}${who(e.repo)}`;
+  };
+
+  if (alarms.length) {
+    lines.push('### ⛔ Needs a look', '');
+    for (const e of alarms) lines.push(render(e));
+    lines.push('');
+  }
+  if (notes.length) {
+    lines.push('### New versions', '');
+    for (const e of notes) lines.push(`- \`${e.repo}\` ${e.from || '?'} → **${e.to}**${who(e.repo)}`);
+    lines.push('');
+  }
+  if (warns.length) {
+    lines.push(`### Gone quiet (no push in 180 days) — ${warns.length}`, '');
+    for (const e of warns) lines.push(`- \`${e.repo}\`${who(e.repo)}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+/**
  * Per-project section: top-N hardened recommendations for every project in
  * config/projects.json (same ranking as /api/recommendations, in-process).
  */
@@ -197,7 +256,24 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const items = db.getItemsFirstSeenSince(sevenDaysAgo, { limit: 80 });
-  const md = formatDigest({ items, runDate, channelStats }) + formatProjectSections();
+
+  // Upstream changes since the last digest — see formatTrackedSection.
+  let tracked = '';
+  try {
+    const events = db.tracked.eventsSince(sevenDaysAgo);
+    const rows = db.tracked.all();
+    const projectsByRepo = Object.fromEntries(rows.map((r) => [r.repo, r.projects]));
+    // Rows retired from the pool stay in the table but are no longer checked;
+    // counting them would overstate the sweep by exactly the retired set.
+    tracked = formatTrackedSection({ events, checked: db.tracked.lastRunCount(), projectsByRepo });
+  } catch (err) {
+    // The digest is the delivery channel for five other sections; a tracker
+    // problem must not take them down with it, but it must be visible.
+    console.error(`[digest] tracked section failed: ${err.message}`);
+    tracked = `\n## 📡 Adopted & tracked — what changed upstream\n\n_Unavailable this week: ${err.message}_\n`;
+  }
+
+  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');
@@ -214,4 +290,4 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   return { digestPath: outPath, itemCount: items.length, runtimeMs };
 }
 
-module.exports = { generateDigest, formatDigest, formatProjectSections, buildDigestStructure, classify, isRisingStar, parseMeta };
+module.exports = { generateDigest, formatDigest, formatProjectSections, formatTrackedSection, buildDigestStructure, classify, isRisingStar, parseMeta };

@@ -172,7 +172,28 @@ class TrackedStore {
   }
 
   eventsSince(iso) {
-    return this.selectEventsSince.all(iso);
+    // Columns are from_value/to_value (SQL keywords); every consumer speaks
+    // {from,to}, the shape diffRepo emits. Normalising here means there is one
+    // event shape in the system rather than two that differ by one hop.
+    return this.selectEventsSince.all(iso).map((e) => ({ ...e, from: e.from_value, to: e.to_value }));
+  }
+
+  /** Repos actually checked since `iso` — excludes rows retired from the pool. */
+  activeCount(iso) {
+    return this.db.prepare("SELECT COUNT(*) AS n FROM tracked_repos WHERE last_checked_at >= ?").get(iso).n;
+  }
+
+  /**
+   * How many repos the MOST RECENT run checked. A fixed window cannot answer
+   * this: a row retired this morning is still inside a two-day window, and even
+   * an hour of slack swallowed a set retired ten minutes earlier. runTracker
+   * stamps every row of one run with a single timestamp, so exact equality is
+   * both the simplest test and the only exact one.
+   */
+  lastRunCount() {
+    const { latest } = this.db.prepare("SELECT MAX(last_checked_at) AS latest FROM tracked_repos").get();
+    if (!latest) return 0;
+    return this.db.prepare("SELECT COUNT(*) AS n FROM tracked_repos WHERE last_checked_at = ?").get(latest).n;
   }
 
   eventCount() {

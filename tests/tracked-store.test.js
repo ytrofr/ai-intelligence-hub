@@ -111,3 +111,34 @@ test("applyTrackedSchema is idempotent — running it twice is a no-op", () => {
   applyTrackedSchema(db);
   assert.equal(new TrackedStore(db).count(), 1);
 });
+
+test("eventsSince hands back the SAME shape diffRepo emits, not the column names", () => {
+  // The digest read e.to, the column is to_value, and the renames rendered with
+  // no destination. One shape, normalised at the boundary.
+  const { store } = freshStore();
+  store.appendEvent({ repo: "facebook/react", event: "renamed", from: "200", to: "react/react", severity: "ALARM", detected_at: "2026-08-16T00:00:00Z" });
+  const e = store.eventsSince("2026-01-01T00:00:00Z")[0];
+  assert.equal(e.to, "react/react");
+  assert.equal(e.from, "200");
+  assert.equal(e.to_value, "react/react", "the raw column stays available");
+});
+
+test("activeCount excludes repos retired from the pool", () => {
+  const { store } = freshStore();
+  store.recordSnapshot({ repo: "a/current", http_status: 200, checked_at: "2026-08-16T00:00:00Z" });
+  store.recordSnapshot({ repo: "a/retired", http_status: 200, checked_at: "2026-07-01T00:00:00Z" });
+  assert.equal(store.count(), 2);
+  assert.equal(store.activeCount("2026-08-14T00:00:00Z"), 1);
+});
+
+test("lastRunCount counts the LAST RUN, not a window that still holds retired rows", () => {
+  // A row retired this morning sits inside any multi-day window, so a windowed
+  // count overstates the sweep by exactly the set we just stopped checking.
+  const { store } = freshStore();
+  // runTracker stamps every row of one run with a single timestamp.
+  store.recordSnapshot({ repo: "a/checked", http_status: 200, checked_at: "2026-08-16T13:00:00Z" });
+  store.recordSnapshot({ repo: "b/checked", http_status: 200, checked_at: "2026-08-16T13:00:00Z" });
+  store.recordSnapshot({ repo: "c/retired", http_status: 200, checked_at: "2026-08-16T12:50:00Z" });
+  assert.equal(store.count(), 3);
+  assert.equal(store.lastRunCount(), 2, "ten minutes earlier is still a different run");
+});
