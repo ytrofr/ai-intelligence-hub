@@ -1,6 +1,6 @@
 # AI Intelligence Hub
 
-**Track AI trends from 19 sources in one dashboard.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, arXiv, Google AI Blog, Simon Willison, and more — with full-text search and keyword scoring.
+**Track AI trends from 25 sources in one dashboard, and turn them into per-project adoption decisions.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, arXiv, Google AI Blog, Simon Willison, and more — with full-text search and keyword scoring.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
@@ -19,7 +19,7 @@ node server.js
 # Open http://localhost:4444
 ```
 
-No external services required. All 19 sources use free, unauthenticated APIs. Fetches all sources in parallel (~5 seconds).
+No paid services required. Most sources are free feeds/APIs; GitHub discovery wants a `GITHUB_TOKEN`. Every fetch reports per-source status honestly (`success|error|timeout|rate_limited`) — a dead feed is an error, never an empty success.
 
 > **Optional**: Add a `GITHUB_TOKEN` in `.env` to increase GitHub API rate limit from 60/h to 5,000/h. See `.env.example`.
 
