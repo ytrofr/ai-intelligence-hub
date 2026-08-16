@@ -1,0 +1,5 @@
+[
+  {"repo": "anthropics/claude-code", "stars": 12000, "summary": "Official Claude Code CLI", "category": "claude-code"},
+  {"repo": "modelcontextprotocol/servers", "stars": 8500, "summary": "Reference MCP server impls", "category": "mcp"},
+  {"repo": "google/adk-python", "stars": 3400, "summary": "Google Agent Development Kit", "category": "adk"}
+]

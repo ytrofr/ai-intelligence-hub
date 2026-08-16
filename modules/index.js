@@ -8,6 +8,8 @@ const RSSModule = require("./rss");
 const MCPRegistryModule = require("./mcp-registry");
 const ChangelogModule = require("./changelog");
 const GitHubDiscoveryModule = require("./github-discovery");
+const WatchlistDiscoveryModule = require("./watchlist-discovery");
+const PerplexityWeeklyModule = require("./perplexity-discovery");
 
 const moduleTypes = {
   github: GitHubModule,
@@ -16,6 +18,8 @@ const moduleTypes = {
   mcp: MCPRegistryModule,
   changelog: ChangelogModule,
   "github-discovery": GitHubDiscoveryModule,
+  "github-watchlist": WatchlistDiscoveryModule,
+  "perplexity-weekly": PerplexityWeeklyModule,
 };
 
 function createModule(sourceConfig) {

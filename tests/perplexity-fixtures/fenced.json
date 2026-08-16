@@ -1,0 +1,10 @@
+Here are notable repos shipped this week:
+
+```json
+[
+  {"repo": "modelcontextprotocol/servers", "stars": 8500, "summary": "MCP servers", "category": "mcp"},
+  {"repo": "remotion-dev/remotion", "stars": 24000, "summary": "Video as React", "category": "video-ai"}
+]
+```
+
+Hope that helps!

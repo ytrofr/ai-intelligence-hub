@@ -82,4 +82,9 @@ const API = {
     const res = await fetch('/api/recommendations/projects');
     return res.json();
   },
+
+  // Weekly digest
+  getDigestList: () => API.get("/digest"),
+  getDigestJson: (date) => API.get(`/digest/${encodeURIComponent(date)}.json`),
+  runDigestGeneration: (opts = {}) => API.post("/digest/run", opts),
 };
