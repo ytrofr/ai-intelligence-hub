@@ -18,7 +18,7 @@ const path = require("path");
 const BaseModule = require("./base-module");
 const { fetchResponse } = require("./http");
 const { diffRepo } = require("./tracker-diff");
-const { buildPool } = require("./tracked-pool");
+const { buildPool, POSITIVE_CONTROL } = require("./tracked-pool");
 const { createResolver } = require("./dep-resolve");
 const { readDeps } = require("./project-deps");
 
@@ -162,9 +162,18 @@ class TrackedReposModule extends BaseModule {
     console.log(
       `[tracker] checked ${r.checked} repos · ${r.events.length} events (${r.alarms} ALARM) · ${r.errors} errors`
     );
-    if (r.alarms === 0) {
-      // Not a warning about upstream — a warning about the instrument.
-      console.warn("[tracker] zero alarms: verify the positive control was in the pool");
+    // Zero alarms is the STEADY STATE, not a fault — warning on it daily would
+    // cry wolf until nobody read the line. What must never be true is the
+    // control missing from the pool, or never having alarmed at all: either
+    // means a healthy report and a broken instrument look identical.
+    const controlChecked = pool.some((e) => e.repo === POSITIVE_CONTROL);
+    const controlAlarmed = db.tracked.hasEvent(POSITIVE_CONTROL, "archived");
+    if (!controlChecked || !controlAlarmed) {
+      console.warn(
+        `[tracker] INSTRUMENT SUSPECT — positive control ${POSITIVE_CONTROL} ` +
+          `${controlChecked ? "was checked" : "was NOT in the pool"} and ` +
+          `${controlAlarmed ? "has alarmed" : "has NEVER alarmed"}. Treat this run's silence as unproven.`
+      );
     }
     // Findings live in tracked_events, not in the items feed. Returning nothing
     // keeps the daily digest of NEWS separate from the weekly report of CHANGES.

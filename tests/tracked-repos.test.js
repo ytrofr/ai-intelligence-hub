@@ -162,3 +162,28 @@ test("a renamed repo reports WHERE it moved to, not just that it moved", async (
   const e = r.events.find((x) => x.event === "renamed");
   assert.equal(e.to, "react/react", "an alarm saying only '301' cannot be acted on");
 });
+
+test("zero alarms is the steady state — the instrument check is the control, not the count", async () => {
+  // A daily 'zero alarms' warning would cry wolf until nobody read it. What must
+  // never pass silently is a run whose positive control never alarmed.
+  const s = store();
+  const control = "google-gemini/deprecated-generative-ai-js";
+  assert.equal(s.hasEvent(control, "archived"), false, "nothing has alarmed yet");
+
+  await runTracker({
+    pool: [{ repo: control, projects: [], role: "control" }],
+    gh: gh({ [control]: ok({ archived: true }) }),
+    store: s,
+    now: NOW,
+  });
+  assert.equal(s.hasEvent(control, "archived"), true, "one alarm on file is what makes later silence trustworthy");
+
+  const quiet = await runTracker({
+    pool: [{ repo: control, projects: [], role: "control" }],
+    gh: gh({ [control]: ok({ archived: true }) }),
+    store: s,
+    now: "2026-08-17T00:00:00Z",
+  });
+  assert.equal(quiet.alarms, 0);
+  assert.equal(s.hasEvent(control, "archived"), true, "the record survives the quiet run");
+});
