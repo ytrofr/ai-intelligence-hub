@@ -9,13 +9,21 @@ const fs = require("fs");
 const path = require("path");
 
 const VERDICTS = ["ADOPT", "WATCH", "SKIP"];
-const STATUSES = ["proposed", "accepted", "done", "rejected"];
+const STATUSES = ["proposed", "accepted", "trial", "done", "rejected"];
+// Closing a row is the moment a decision has to become knowledge — see setStatus.
+const CLOSING = new Set(["done", "rejected"]);
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
-// What counts as evidence: a bare or project-qualified commit sha, an issue/PR
-// reference, or a URL. Deliberately narrow — "we did this ages ago" is exactly
-// the unverifiable click this gate exists to replace.
+// What counts as evidence that something was BUILT: a bare or project-qualified
+// commit sha, an issue/PR reference, or a URL. Deliberately narrow — "we did this
+// ages ago" is exactly the unverifiable click this gate exists to replace.
 const EVIDENCE_RE = /^(https?:\/\/\S+|[\w.-]+[@#][\w.\/-]+|[0-9a-f]{7,40})$/i;
+
+// A REJECTION built nothing, so it can have no commit. Its evidence is the
+// measurement that settled it — a report file. Requiring a sha here would make
+// rejections unclosable, and an unclosable rejection is the row that never gets
+// written at all, which is the one another project most needs to read.
+const REPORT_RE = /^(~|\.{0,2}\/)[\w.\/@ -]+\.(md|json|txt|csv|log)$/i;
 
 class RadarStore {
   constructor(dir) {
@@ -61,41 +69,87 @@ class RadarStore {
   }
 
   /**
-   * Set a row's status. `done` additionally requires EVIDENCE — the commit, PR
-   * or URL that did it.
+   * Set a row's status. CLOSING a row (`done` or `rejected`) requires EVIDENCE
+   * and a LESSON.
    *
-   * Accepting is a decision and needs no backing. `done` is a claim about the
+   * Accepting is a decision and needs no backing. Closing is a claim about the
    * world, and an unbacked one turns the adoption count into a count of clicks:
    * every row can be marked finished by whoever is looking at the page, and
    * nothing afterwards can tell a real integration from an intention.
    *
+   * `rejected` is gated for the same reason and takes a different SHAPE of
+   * evidence: a rejection built nothing, so it has no commit — what settles it
+   * is the measurement, i.e. a report file. Demanding a sha there would make
+   * rejections unclosable, and the rejection is the row another project most
+   * needs to read ("we measured this and got 3.58%").
+   *
+   * `lesson` is what turns the decision into knowledge the rest of the stack can
+   * use. Without it, "why did we stop using that?" is answerable only by whoever
+   * was in the session, and they are gone. `none - <why not>` is a legitimate
+   * answer: it is a sentence someone chose to write, which a blank field is not.
+   *
    * The validation runs BEFORE anything is written, so a refusal leaves the row
    * exactly as it was. A half-applied refusal would be worse than no gate at
-   * all — the row would read `done` with nothing behind it.
+   * all — the row would read `done` with nothing behind it. The refusal is also
+   * logged, so a session that quietly gives up on closing a row leaves a trace.
+   *
+   * @param {object} [fields] - { outcome, evidence, lesson }
    */
-  setStatus(project, repo, status, { evidence } = {}) {
+  setStatus(project, repo, status, fields = {}) {
     if (!STATUSES.includes(status)) throw new Error(`status must be one of ${STATUSES.join("|")}`);
-    if (status === "done") {
-      const e = String(evidence || "").trim();
-      if (!e) throw new Error('status "done" requires evidence: the commit, PR or URL that did it (e.g. "apollo@3f9a12c")');
-      if (!EVIDENCE_RE.test(e)) {
-        throw new Error(`evidence must name a commit, PR or URL — got "${e}". Examples: apollo@3f9a12c · hermes#123 · https://github.com/o/r/pull/7`);
-      }
-      evidence = e;
-    }
 
+    const text = (v) => (typeof v === "string" ? v.trim() : "");
     const cfg = this.load(project);
     const row = cfg.audit.find((r) => r.repo === repo);
     if (!row) throw new Error(`repo not in radar: ${repo}`);
 
+    // Fall back to what the row already carries, so re-closing a documented row
+    // does not demand the fields again.
+    const next = {
+      outcome: text(fields.outcome) || text(row.outcome),
+      evidence: text(fields.evidence) || text(row.evidence),
+      lesson: text(fields.lesson) || text(row.lesson),
+    };
+
+    if (CLOSING.has(status)) {
+      const refuse = (msg) => {
+        console.warn(`[radar] refused to close ${project}/${repo} as ${status}: ${msg}`);
+        throw new Error(`cannot set status="${status}" on ${repo}: ${msg}`);
+      };
+      if (!next.evidence) {
+        refuse(
+          status === "done"
+            ? 'missing evidence: the commit, PR or URL that did it (e.g. "apollo@3f9a12c")'
+            : 'missing evidence: the report or measurement that settled it (e.g. "~/.claude/reports/spike.md")',
+        );
+      }
+      const shapeOk =
+        EVIDENCE_RE.test(next.evidence) || (status === "rejected" && REPORT_RE.test(next.evidence));
+      if (!shapeOk) {
+        refuse(
+          `evidence must name a commit, PR or URL${status === "rejected" ? " or a report file" : ""} — got "${next.evidence}". ` +
+            `Examples: apollo@3f9a12c · hermes#123 · https://github.com/o/r/pull/7` +
+            (status === "rejected" ? ` · ~/.claude/reports/spike.md` : ""),
+        );
+      }
+      if (!next.lesson) {
+        refuse('missing lesson: the rule path, skill, or "none - <why not>" this taught us');
+      }
+    }
+
     row.status = status;
     row.updated_at = new Date().toISOString();
-    if (status === "done") {
-      row.evidence = evidence;
+    if (next.outcome) row.outcome = next.outcome;
+
+    if (CLOSING.has(status)) {
+      row.evidence = next.evidence;
+      row.lesson = next.lesson;
       row.done_at = row.updated_at;
     } else {
-      // Evidence for a done-ness that no longer holds is a stale claim, not history.
+      // Evidence for a closure that no longer holds is a stale claim, not history.
+      // The lesson goes with it: it described an outcome that has been reopened.
       delete row.evidence;
+      delete row.lesson;
       delete row.done_at;
     }
     this.save(project, cfg);
@@ -109,9 +163,21 @@ class RadarStore {
     const now = new Date().toISOString();
     let row = cfg.audit.find((r) => r.repo === input.repo);
     if (row) {
-      Object.assign(row, { topic: input.topic ?? row.topic, verdict: input.verdict, why: input.why ?? row.why, updated_at: now });
+      Object.assign(row, {
+        topic: input.topic ?? row.topic,
+        verdict: input.verdict,
+        why: input.why ?? row.why,
+        outcome: input.outcome ?? row.outcome,
+        evidence: input.evidence ?? row.evidence,
+        lesson: input.lesson ?? row.lesson,
+        updated_at: now,
+      });
     } else {
-      row = { repo: input.repo, topic: input.topic || "general", verdict: input.verdict, status: "proposed", why: input.why || "", project, added_at: now, updated_at: now };
+      row = {
+        repo: input.repo, topic: input.topic || "general", verdict: input.verdict, status: "proposed",
+        why: input.why || "", outcome: input.outcome || "", evidence: input.evidence || "", lesson: input.lesson || "",
+        project, added_at: now, updated_at: now,
+      };
       cfg.audit.push(row);
     }
     this.save(project, cfg);
@@ -119,4 +185,4 @@ class RadarStore {
   }
 }
 
-module.exports = { RadarStore, VERDICTS, STATUSES, EVIDENCE_RE };
+module.exports = { RadarStore, VERDICTS, STATUSES, EVIDENCE_RE, REPORT_RE };

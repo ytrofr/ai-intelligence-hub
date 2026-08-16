@@ -8,8 +8,9 @@
  *
  *   GET  /api/radar/projects              -> [{id,title,rows,updated}]
  *   GET  /api/radar?project=apollo          -> radar payload
- *   POST /api/radar/status {project,repo,status}   (loopback only)
- *   POST /api/radar/row    {project,repo,topic,verdict,why} (loopback only)
+ *   POST /api/radar/status {project,repo,status,outcome?,evidence?,lesson?}  (loopback only)
+ *                          done|rejected REQUIRE evidence + lesson
+ *   POST /api/radar/row    {project,repo,topic,verdict,why,outcome?,evidence?,lesson?} (loopback only)
  *   /api/hermes-radar is mounted on the same router with project forced to apollo.
  */
 
@@ -33,8 +34,9 @@ router.get("/projects", (req, res) => {
 
 router.post("/status", requireLoopback, (req, res) => {
   try {
-    const { project, repo, status, evidence } = req.body || {};
-    res.json({ ok: true, row: store.setStatus(project, repo, status, { evidence }) });
+    // Closing a row (done|rejected) requires evidence + lesson — see radar-store.
+    const { project, repo, status, outcome, evidence, lesson } = req.body || {};
+    res.json({ ok: true, row: store.setStatus(project, repo, status, { outcome, evidence, lesson }) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
