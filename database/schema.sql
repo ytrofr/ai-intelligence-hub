@@ -13,7 +13,18 @@ CREATE TABLE IF NOT EXISTS items (
   score REAL DEFAULT 0,
   published_at TEXT,
   fetched_at TEXT NOT NULL,
-  metadata TEXT -- JSON blob for source-specific data
+  metadata TEXT, -- JSON blob for source-specific data
+  first_seen_at TEXT -- ISO timestamp; preserved across upserts (cross-run dedup)
+);
+
+-- Weekly digest run history (one row per /api/digest/run invocation)
+CREATE TABLE IF NOT EXISTS weekly_runs (
+  run_date     TEXT PRIMARY KEY,    -- YYYY-MM-DD (digest filename suffix)
+  item_count   INTEGER NOT NULL,
+  channels_run TEXT NOT NULL,        -- comma-separated channel ids
+  runtime_ms   INTEGER NOT NULL,
+  cost_usd     REAL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Full-text search virtual table
@@ -97,6 +108,7 @@ CREATE INDEX IF NOT EXISTS idx_items_source ON items(source);
 CREATE INDEX IF NOT EXISTS idx_items_published ON items(published_at DESC);
 CREATE INDEX IF NOT EXISTS idx_items_score ON items(score DESC);
 CREATE INDEX IF NOT EXISTS idx_items_stars ON items(stars DESC);
+CREATE INDEX IF NOT EXISTS idx_items_first_seen ON items(first_seen_at DESC);
 CREATE INDEX IF NOT EXISTS idx_bookmarks_item ON bookmarks(item_id);
 CREATE INDEX IF NOT EXISTS idx_search_history_count ON search_history(count DESC);
 CREATE INDEX IF NOT EXISTS idx_search_history_recent ON search_history(last_used_at DESC);

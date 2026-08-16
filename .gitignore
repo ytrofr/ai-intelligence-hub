@@ -21,3 +21,8 @@ Thumbs.db
 # Internal project context (not for public repo)
 handoffs/
 screenshots/
+
+# Generated at runtime (not for public repo)
+digests/*.md
+fetch.log
+.claude/state/
