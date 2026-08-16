@@ -23,6 +23,16 @@ const GENERIC_DEPS = new Set([
   'numpy', 'pandas', 'scipy', 'setuptools', 'pytest', 'python-multipart',
   'typing-extensions', 'aiofiles',
 ]);
+// Dev-tooling families that live deps (package.json devDependencies, requirements-test)
+// drag in: type stubs, linters, test runners, bundler plugins, release tooling.
+const GENERIC_DEP_PATTERNS = [
+  /^@types\//, /^@typescript-eslint\//, /^@eslint\//, /^eslint/, /^prettier/, /^@vitejs\//, /^@vitest\//,
+  /^vitest/, /^jest/, /^@jest\//, /^@testing-library\//, /^@playwright\//, /^playwright$/, /^tsx$/, /^ts-jest$/,
+  /^@changesets\//, /^husky$/, /^lint-staged$/, /^turbo$/, /^@turbo\//, /^rimraf$/, /^concurrently$/,
+  /^@tailwindcss\//, /^globals$/, /^supertest$/, /^msw$/, /^@storybook\//, /^storybook$/,
+  /^ruff$/, /^black$/, /^mypy$/, /^isort$/, /^flake8$/, /^pytest/, /^coverage$/, /^wheel$/, /^pip$/, /^build$/,
+];
+const isGenericDep = (d) => GENERIC_DEPS.has(d) || GENERIC_DEP_PATTERNS.some((re) => re.test(d));
 
 // Broad topics match too many unrelated repos — low signal
 const BROAD_TOPICS = new Set([
@@ -550,8 +560,8 @@ class GitHubDiscoveryModule extends BaseModule {
       );
       const isBroadFor = (t) => BROAD_TOPICS.has(t) && !projectAsSpecific.has(t);
 
-      const specificDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && !GENERIC_DEPS.has(d));
-      const genericDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && GENERIC_DEPS.has(d));
+      const specificDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && !isGenericDep(d));
+      const genericDeps = analysis.dependencies.filter((d) => projectDeps.has(d) && isGenericDep(d));
       const specificTopics = repoTopics.filter((t) => projectTopics.has(t) && !isBroadFor(t));
       const genericTopics = repoTopics.filter((t) => projectTopics.has(t) && isBroadFor(t));
 
