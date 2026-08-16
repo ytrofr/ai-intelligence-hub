@@ -3,26 +3,32 @@
  */
 
 const BaseModule = require("./base-module");
+const { fetchJson } = require("./http");
 
 class HuggingFaceModule extends BaseModule {
+  /**
+   * Models + spaces. Sort param comes from config (HF rejects the old
+   * "trending" value with 400). Both endpoints failing -> throw; one -> warn.
+   */
   async fetch() {
     const items = [];
-    const headers = { "User-Agent": "AI-Intelligence-Hub/1.0" };
+    const sort = this.config.sort || "trendingScore";
+    const timeoutMs = this.config.timeout_ms || 20000;
+    const modelsUrl = `https://huggingface.co/api/models?sort=${sort}&direction=-1&limit=30`;
+    const spacesUrl = `https://huggingface.co/api/spaces?sort=${sort}&direction=-1&limit=20`;
 
-    const modelsUrl =
-      "https://huggingface.co/api/models?sort=trending&limit=30";
-    const spacesUrl =
-      "https://huggingface.co/api/spaces?sort=trending&limit=20";
-
-    const [modelsRes, spacesRes] = await Promise.all([
-      fetch(modelsUrl, { headers }).catch(() => ({ ok: false })),
-      fetch(spacesUrl, { headers }).catch(() => ({ ok: false })),
+    const [modelsRes, spacesRes] = await Promise.allSettled([
+      fetchJson(modelsUrl, { timeoutMs }),
+      fetchJson(spacesUrl, { timeoutMs }),
     ]);
+    const failures = [modelsRes, spacesRes].filter((r) => r.status === "rejected").map((r) => r.reason.message);
+    if (failures.length === 2) throw new Error(`HuggingFace models+spaces failed - ${failures[0]}`);
+    if (failures.length) console.warn(`HuggingFace: one endpoint failed: ${failures[0]}`);
 
     // Process models
-    try {
-      if (modelsRes.ok) {
-        const models = await modelsRes.json();
+    {
+      if (modelsRes.status === "fulfilled") {
+        const models = modelsRes.value;
         for (const model of models) {
           items.push(
             this.normalize({
@@ -46,14 +52,12 @@ class HuggingFaceModule extends BaseModule {
           );
         }
       }
-    } catch (err) {
-      console.error("HuggingFace models fetch error:", err.message);
     }
 
     // Process spaces
-    try {
-      if (spacesRes.ok) {
-        const spaces = await spacesRes.json();
+    {
+      if (spacesRes.status === "fulfilled") {
+        const spaces = spacesRes.value;
         for (const space of spaces) {
           items.push(
             this.normalize({
@@ -76,8 +80,6 @@ class HuggingFaceModule extends BaseModule {
           );
         }
       }
-    } catch (err) {
-      console.error("HuggingFace spaces fetch error:", err.message);
     }
 
     return items;

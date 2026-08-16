@@ -82,7 +82,11 @@ CREATE TABLE IF NOT EXISTS sources (
   enabled INTEGER DEFAULT 1,
   rate_limit_minutes INTEGER DEFAULT 60,
   last_fetched_at TEXT,
-  config TEXT -- JSON blob for source-specific config
+  config TEXT, -- JSON blob for source-specific config
+  last_status TEXT,        -- success | error | timeout (2026-08-16, additive; ensureColumns() backfills)
+  last_error TEXT,         -- last failure message (<=500 chars)
+  last_item_count INTEGER, -- items upserted on the last run
+  last_run_at TEXT         -- ISO time of the last attempt (success or not)
 );
 
 -- Search history for autocomplete suggestions

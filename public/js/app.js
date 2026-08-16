@@ -194,11 +194,20 @@ const App = {
 
     try {
       const result = await API.fetchSources();
-      UI.showToast(`Fetched ${result.fetched} items`, "success");
+      const failed = (result.errors || []).map((e) => e.source);
+      if (result.all_failed) {
+        UI.showToast(`Fetch failed for ALL ${result.sources_attempted} sources (network down?)`, "error", 8000);
+      } else if (failed.length) {
+        UI.showToast(`Fetched ${result.fetched} items - ${failed.length} source(s) FAILED: ${failed.join(", ")}`, "error", 8000);
+      } else {
+        UI.showToast(`Fetched ${result.fetched} items from ${result.sources_attempted} sources`, "success");
+      }
       await this.loadStats();
+      await this.loadSources();
       await this.loadItems();
     } catch (err) {
-      UI.showToast("Fetch failed: " + err.message, "error");
+      const msg = err && err.name === "TimeoutError" ? "still running after 5 min - check /api/health later" : err.message;
+      UI.showToast("Fetch failed: " + msg, "error", 8000);
     } finally {
       this.fetching = false;
       btn.disabled = false;

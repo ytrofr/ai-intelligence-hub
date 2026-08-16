@@ -3,6 +3,7 @@
  */
 
 const BaseModule = require("./base-module");
+const { fetchJson } = require("./http");
 
 class ChangelogModule extends BaseModule {
   async fetch() {
@@ -69,14 +70,11 @@ class ChangelogModule extends BaseModule {
   async fetchReleases() {
     const maxItems = this.config.max_items || 30;
     const url = `${this.url}?per_page=${maxItems}`;
-    const res = await fetch(url, { headers: this.githubHeaders() });
-
-    if (!res.ok) {
-      console.error(`Changelog releases fetch error: ${res.status}`);
-      return [];
-    }
-
-    const releases = await res.json();
+    // Throws HttpError / TimeoutError - the fetch runner records it per source.
+    const releases = await fetchJson(url, {
+      headers: this.githubHeaders(),
+      timeoutMs: this.config.timeout_ms || 30000,
+    });
 
     // Sort newest first (API usually does this, but be explicit)
     releases.sort(
@@ -118,13 +116,10 @@ class ChangelogModule extends BaseModule {
     const latestVersion = await this.getLatestVersion(headers);
 
     // Get repo tree to find all .md files (1 API call)
-    const treeRes = await fetch(`${this.url}?recursive=1`, { headers });
-    if (!treeRes.ok) {
-      console.error(`Docs tree fetch error: ${treeRes.status}`);
-      return [];
-    }
-
-    const tree = await treeRes.json();
+    const tree = await fetchJson(`${this.url}?recursive=1`, {
+      headers,
+      timeoutMs: this.config.timeout_ms || 30000,
+    });
     const treeSha = tree.sha;
     const mdFiles = (tree.tree || []).filter(
       (f) =>

@@ -358,3 +358,7 @@
   width: 16px;
   height: 16px;
 }
+
+/* Source chip whose last fetch failed/timed out - shape marker [!] + dashed border */
+.chip.chip-failed { border-style: dashed; }
+.chip-fail { font-weight: 700; letter-spacing: 0.02em; }

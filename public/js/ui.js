@@ -94,15 +94,19 @@ const UI = {
   // Render source filter chips
   renderSourceFilters(sources, activeSources) {
     return sources
-      .map(
-        (s) => `
-      <button class="chip ${activeSources.includes(s.id) ? "active" : ""}"
+      .map((s) => {
+        // Shape marker, not colour: last fetch of this source failed/timed out
+        const failed = s.last_status === "error" || s.last_status === "timeout";
+        const mark = failed ? `<span class="chip-fail" title="${(s.last_error || s.last_status).replace(/"/g, "&quot;")}">[!]</span> ` : "";
+        return `
+      <button class="chip ${activeSources.includes(s.id) ? "active" : ""} ${failed ? "chip-failed" : ""}"
               onclick="App.toggleSourceFilter('${s.id}')"
+              title="${failed ? "Last fetch " + s.last_status + ": " + (s.last_error || "").replace(/"/g, "&quot;") : "Last fetch: " + (s.last_status || "never")}"
               style="${activeSources.includes(s.id) ? `border-color: ${s.color}; color: ${s.color}` : ""}">
-        ${s.name}
+        ${mark}${s.name}
       </button>
-    `,
-      )
+    `;
+      })
       .join("");
   },
 
@@ -190,13 +194,13 @@ const UI = {
   },
 
   // Show toast notification
-  showToast(message, type = "info") {
+  showToast(message, type = "info", durationMs = 3000) {
     const container = document.getElementById("toast-container");
     const toast = document.createElement("div");
     toast.className = `toast toast-${type}`;
     toast.textContent = message;
     container.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
+    setTimeout(() => toast.remove(), durationMs);
   },
 
   // Loading state

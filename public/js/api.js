@@ -9,11 +9,12 @@ const API = {
     return res.json();
   },
 
-  async post(endpoint, data = {}) {
+  async post(endpoint, data = {}, { timeoutMs = 30000 } = {}) {
     const res = await fetch(`/api${endpoint}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(data),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) throw new Error(`API error: ${res.status}`);
     return res.json();
@@ -48,7 +49,10 @@ const API = {
   },
 
   // Sources
-  fetchSources: (sourceId) => API.post("/fetch", sourceId ? { sourceId } : {}),
+  // Full fetch can take minutes (24 sources, per-source budgets) - 5 min client cap
+  fetchSources: (sourceId) =>
+    API.post("/fetch", sourceId ? { sourceId } : {}, { timeoutMs: 300000 }),
+  getHealth: () => API.get("/health"),
   getStats: () => API.get("/stats"),
   getSources: () => API.get("/sources"),
   toggleSource: (id, enabled) => API.put(`/sources/${id}/toggle`, { enabled }),

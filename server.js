@@ -42,12 +42,19 @@ app.use("/api/hermes-radar", require("./routes/hermes-radar"));
 // Health endpoint
 app.get("/api/health", (req, res) => {
   const stats = db.getStats();
+  const src = db.getSourceStatusSummary();
   res.json({
-    status: "healthy",
+    status: src.sources_failed_last_run > 0 ? "degraded" : "healthy",
     port: PORT,
     totalItems: stats.totalItems,
     bookmarks: stats.bookmarkCount,
     uptime: process.uptime(),
+    sources_total: src.sources_total,
+    sources_failed_last_run: src.sources_failed_last_run || 0,
+    all_failed_last_run:
+      src.sources_total > 0 && src.sources_failed_last_run === src.sources_total,
+    failed_sources: src.failed_sources,
+    last_fetch_at: src.last_fetch_at,
   });
 });
 

@@ -24,6 +24,21 @@ db.pragma("journal_mode = WAL");
 const schema = fs.readFileSync(SCHEMA_PATH, "utf-8");
 db.exec(schema);
 
+// Additive migrations for existing DBs: CREATE TABLE IF NOT EXISTS never adds
+// columns, so backfill any missing ones here (idempotent, runs on every boot).
+function ensureColumns(table, columns) {
+  const have = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name));
+  for (const [name, type] of Object.entries(columns)) {
+    if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+  }
+}
+ensureColumns("sources", {
+  last_status: "TEXT",
+  last_error: "TEXT",
+  last_item_count: "INTEGER",
+  last_run_at: "TEXT",
+});
+
 // Prepared statements
 const stmts = {
   // first_seen_at is set on INSERT only — omitted from UPDATE SET so it's preserved
@@ -140,6 +155,20 @@ const stmts = {
   ),
   toggleSource: db.prepare(
     "UPDATE sources SET enabled = @enabled WHERE id = @id",
+  ),
+  updateSourceStatus: db.prepare(
+    `UPDATE sources SET last_status = @last_status, last_error = @last_error,
+       last_item_count = @last_item_count, last_run_at = @last_run_at WHERE id = @id`,
+  ),
+  sourceStatusSummary: db.prepare(
+    `SELECT COUNT(*) AS sources_total,
+       SUM(CASE WHEN last_status IN ('error','timeout') THEN 1 ELSE 0 END) AS sources_failed_last_run,
+       MAX(last_run_at) AS last_fetch_at
+     FROM sources WHERE enabled = 1`,
+  ),
+  failedSources: db.prepare(
+    `SELECT id, last_status, last_error, last_run_at FROM sources
+     WHERE enabled = 1 AND last_status IN ('error','timeout') ORDER BY id`,
   ),
 
   clearOldItems: db.prepare(`
@@ -502,6 +531,20 @@ module.exports = {
 
   toggleSource: (id, enabled) =>
     stmts.toggleSource.run({ id, enabled: enabled ? 1 : 0 }),
+
+  // Per-source fetch truth (2026-08-16)
+  updateSourceStatus: (row) =>
+    stmts.updateSourceStatus.run({
+      id: row.id,
+      last_status: row.last_status,
+      last_error: row.last_error ?? null,
+      last_item_count: row.last_item_count ?? 0,
+      last_run_at: row.last_run_at || new Date().toISOString(),
+    }),
+  getSourceStatusSummary: () => ({
+    ...stmts.sourceStatusSummary.get(),
+    failed_sources: stmts.failedSources.all(),
+  }),
 
   // Search history & suggestions
   getSearchSuggestions: (prefix) =>

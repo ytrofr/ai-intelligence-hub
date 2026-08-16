@@ -4,23 +4,28 @@
 
 const BaseModule = require("./base-module");
 const { parseStringPromise } = require("xml2js");
+const { fetchText } = require("./http");
 
 class RSSModule extends BaseModule {
+  /**
+   * Throws on HTTP error / timeout / unparseable feed - the runner records it.
+   * A feed that is reachable but has 0 entries returns [] (honest empty).
+   */
   async fetch() {
     const items = [];
-
+    const xml = await fetchText(this.url, {
+      timeoutMs: this.config.timeout_ms || 20000,
+    });
+    let parsed;
     try {
-      const res = await fetch(this.url, {
-        headers: { "User-Agent": "AI-Intelligence-Hub/1.0" },
-      });
-
-      if (!res.ok) {
-        console.error(`RSS fetch failed for ${this.id}: ${res.status}`);
-        return items;
-      }
-
-      const xml = await res.text();
-      const parsed = await parseStringPromise(xml, { explicitArray: false });
+      parsed = await parseStringPromise(xml, { explicitArray: false });
+    } catch (err) {
+      throw new Error(`RSS parse error for ${this.id}: ${err.message}`);
+    }
+    if (!parsed || (!parsed.rss && !parsed.feed)) {
+      throw new Error(`Not an RSS/Atom document: ${this.url} (${xml.slice(0, 60).replace(/\s+/g, " ")}...)`);
+    }
+    {
 
       // Handle RSS 2.0
       if (parsed.rss?.channel?.item) {
@@ -36,9 +41,7 @@ class RSSModule extends BaseModule {
               url: item.link,
               description: this.stripHtml(item.description || ""),
               author: this.extractAuthor(item.author || item["dc:creator"]),
-              published_at: item.pubDate
-                ? new Date(item.pubDate).toISOString()
-                : null,
+              published_at: this.toIso(item.pubDate),
               score: this.getRecencyScore(item.pubDate) * 10,
             }),
           );
@@ -62,18 +65,22 @@ class RSSModule extends BaseModule {
                 entry.summary?._ || entry.summary || entry.content?._ || "",
               ),
               author: entry.author?.name,
-              published_at: entry.published || entry.updated,
+              published_at: this.toIso(entry.published || entry.updated),
               score:
                 this.getRecencyScore(entry.published || entry.updated) * 10,
             }),
           );
         }
       }
-    } catch (err) {
-      console.error(`RSS parse error for ${this.id}:`, err.message);
     }
 
     return items;
+  }
+
+  toIso(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? null : d.toISOString();
   }
 
   extractAuthor(val) {

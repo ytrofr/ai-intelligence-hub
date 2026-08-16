@@ -3,25 +3,26 @@
  */
 
 const BaseModule = require("./base-module");
+const { fetchJson } = require("./http");
 
 class GitHubModule extends BaseModule {
+  /**
+   * One search per topic. A topic that fails is collected; if EVERY topic
+   * fails the source throws (dead / network down); partial failure warns.
+   */
   async fetch() {
     const topics = this.config.topics || ["ai", "llm", "claude", "anthropic"];
-    const headers = {
-      Accept: "application/vnd.github.v3+json",
-      "User-Agent": "AI-Intelligence-Hub/1.0",
-    };
+    const headers = { Accept: "application/vnd.github.v3+json" };
     if (process.env.GITHUB_TOKEN) {
       headers["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
     }
+    const failures = [];
 
     const topicResults = await Promise.all(
       topics.map(async (topic) => {
         try {
           const url = `https://api.github.com/search/repositories?q=topic:${topic}&sort=stars&order=desc&per_page=20`;
-          const res = await fetch(url, { headers });
-          if (!res.ok) return [];
-          const data = await res.json();
+          const data = await fetchJson(url, { headers, timeoutMs: this.config.timeout_ms || 45000 });
           return (data.items || []).map((repo) =>
             this.normalize({
               id: repo.id.toString(),
@@ -41,11 +42,15 @@ class GitHubModule extends BaseModule {
             }),
           );
         } catch (err) {
-          console.error(`GitHub topic ${topic} error:`, err.message);
+          failures.push(`${topic}: ${err.message}`);
           return [];
         }
       }),
     );
+    if (failures.length === topics.length) {
+      throw new Error(`All ${topics.length} GitHub topic searches failed - ${failures[0]}`);
+    }
+    if (failures.length) console.warn(`GitHub: ${failures.length}/${topics.length} topics failed: ${failures.join("; ")}`);
     return topicResults.flat();
   }
 
