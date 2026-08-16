@@ -12,6 +12,11 @@ const VERDICTS = ["ADOPT", "WATCH", "SKIP"];
 const STATUSES = ["proposed", "accepted", "done", "rejected"];
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
+// What counts as evidence: a bare or project-qualified commit sha, an issue/PR
+// reference, or a URL. Deliberately narrow — "we did this ages ago" is exactly
+// the unverifiable click this gate exists to replace.
+const EVIDENCE_RE = /^(https?:\/\/\S+|[\w.-]+[@#][\w.\/-]+|[0-9a-f]{7,40})$/i;
+
 class RadarStore {
   constructor(dir) {
     this.dir = dir;
@@ -55,13 +60,44 @@ class RadarStore {
     fs.renameSync(tmp, f);
   }
 
-  setStatus(project, repo, status) {
+  /**
+   * Set a row's status. `done` additionally requires EVIDENCE — the commit, PR
+   * or URL that did it.
+   *
+   * Accepting is a decision and needs no backing. `done` is a claim about the
+   * world, and an unbacked one turns the adoption count into a count of clicks:
+   * every row can be marked finished by whoever is looking at the page, and
+   * nothing afterwards can tell a real integration from an intention.
+   *
+   * The validation runs BEFORE anything is written, so a refusal leaves the row
+   * exactly as it was. A half-applied refusal would be worse than no gate at
+   * all — the row would read `done` with nothing behind it.
+   */
+  setStatus(project, repo, status, { evidence } = {}) {
     if (!STATUSES.includes(status)) throw new Error(`status must be one of ${STATUSES.join("|")}`);
+    if (status === "done") {
+      const e = String(evidence || "").trim();
+      if (!e) throw new Error('status "done" requires evidence: the commit, PR or URL that did it (e.g. "apollo@3f9a12c")');
+      if (!EVIDENCE_RE.test(e)) {
+        throw new Error(`evidence must name a commit, PR or URL — got "${e}". Examples: apollo@3f9a12c · hermes#123 · https://github.com/o/r/pull/7`);
+      }
+      evidence = e;
+    }
+
     const cfg = this.load(project);
     const row = cfg.audit.find((r) => r.repo === repo);
     if (!row) throw new Error(`repo not in radar: ${repo}`);
+
     row.status = status;
     row.updated_at = new Date().toISOString();
+    if (status === "done") {
+      row.evidence = evidence;
+      row.done_at = row.updated_at;
+    } else {
+      // Evidence for a done-ness that no longer holds is a stale claim, not history.
+      delete row.evidence;
+      delete row.done_at;
+    }
     this.save(project, cfg);
     return row;
   }
@@ -83,4 +119,4 @@ class RadarStore {
   }
 }
 
-module.exports = { RadarStore, VERDICTS, STATUSES };
+module.exports = { RadarStore, VERDICTS, STATUSES, EVIDENCE_RE };

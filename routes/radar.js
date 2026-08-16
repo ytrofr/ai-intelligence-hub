@@ -31,8 +31,8 @@ router.get("/projects", (req, res) => {
 
 router.post("/status", requireLoopback, (req, res) => {
   try {
-    const { project, repo, status } = req.body || {};
-    res.json({ ok: true, row: store.setStatus(project, repo, status) });
+    const { project, repo, status, evidence } = req.body || {};
+    res.json({ ok: true, row: store.setStatus(project, repo, status, { evidence }) });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

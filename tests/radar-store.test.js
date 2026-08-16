@@ -55,3 +55,58 @@ test("isLoopback accepts only local addresses", () => {
   assert.equal(isLoopback("192.168.1.5"), false);
   assert.equal(isLoopback(undefined), false);
 });
+
+// --- the evidence gate: "done" must name the commit that did it --------------
+
+test("DONE WITHOUT EVIDENCE IS REFUSED, and the row is left UNCHANGED", () => {
+  // The whole point of the gate: a refusal that half-applied would be worse than
+  // no gate, because the row would read 'done' with nothing behind it.
+  const s = tmpStore();
+  assert.throws(() => s.setStatus("apollo", "a/b", "done"), /evidence/i);
+  const row = s.load("apollo").audit[0];
+  assert.equal(row.status, "proposed", "the refused write must not have landed");
+  assert.equal(row.done_at, undefined);
+  assert.equal(row.evidence, undefined);
+});
+
+test("done WITH evidence is stored, and stamps done_at", () => {
+  const s = tmpStore();
+  const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c" });
+  assert.equal(row.status, "done");
+  assert.equal(row.evidence, "apollo@3f9a12c");
+  assert.ok(row.done_at, "done_at must be stamped");
+  assert.equal(s.load("apollo").audit[0].evidence, "apollo@3f9a12c", "and persisted");
+});
+
+test("accepted, rejected and proposed still need no evidence", () => {
+  // Accepting is a decision; done is a claim about the world. Only the claim
+  // needs backing, or the gate would just make the radar tedious.
+  for (const status of ["accepted", "rejected", "proposed"]) {
+    const s = tmpStore();
+    assert.equal(s.setStatus("apollo", "a/b", status).status, status);
+  }
+});
+
+test("whitespace is not evidence", () => {
+  const s = tmpStore();
+  assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "   " }), /evidence/i);
+  assert.equal(s.load("apollo").audit[0].status, "proposed");
+});
+
+test("evidence must look like a commit, a PR or a URL — not a sentence", () => {
+  // 'we did this ages ago' is exactly the unverifiable click the gate replaces.
+  const s = tmpStore();
+  assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "we did this ages ago" }), /evidence/i);
+  for (const ok of ["apollo@3f9a12c", "hermes#123", "https://github.com/a/b/pull/7", "3f9a12c"]) {
+    const t = tmpStore();
+    assert.equal(t.setStatus("apollo", "a/b", "done", { evidence: ok }).evidence, ok, `${ok} should be accepted`);
+  }
+});
+
+test("moving OFF done clears the evidence rather than leaving a stale claim", () => {
+  const s = tmpStore();
+  s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c" });
+  const row = s.setStatus("apollo", "a/b", "accepted");
+  assert.equal(row.evidence, undefined, "evidence for a done-ness that no longer holds is a lie");
+  assert.equal(row.done_at, undefined);
+});
