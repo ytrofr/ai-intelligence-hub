@@ -11,6 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
+const { recommendForProject } = require('./recommend');
 
 const DIGESTS_DIR = path.join(__dirname, '..', 'digests');
 
@@ -166,6 +167,37 @@ function formatDigest({ items, runDate, channelStats = {} }) {
   return lines.join('\n');
 }
 
+/**
+ * Per-project section: top-N hardened recommendations for every project in
+ * config/projects.json (same ranking as /api/recommendations, in-process).
+ */
+function formatProjectSections({ perProject = 5 } = {}) {
+  let projects = [];
+  try {
+    projects = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')).projects || [];
+  } catch {
+    return '';
+  }
+  const lines = ['', '## 🎯 Per-project suggestions (star floor 200, no forks/dupes)', ''];
+  for (const p of projects) {
+    let recs;
+    try {
+      recs = recommendForProject(db, p.id, { limit: perProject });
+    } catch (err) {
+      lines.push(`### ${p.name} — error: ${err.message}`, '');
+      continue;
+    }
+    lines.push(`### ${p.name} (${recs.discoveries.length} of ${recs.poolSize} candidates)`);
+    if (!recs.discoveries.length) lines.push('- _no candidates above the floor yet_');
+    for (const r of recs.discoveries) {
+      const why = (r.relevance && r.relevance.matchReason) || '';
+      lines.push(`- **[${r.title}](${r.url})** · ${(r.stars || 0).toLocaleString()}★${why ? ` — _${why}_` : ''}`);
+    }
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
 async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs = Date.now() } = {}) {
   if (!fs.existsSync(DIGESTS_DIR)) fs.mkdirSync(DIGESTS_DIR, { recursive: true });
 
@@ -173,7 +205,7 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
 
   const items = db.getItemsFirstSeenSince(sevenDaysAgo, { limit: 80 });
-  const md = formatDigest({ items, runDate, channelStats });
+  const md = formatDigest({ items, runDate, channelStats }) + formatProjectSections();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');
@@ -190,4 +222,4 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   return { digestPath: outPath, itemCount: items.length, runtimeMs };
 }
 
-module.exports = { generateDigest, formatDigest, buildDigestStructure, classify, isRisingStar, parseMeta };
+module.exports = { generateDigest, formatDigest, formatProjectSections, buildDigestStructure, classify, isRisingStar, parseMeta };

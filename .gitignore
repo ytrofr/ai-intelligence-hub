@@ -26,3 +26,4 @@ screenshots/
 digests/*.md
 fetch.log
 .claude/state/
+digest.log

@@ -22,6 +22,12 @@ const GENERIC_DEPS = new Set([
   'click', 'rich', 'pyyaml', 'gunicorn', 'flask', 'sqlalchemy',
   'numpy', 'pandas', 'scipy', 'setuptools', 'pytest', 'python-multipart',
   'typing-extensions', 'aiofiles',
+  // 2026-08-16: utility/infra libs that live-repo deps surfaced as "key" but say nothing about domain
+  'chalk', 'commander', 'inquirer', 'jsdom', 'tsup', 'esbuild', 'class-variance-authority', 'tailwind-merge',
+  'react-router', 'react-router-dom', 'node-fetch', 'winston', 'pino', 'pino-pretty', 'cookie-parser',
+  'bcrypt', 'bcryptjs', 'jsonwebtoken', 'jose', 'knip', 'lefthook', 'typescript-eslint', 'express-rate-limit',
+  'ws', 'cryptography', 'aiosqlite', 'openpyxl', 'python-docx', 'python-pptx', 'pypdf', 'react-markdown',
+  'date-fns', 'dayjs', 'js-yaml', 'yaml', 'glob', 'minimatch', 'semver', 'ora', 'debug', 'body-parser',
 ]);
 // Dev-tooling families that live deps (package.json devDependencies, requirements-test)
 // drag in: type stubs, linters, test runners, bundler plugins, release tooling.
