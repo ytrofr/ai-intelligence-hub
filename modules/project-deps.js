@@ -20,7 +20,7 @@ const DEP_FILE = /^(package\.json|requirements[^/]*\.txt|pyproject\.toml|pnpm-wo
 const MAX_DEPTH_DEFAULT = 3;
 const _cache = new Map(); // repoPath -> { at, deps }
 
-function walk(root, maxDepth) {
+function walk(root, maxDepth, excludeDirs = new Set()) {
   const found = [];
   const visit = (dir, depth) => {
     let entries;
@@ -31,7 +31,7 @@ function walk(root, maxDepth) {
     }
     for (const e of entries) {
       if (e.isDirectory()) {
-        if (!SKIP_DIRS.has(e.name) && depth < maxDepth) visit(path.join(dir, e.name), depth + 1);
+        if (!SKIP_DIRS.has(e.name) && !excludeDirs.has(e.name) && depth < maxDepth) visit(path.join(dir, e.name), depth + 1);
       } else if (DEP_FILE.test(e.name)) {
         found.push(path.join(dir, e.name));
       }
@@ -128,13 +128,14 @@ function parsePackageJson(text) {
   return { names: [...names], ownName };
 }
 
-function readDeps(repoPath, { maxDepth = MAX_DEPTH_DEFAULT, ttlMs = 10 * 60 * 1000 } = {}) {
+function readDeps(repoPath, { maxDepth = MAX_DEPTH_DEFAULT, ttlMs = 10 * 60 * 1000, exclude = [] } = {}) {
   if (!repoPath) return [];
-  const cached = _cache.get(repoPath);
+  const cacheKey = `${repoPath}|${exclude.join(",")}`;
+  const cached = _cache.get(cacheKey);
   if (cached && Date.now() - cached.at < ttlMs) return cached.deps;
   const deps = new Set();
   const internal = new Set();
-  for (const file of walk(repoPath, maxDepth)) {
+  for (const file of walk(repoPath, maxDepth, new Set(exclude))) {
     let text;
     try {
       text = fs.readFileSync(file, "utf-8");
@@ -152,7 +153,7 @@ function readDeps(repoPath, { maxDepth = MAX_DEPTH_DEFAULT, ttlMs = 10 * 60 * 10
   }
   for (const n of internal) deps.delete(n);
   const list = [...deps].sort();
-  _cache.set(repoPath, { at: Date.now(), deps: list });
+  _cache.set(cacheKey, { at: Date.now(), deps: list });
   return list;
 }
 

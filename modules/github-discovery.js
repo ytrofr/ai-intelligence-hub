@@ -28,6 +28,9 @@ const GENERIC_DEPS = new Set([
   'bcrypt', 'bcryptjs', 'jsonwebtoken', 'jose', 'knip', 'lefthook', 'typescript-eslint', 'express-rate-limit',
   'ws', 'cryptography', 'aiosqlite', 'openpyxl', 'python-docx', 'python-pptx', 'pypdf', 'react-markdown',
   'date-fns', 'dayjs', 'js-yaml', 'yaml', 'glob', 'minimatch', 'semver', 'ora', 'debug', 'body-parser',
+  // AI SDKs shared by EVERY project of ours - they say "it's an AI app", not which domain
+  '@modelcontextprotocol/sdk', '@anthropic-ai/sdk', 'anthropic', 'openai', '@google/genai', 'google-genai',
+  '@google/generative-ai', 'mcp', 'litellm', 'tiktoken',
 ]);
 // Dev-tooling families that live deps (package.json devDependencies, requirements-test)
 // drag in: type stubs, linters, test runners, bundler plugins, release tooling.
@@ -86,7 +89,7 @@ class GitHubDiscoveryModule extends BaseModule {
     // overlap set; `dependencies` stays the curated list used for the
     // dependency-backed (stack health) strategy. Unreadable repo -> curated only.
     for (const project of cfg.projects || []) {
-      const live = readDeps(project.repoPath);
+      const live = readDeps(project.repoPath, { exclude: project.repoExclude || [] });
       project.scoringDependencies = mergeProjectDeps(project.dependencies || [], live);
       if (live.length) console.log(`  Project ${project.id}: ${live.length} live deps from ${project.repoPath}`);
     }
