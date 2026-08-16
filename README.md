@@ -15,9 +15,12 @@
 git clone https://github.com/ytrofr/ai-intelligence-hub.git
 cd ai-intelligence-hub
 npm install
+cp config/projects.example.json config/projects.json   # then edit with your own projects
 node server.js
 # Open http://localhost:4444
 ```
+
+> `config/projects.json` is gitignored — it holds your personal project portfolio. The repo ships `config/projects.example.json` as a template; copy it and customize the `projects` array. The `claude-ecosystem` entry works as-is. `config/radar/*.json` is gitignored for the same reason — see `config/radar/example.json` for the schema.
 
 No paid services required. Most sources are free feeds/APIs; GitHub discovery wants a `GITHUB_TOKEN`. Every fetch reports per-source status honestly (`success|error|timeout|rate_limited`) — a dead feed is an error, never an empty success.
 
