@@ -193,6 +193,7 @@
           { k: "in use, undecided", n: c.inUse },
           { k: "closed", n: c.closed },
           { k: "closed with a lesson", n: c.closedWithLesson, gap: c.closed > 0 && c.closedWithLesson < c.closed },
+          { k: "you eyeballed", n: c.closedEyeballed, gap: c.closed > 0 && c.closedEyeballed < c.closed },
           { k: "unresolved", n: c.unresolved, gap: c.unresolved > 0 },
         ];
         document.getElementById("counts").innerHTML = cells
@@ -207,7 +208,7 @@
         if (f === "closed" && !["done", "rejected"].includes(r.status)) return false;
         if (f === "unresolved" && !r.unresolved) return false;
         if (!q) return true;
-        const hay = [r.repo, r.pkg, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status].join(" ").toLowerCase();
+        const hay = [r.repo, r.pkg, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status, r.eyeballed].join(" ").toLowerCase();
         return hay.includes(q);
       }
 

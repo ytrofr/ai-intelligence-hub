@@ -25,6 +25,22 @@ const EVIDENCE_RE = /^(https?:\/\/\S+|[\w.-]+[@#][\w.\/-]+|[0-9a-f]{7,40})$/i;
 // written at all, which is the one another project most needs to read.
 const REPORT_RE = /^(~|\.{0,2}\/)[\w.\/@ -]+\.(md|json|txt|csv|log)$/i;
 
+// The PAIR the operator actually looked at: a Decision Board card (8776) or a
+// Visual Hall batch (8772). A report PATH is deliberately NOT accepted — nobody
+// eyeballs a markdown file, and `evidence` already holds that. Operator law
+// 2026-08-17: ~/.claude/rules/quality/adoption-needs-an-eyeballed-before-after.md
+const PAIR_RE = /^https?:\/\/(localhost|127\.0\.0\.1):(8776|8772)\/\S*$/i;
+
+// Their verdict and when: "adopt 2026-08-17T11:42Z". `not-yet` is a real answer
+// the board can return, so it parses here — and is refused for CLOSING below,
+// because a row must not close on an undecided one.
+const EYEBALLED_RE = /^(adopt|reject|not-yet)\s+(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)$/i;
+
+// Which verdict each closing status is allowed to rest on. A `done` filed against
+// a `reject` verdict is not a bookkeeping slip; it is the operator's answer being
+// overridden by the session that asked the question.
+const VERDICT_FOR = { done: "adopt", rejected: "reject" };
+
 class RadarStore {
   constructor(dir) {
     this.dir = dir;
@@ -93,7 +109,7 @@ class RadarStore {
    * all — the row would read `done` with nothing behind it. The refusal is also
    * logged, so a session that quietly gives up on closing a row leaves a trace.
    *
-   * @param {object} [fields] - { outcome, evidence, lesson }
+   * @param {object} [fields] - { outcome, evidence, lesson, pair, eyeballed }
    */
   setStatus(project, repo, status, fields = {}) {
     if (!STATUSES.includes(status)) throw new Error(`status must be one of ${STATUSES.join("|")}`);
@@ -109,6 +125,8 @@ class RadarStore {
       outcome: text(fields.outcome) || text(row.outcome),
       evidence: text(fields.evidence) || text(row.evidence),
       lesson: text(fields.lesson) || text(row.lesson),
+      pair: text(fields.pair) || text(row.pair),
+      eyeballed: text(fields.eyeballed) || text(row.eyeballed),
     };
 
     if (CLOSING.has(status)) {
@@ -135,6 +153,47 @@ class RadarStore {
       if (!next.lesson) {
         refuse('missing lesson: the rule path, skill, or "none - <why not>" this taught us');
       }
+
+      // Evidence and a lesson make a decision REUSABLE. They do not make it the
+      // operator's decision — four rows closed with both, on a session's own
+      // measurement, that the operator had never been shown.
+      if (!next.pair) {
+        refuse(
+          "missing pair: the board card carrying BOTH ARMS on our own material. " +
+            'Build it with `/stack pair <repo>`, then post it (e.g. "http://localhost:8776/?session=…#id")',
+        );
+      }
+      if (!PAIR_RE.test(next.pair)) {
+        refuse(
+          `pair must be a Decision Board card (:8776) or a Visual Hall batch (:8772) — got "${next.pair}". ` +
+            "A report path is evidence, not a pair: nobody eyeballs a markdown file.",
+        );
+      }
+      if (!next.eyeballed) {
+        refuse(
+          "missing eyeballed: the operator's verdict on that pair — " +
+            '"adopt|reject <ISO timestamp>". Read it with `decide.py read --peek`; never write it before they answer.',
+        );
+      }
+      const verdict = EYEBALLED_RE.exec(next.eyeballed);
+      if (!verdict) {
+        refuse(
+          `eyeballed must be "adopt|reject|not-yet <ISO timestamp>" — got "${next.eyeballed}". ` +
+            'Example: "adopt 2026-08-17T11:42Z"',
+        );
+      }
+      const verb = verdict[1].toLowerCase();
+      if (verb === "not-yet") {
+        refuse(
+          "the operator has not decided yet (verdict is not-yet) — a row does not close on an undecided pair",
+        );
+      }
+      if (verb !== VERDICT_FOR[status]) {
+        refuse(
+          `the verdict contradicts the status: they said "${verb}", you are filing "${status}" ` +
+            `(which needs "${VERDICT_FOR[status]}"). Their answer wins — change the status, not the verdict.`,
+        );
+      }
     }
 
     row.status = status;
@@ -144,12 +203,18 @@ class RadarStore {
     if (CLOSING.has(status)) {
       row.evidence = next.evidence;
       row.lesson = next.lesson;
+      row.pair = next.pair;
+      row.eyeballed = next.eyeballed;
       row.done_at = row.updated_at;
     } else {
       // Evidence for a closure that no longer holds is a stale claim, not history.
       // The lesson goes with it: it described an outcome that has been reopened.
+      // So do the pair and the verdict — a verdict is an answer about a closure,
+      // and re-opening means the question is open again.
       delete row.evidence;
       delete row.lesson;
+      delete row.pair;
+      delete row.eyeballed;
       delete row.done_at;
     }
     this.save(project, cfg);

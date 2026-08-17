@@ -54,9 +54,13 @@ router.get("/projects", (req, res) => {
 
 router.post("/status", requireLoopback, (req, res) => {
   try {
-    // Closing a row (done|rejected) requires evidence + lesson — see radar-store.
-    const { project, repo, status, outcome, evidence, lesson } = req.body || {};
-    res.json({ ok: true, row: store.setStatus(project, repo, status, { outcome, evidence, lesson }) });
+    // Closing a row (done|rejected) requires evidence + lesson + the pair the
+    // operator saw and their verdict on it — see radar-store.
+    const { project, repo, status, outcome, evidence, lesson, pair, eyeballed } = req.body || {};
+    res.json({
+      ok: true,
+      row: store.setStatus(project, repo, status, { outcome, evidence, lesson, pair, eyeballed }),
+    });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }

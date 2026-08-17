@@ -19,6 +19,12 @@ const { RadarStore } = require("../routes/lib/radar-store");
  */
 const SHA = "apollo@3f9a12c";
 const REPORT = "~/.claude/reports/hub-audit-2026-08-16/spike-tool-output-budget.md";
+// Operator law 2026-08-17: closing also needs the pair the operator saw and
+// their verdict on it. See tests/radar-pair-gate.test.js for that half.
+const PAIR_OK = "http://localhost:8776/?session=t#c1";
+const ADOPT_OK = "adopt 2026-08-17T11:42Z";
+const REJECT_OK = "reject 2026-08-17T11:42Z";
+
 
 function tmpStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-gate-"));
@@ -66,6 +72,8 @@ test("T5 done is ACCEPTED with both, and both are persisted", () => {
     evidence: SHA,
     lesson: "quality/measure-impact-not-existence.md",
     outcome: "shipped, fired on 2 of 3 real pages",
+    pair: PAIR_OK,
+    eyeballed: ADOPT_OK,
   });
   assert.equal(row.status, "done");
   assert.equal(row.evidence, SHA);
@@ -81,6 +89,8 @@ test("T5 rejected is gated exactly like done — a rejection is the most valuabl
   const row = store.setStatus("proj", "a/two", "rejected", {
     evidence: REPORT,
     lesson: "none - measured, nothing general",
+    pair: PAIR_OK,
+    eyeballed: REJECT_OK,
   });
   assert.equal(row.status, "rejected");
   assert.equal(row.lesson, "none - measured, nothing general");
@@ -88,7 +98,7 @@ test("T5 rejected is gated exactly like done — a rejection is the most valuabl
 
 test("T5 lesson 'none' is accepted — it is a deliberate sentence, not an empty field", () => {
   const { store } = tmpStore();
-  const row = store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "none" });
+  const row = store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.lesson, "none");
 });
 
@@ -117,6 +127,8 @@ test("T6 a row that already carries evidence and lesson can close without repeat
   const cfg = JSON.parse(fs.readFileSync(path.join(dir, "proj.json"), "utf-8"));
   cfg.audit[0].evidence = SHA;
   cfg.audit[0].lesson = "quality/earlier.md";
+  cfg.audit[0].pair = PAIR_OK;
+  cfg.audit[0].eyeballed = ADOPT_OK;
   fs.writeFileSync(path.join(dir, "proj.json"), JSON.stringify(cfg));
   assert.equal(store.setStatus("proj", "a/one", "done").status, "done");
 });
@@ -125,7 +137,7 @@ test("T6 reopening a closed row clears BOTH evidence and lesson", () => {
   // A lesson describes an outcome. Reopen the row and the outcome no longer
   // holds, so keeping the lesson would leave a stale claim behind it.
   const { store } = tmpStore();
-  store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "quality/x.md" });
+  store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
   const row = store.setStatus("proj", "a/one", "accepted");
   assert.equal(row.evidence, undefined);
   assert.equal(row.lesson, undefined);

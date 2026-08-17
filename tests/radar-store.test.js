@@ -6,6 +6,12 @@ const path = require("node:path");
 const { RadarStore, STATUSES } = require("../routes/lib/radar-store");
 const { isLoopback } = require("../routes/lib/net");
 
+// Operator law 2026-08-17: closing also needs the pair the operator saw and their
+// verdict on it. See tests/radar-pair-gate.test.js for that half of the gate.
+const PAIR_OK = "http://localhost:8776/?session=t#c1";
+const ADOPT_OK = "adopt 2026-08-17T11:42Z";
+const REJECT_OK = "reject 2026-08-17T11:42Z";
+
 function tmpStore() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "radar-"));
   fs.writeFileSync(path.join(dir, "apollo.json"), JSON.stringify({
@@ -73,7 +79,7 @@ test("DONE WITHOUT EVIDENCE IS REFUSED, and the row is left UNCHANGED", () => {
 
 test("done WITH evidence is stored, and stamps done_at", () => {
   const s = tmpStore();
-  const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none" });
+  const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.status, "done");
   assert.equal(row.evidence, "apollo@3f9a12c");
   assert.ok(row.done_at, "done_at must be stamped");
@@ -107,6 +113,8 @@ test("REJECTED is gated too, and takes a report rather than a commit", () => {
   const row = s.setStatus("apollo", "a/b", "rejected", {
     evidence: "~/.claude/reports/hub-audit-2026-08-16/spike-tool-output-budget.md",
     lesson: "quality/measure-impact-not-existence.md",
+    pair: PAIR_OK,
+    eyeballed: REJECT_OK,
   });
   assert.equal(row.status, "rejected");
   assert.equal(row.lesson, "quality/measure-impact-not-existence.md");
@@ -134,7 +142,7 @@ test("closing requires a LESSON as well as evidence", () => {
   const s = tmpStore();
   assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c" }), /lesson/i);
   assert.equal(s.load("apollo").audit[0].status, "proposed", "the refused write must not have landed");
-  const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none - nothing general" });
+  const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none - nothing general", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.lesson, "none - nothing general");
 });
 
@@ -150,13 +158,13 @@ test("evidence must look like a commit, a PR or a URL — not a sentence", () =>
   assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "we did this ages ago" }), /evidence/i);
   for (const ok of ["apollo@3f9a12c", "hermes#123", "https://github.com/a/b/pull/7", "3f9a12c"]) {
     const t = tmpStore();
-    assert.equal(t.setStatus("apollo", "a/b", "done", { evidence: ok, lesson: "none" }).evidence, ok, `${ok} should be accepted`);
+    assert.equal(t.setStatus("apollo", "a/b", "done", { evidence: ok, lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK }).evidence, ok, `${ok} should be accepted`);
   }
 });
 
 test("moving OFF done clears the evidence rather than leaving a stale claim", () => {
   const s = tmpStore();
-  s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "quality/x.md" });
+  s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
   const row = s.setStatus("apollo", "a/b", "accepted");
   assert.equal(row.evidence, undefined, "evidence for a done-ness that no longer holds is a lie");
   assert.equal(row.done_at, undefined);

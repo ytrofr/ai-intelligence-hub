@@ -72,6 +72,8 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
         outcome: "",
         evidence: "",
         lesson: "",
+        pair: "",
+        eyeballed: "",
         first_seen: null,
         updated_at: null,
       };
@@ -96,6 +98,8 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     if (hasText(r.outcome) && !hasText(row.outcome)) row.outcome = text(r.outcome);
     if (hasText(r.evidence) && !hasText(row.evidence)) row.evidence = text(r.evidence);
     if (hasText(r.lesson) && !hasText(row.lesson)) row.lesson = text(r.lesson);
+    if (hasText(r.pair) && !hasText(row.pair)) row.pair = text(r.pair);
+    if (hasText(r.eyeballed) && !hasText(row.eyeballed)) row.eyeballed = text(r.eyeballed);
 
     const incoming = text(r.status) || "in-use";
     if ((STATUS_RANK[incoming] ?? 0) >= (STATUS_RANK[row.status] ?? 0)) row.status = incoming;
@@ -141,6 +145,9 @@ function countLedger(rows = []) {
     inUse: rows.filter((r) => r.status === "in-use").length,
     closed: closed.length,
     closedWithLesson: closed.filter((r) => hasText(r.lesson) && text(r.lesson).toLowerCase() !== "none").length,
+    // Operator law 2026-08-17: a closed row the operator never saw is a decision,
+    // not an adoption. Printed on the page so the gap cannot go quiet.
+    closedEyeballed: closed.filter((r) => hasText(r.eyeballed)).length,
     projects: [...new Set(rows.flatMap((r) => r.projects))].sort(),
   };
 }
