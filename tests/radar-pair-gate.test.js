@@ -157,11 +157,40 @@ test("accepted and proposed need no pair — only CLOSING does", () => {
   assert.equal(store.setStatus("proj", "a/two", "trial").status, "trial");
 });
 
-test("re-opening a closed row drops the verdict with the lesson", () => {
+test("re-opening drops the CLOSURE's claims but KEEPS the operator's verdict", () => {
+  // Contract corrected 2026-08-17, the first time the gate was used in anger.
+  // It used to delete `pair` and `eyeballed` here, on the reasoning that "a
+  // verdict is an answer about a closure". That is wrong, and the law this gate
+  // enforces says so in its own When-to-Apply: a row moving to `accepted` needs
+  // an eyeballed pair too. The operator looked at the trafilatura pair and said
+  // ADOPT, which moves the row OFF `rejected` — and the old behaviour deleted
+  // the verdict at exactly the moment it was being acted on, leaving the row
+  // with no record that they had ever been shown anything.
+  //
+  // `evidence`, `lesson` and `done_at` DO describe the closure, so they still go.
   const { store } = tmpStore();
   store.setStatus("proj", "a/one", "done", full());
-  const reopened = store.setStatus("proj", "a/one", "trial");
-  assert.equal(reopened.status, "trial");
-  assert.ok(!reopened.eyeballed, "a verdict describes a closure that has been reopened");
-  assert.ok(!reopened.pair, "and so does the pair it was given on");
+  const reopened = store.setStatus("proj", "a/one", "accepted");
+  assert.equal(reopened.status, "accepted");
+  assert.equal(reopened.pair, CARD, "the pair they were shown is not undone by a re-open");
+  assert.equal(reopened.eyeballed, ADOPT, "and neither is the answer they gave on it");
+  assert.equal(reopened.evidence, undefined, "evidence for a closure that no longer holds is a lie");
+  assert.equal(reopened.lesson, undefined, "and the lesson described that closure");
+  assert.equal(reopened.done_at, undefined);
+  const onDisk = store.load("proj").audit[0];
+  assert.equal(onDisk.eyeballed, ADOPT, "and it survives on disk, not just in the return value");
+});
+
+test("a verdict reached on a pair survives a re-close, without being re-supplied", () => {
+  // The practical consequence: once they have answered, the row carries the
+  // answer, so closing it later does not demand the pair again — the fallback
+  // in setStatus reads it off the row. A gate that made the operator re-answer
+  // every transition would be a gate people route around.
+  const { store } = tmpStore();
+  store.setStatus("proj", "a/one", "done", full());
+  store.setStatus("proj", "a/one", "trial");
+  const reclosed = store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "none - x" });
+  assert.equal(reclosed.status, "done");
+  assert.equal(reclosed.pair, CARD);
+  assert.equal(reclosed.eyeballed, ADOPT);
 });

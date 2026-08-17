@@ -209,12 +209,21 @@ class RadarStore {
     } else {
       // Evidence for a closure that no longer holds is a stale claim, not history.
       // The lesson goes with it: it described an outcome that has been reopened.
-      // So do the pair and the verdict — a verdict is an answer about a closure,
-      // and re-opening means the question is open again.
+      //
+      // The PAIR AND THE VERDICT STAY. They used to be deleted here too, on the
+      // reasoning that "a verdict is an answer about a closure" — which is wrong,
+      // and using the gate for real is what showed it. The operator looked at the
+      // trafilatura pair and said ADOPT; acting on that answer moves the row OFF
+      // `rejected`, and this branch then erased the answer at the exact moment it
+      // was being honoured. The law is explicit that `accepted` needs an eyeballed
+      // pair as much as `done` does, so an accepted row with no verdict on it is
+      // the state the law exists to forbid.
+      row.pair = next.pair;
+      row.eyeballed = next.eyeballed;
+      if (!row.pair) delete row.pair;
+      if (!row.eyeballed) delete row.eyeballed;
       delete row.evidence;
       delete row.lesson;
-      delete row.pair;
-      delete row.eyeballed;
       delete row.done_at;
     }
     this.save(project, cfg);
