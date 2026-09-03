@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ground Truth — AI Intelligence Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/variables.css" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        font-size: var(--font-base);
+        line-height: 1.55;
+        padding: var(--spacing-xl) var(--spacing-lg) 4rem;
+      }
+      a { color: var(--color-primary-hover); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap { max-width: 1240px; margin: 0 auto; }
+
+      .head {
+        border-left: 4px solid var(--color-primary);
+        padding-left: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+      }
+      .head .eyebrow {
+        font-family: var(--font-mono);
+        font-size: var(--font-xs);
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--color-primary-hover);
+      }
+      .head h1 { font-size: 1.6rem; font-weight: 700; margin: 0.15rem 0 0.3rem; }
+      .head p { color: var(--color-text-muted); max-width: 74ch; }
+
+      /* Counters. Every failure mode of this page is silent - a slot that stops
+         matching, a near-miss log that stops being written - so the numbers are
+         the only tell, and they are derived from the rows below them. */
+      .counts { display: flex; flex-wrap: wrap; gap: var(--spacing-md); margin: var(--spacing-lg) 0; }
+      .count {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        padding: var(--spacing-md) var(--spacing-lg);
+        min-width: 8.5rem;
+      }
+      .count .n { font-family: var(--font-mono); font-size: 1.5rem; font-weight: 600; display: block; }
+      .count .k { font-size: var(--font-xs); color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.08em; }
+      .count.gap { border-color: var(--color-warning); }
+      .count.gap .n { color: var(--color-warning); }
+
+      .proj { margin-top: var(--spacing-xl); }
+      .proj > h2 {
+        font-size: 1.05rem;
+        font-weight: 600;
+        display: flex;
+        align-items: baseline;
+        gap: 0.6rem;
+        padding-bottom: 0.35rem;
+        border-bottom: 1px solid var(--color-border);
+      }
+      .proj > h2 .id { font-family: var(--font-mono); font-size: var(--font-xs); color: var(--color-text-dim); }
+
+      .tablewrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: var(--font-sm); table-layout: fixed; min-width: 58rem; }
+      col.c-mark { width: 2.4rem; }
+      col.c-slot { width: 13rem; }
+      col.c-inst { width: 17rem; }
+      col.c-ran  { width: 20rem; }
+      col.c-cand { width: 15rem; }
+      th, td {
+        text-align: left; padding: 0.55rem 0.6rem;
+        border-bottom: 1px solid var(--color-border); vertical-align: top;
+        /* An instrument path has no spaces, so a fixed column has no wrap point
+           and the text runs straight over the next cell. Seen on the first live
+           render: scorer.py's path sat on top of the Last-run column. */
+        overflow-wrap: anywhere; word-break: break-word;
+      }
+      th {
+        font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--color-text-muted); font-weight: 600;
+      }
+      td.mono, .mono { font-family: var(--font-mono); font-size: var(--font-xs); }
+
+      /* SHAPE, never colour alone - the marker has to survive being read by
+         someone who cannot tell the red from the green. */
+      .mark { font-family: var(--font-mono); font-weight: 600; }
+      .mark.ran { color: var(--color-success, var(--color-primary-hover)); }
+      .mark.never { color: var(--color-warning); }
+      .mark.gapmark { color: var(--color-text-dim); }
+
+      .number { font-family: var(--font-mono); font-weight: 600; }
+      .caveat { display: block; color: var(--color-text-muted); font-size: var(--font-xs); margin-top: 0.2rem; }
+      .never { color: var(--color-warning); }
+      .gaptext { color: var(--color-text-muted); font-style: italic; }
+      .cand { display: block; }
+      .pill {
+        display: inline-block; font-family: var(--font-mono); font-size: var(--font-xs);
+        border: 1px solid var(--color-border); border-radius: 999px; padding: 0.05rem 0.5rem;
+      }
+      .pill.runnable { border-color: var(--color-primary); }
+      .pill.needs { border-color: var(--color-warning); }
+      .dim { color: var(--color-text-dim); }
+
+      .misses { margin-top: var(--spacing-md); }
+      .misses h3 { font-size: var(--font-sm); font-weight: 600; margin-bottom: 0.3rem; }
+      .misses p.why { color: var(--color-text-muted); font-size: var(--font-xs); max-width: 74ch; margin-bottom: 0.4rem; }
+      .misses li { list-style: none; font-size: var(--font-xs); font-family: var(--font-mono); padding: 0.15rem 0; }
+      .empty { color: var(--color-text-dim); font-size: var(--font-sm); padding: 0.6rem 0; }
+      footer { margin-top: 3rem; color: var(--color-text-dim); font-size: var(--font-xs); }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="head">
+        <div class="eyebrow">Ground Truth</div>
+        <h1>What checks our instruments, and what did it last say?</h1>
+        <p>
+          Every scoring instrument across the projects was found on 2 September 2026 to have
+          no outside answer key, and three of them turned out to be wrong in ways nothing
+          inside could see. A row here is one instrument. A row with no run is the finding,
+          not a gap in the page - so nothing is omitted for being empty.
+        </p>
+      </div>
+
+      <div class="counts" id="counts"></div>
+      <div id="projects"></div>
+
+      <footer>
+        <span id="generated"></span> &middot;
+        <a href="/stack.html">Stack ledger</a> &middot;
+        <a href="/">Hub</a>
+      </footer>
+    </div>
+
+    <script>
+      const el = (tag, cls, text) => {
+        const n = document.createElement(tag);
+        if (cls) n.className = cls;
+        if (text !== undefined) n.textContent = text;
+        return n;
+      };
+
+      const count = (n, k, warn) => {
+        const d = el("div", warn ? "count gap" : "count");
+        d.append(el("span", "n", String(n)), el("span", "k", k));
+        return d;
+      };
+
+      function renderSlotRow(slot) {
+        const tr = el("tr");
+
+        // Shape first: ran / never / declared gap. Readable without colour.
+        const ranAtAll = slot.runs > 0;
+        const markCls = ranAtAll ? "mark ran" : slot.gap ? "mark gapmark" : "mark never";
+        const markTxt = ranAtAll ? "●" : slot.gap ? "—" : "◇";
+        const tdMark = el("td");
+        tdMark.append(el("span", markCls, markTxt));
+        tr.append(tdMark);
+
+        tr.append(el("td", null, slot.id));
+        tr.append(el("td", "mono", slot.instrument || "—"));
+
+        const tdRan = el("td");
+        if (slot.last_ran) {
+          tdRan.append(el("span", "number", slot.last_ran.number || "ran"));
+          const ref = [slot.last_ran.reference, slot.last_ran.n ? `n=${slot.last_ran.n}` : null,
+                       slot.last_ran.at]
+            .filter(Boolean)
+            .join(" · ");
+          if (ref) tdRan.append(el("span", "caveat", ref));
+          // The caveat travels with the number, always. It is what stops the
+          // number being quoted as something it does not support.
+          if (slot.last_ran.caveat) tdRan.append(el("span", "caveat", slot.last_ran.caveat));
+        } else if (slot.gap) {
+          tdRan.append(el("span", "gaptext", slot.gap));
+        } else {
+          tdRan.append(el("span", "never", "never run"));
+        }
+        tr.append(tdRan);
+
+        const tdC = el("td");
+        if (!slot.candidates.length) {
+          tdC.append(el("span", "dim", "—"));
+        } else {
+          for (const c of slot.candidates.slice(0, 6)) {
+            const line = el("span", "cand");
+            const a = el("a", null, c.title);
+            a.href = c.url;
+            a.target = "_blank";
+            a.rel = "noopener";
+            line.append(
+              el("span", c.status === "runnable" ? "pill runnable" : "pill needs",
+                 c.status === "runnable" ? "runs" : "asks you"),
+              document.createTextNode(" "),
+              a
+            );
+            // The reason comes from the gate itself, never re-derived here.
+            if (c.why) line.append(el("span", "caveat", c.why));
+            tdC.append(line);
+          }
+          if (slot.candidates.length > 6) {
+            tdC.append(el("span", "dim", `+${slot.candidates.length - 6} more`));
+          }
+        }
+        tr.append(tdC);
+        return tr;
+      }
+
+      function renderProject(p) {
+        const sec = el("section", "proj");
+        const h = el("h2");
+        h.append(document.createTextNode(p.name), el("span", "id", p.id));
+        sec.append(h);
+
+        if (!p.slots.length) {
+          // A project with no instruments declared is itself the finding.
+          sec.append(el("p", "empty", "No instrument declared for this project yet."));
+        } else {
+          const wrap = el("div", "tablewrap");
+          const table = el("table");
+          const cg = el("colgroup");
+          for (const c of ["c-mark", "c-slot", "c-inst", "c-ran", "c-cand"]) cg.append(el("col", c));
+          table.append(cg);
+          const thead = el("thead");
+          const htr = el("tr");
+          for (const t of ["", "Slot", "Instrument", "Last run", "Candidates"]) htr.append(el("th", null, t));
+          thead.append(htr);
+          table.append(thead);
+          const tb = el("tbody");
+          for (const s of p.slots) tb.append(renderSlotRow(s));
+          table.append(tb);
+          wrap.append(table);
+          sec.append(wrap);
+        }
+
+        if (p.near_misses.length) {
+          const m = el("div", "misses");
+          m.append(el("h3", null, `Near misses (${p.near_misses.length})`));
+          m.append(el("p", "why",
+            "Matched this project but no instrument. Not a defect - this is the corpus for the next slot, and the reason names the gate that refused it."));
+          const ul = el("ul");
+          for (const n of p.near_misses.slice(0, 10)) {
+            const li = el("li");
+            const a = el("a", null, n.title);
+            a.href = n.url;
+            a.target = "_blank";
+            a.rel = "noopener";
+            li.append(a, document.createTextNode(` — ${n.reason} (${n.kind})`));
+            ul.append(li);
+          }
+          m.append(ul);
+          sec.append(m);
+        }
+        return sec;
+      }
+
+      fetch("/api/ground-truth")
+        .then((r) => r.json())
+        .then((data) => {
+          const c = data.counts || {};
+          const counts = document.getElementById("counts");
+          counts.append(
+            count(c.slots || 0, "instruments"),
+            count(c.slots_with_a_run || 0, "have a number"),
+            count(c.slots_never_run || 0, "never checked", (c.slots_never_run || 0) > 0),
+            count(c.slots_recording_a_gap || 0, "recorded gap"),
+            count(c.runnable || 0, "runs without asking"),
+            count(c.needs_you || 0, "asks you first", (c.needs_you || 0) > 0),
+            count(c.near_misses || 0, "near misses")
+          );
+          const box = document.getElementById("projects");
+          for (const p of data.projects || []) box.append(renderProject(p));
+          document.getElementById("generated").textContent =
+            "generated " + (data.generated_at || "").replace("T", " ").slice(0, 19) + " UTC";
+        })
+        .catch((err) => {
+          document.getElementById("projects").append(
+            el("p", "empty", "Could not load /api/ground-truth: " + err.message)
+          );
+        });
+    </script>
+  </body>
+</html>

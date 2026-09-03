@@ -46,6 +46,13 @@ const { applyTrackedSchema, TrackedStore } = require("./tracked-store");
 applyTrackedSchema(db);
 const trackedStore = new TrackedStore(db);
 
+// The near-miss log: what matched a PROJECT but no INSTRUMENT. Same shape as the
+// tracked store - the DDL and every statement live in the store module so tests
+// drive them against an in-memory handle; here we only bind it to the real DB.
+const { applySlotNearMissSchema, SlotNearMissStore } = require("./slot-near-miss-store");
+applySlotNearMissSchema(db);
+const nearMissStore = new SlotNearMissStore(db);
+
 // Prepared statements
 const stmts = {
   // first_seen_at is set on INSERT only — omitted from UPDATE SET so it's preserved
@@ -320,6 +327,8 @@ function buildAdvancedQuery(options) {
 
 module.exports = {
   DB_PATH,
+  // The near-miss log, injected into the HF module by fetch-runner.
+  nearMissStore,
   // Items
   upsertItem: (item) => {
     const now = new Date().toISOString();

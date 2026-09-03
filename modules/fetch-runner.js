@@ -30,6 +30,14 @@ async function runSource(source, { db, createModule, timeoutMs, keywords = [], n
   const saveStatus = (last_status, last_error, last_item_count) =>
     db.updateSourceStatus({ id: source.id, last_status, last_error, last_item_count, last_run_at: now().toISOString() });
   const module = createModule(source);
+  // The near-miss log's ONE call site. A store that nothing hands to a module is
+  // armed and unreachable - it reads as present in every search and records
+  // nothing. This is the seam that already holds the db, so it is where the
+  // module gets it; a fake db in a test simply has no `nearMissStore` and the
+  // module's own guard makes that a no-op.
+  if (module && db && db.nearMissStore && module.nearMissStore === undefined) {
+    module.nearMissStore = db.nearMissStore;
+  }
   if (!module) {
     const error = "Unknown module type: " + source.type;
     saveStatus("error", error, 0);

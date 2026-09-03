@@ -55,14 +55,24 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
   // An unresolved package has no repo slug to key on, so it keys on its package
   // name instead. Two unresolvable packages are two rows, never one merged
   // "unresolved" row — otherwise the total silently shrinks.
-  const keyFor = (repo, pkg) => (repo === UNRESOLVED ? `${UNRESOLVED}:${pkg || ""}` : repo);
+  //
+  // KIND is part of the identity, and it has to be. A HuggingFace dataset id and
+  // a GitHub slug are spelled identically - `SALT-NLP/Design2Code` is both - so
+  // keying on the slug alone merges the answer key we MEASURE AGAINST with the
+  // source we DEPEND ON, and one of the two authored reasons silently wins.
+  const keyFor = (repo, pkg, kind) =>
+    repo === UNRESOLVED ? `${UNRESOLVED}:${pkg || ""}:${kind}` : `${kind}:${repo}`;
 
-  const touch = (key, repo, pkg) => {
+  const touch = (key, repo, pkg, kind) => {
     let row = byKey.get(key);
     if (!row) {
       row = {
         repo,
         pkg: pkg || null,
+        // repo | dataset | model. Defaulted, never inferred from the slug: every
+        // row that existed before this field is a repo, and a guess would make
+        // the first dataset row indistinguishable from a mis-typed one.
+        kind,
         unresolved: repo === UNRESOLVED,
         projects: [],
         why: "",
@@ -90,7 +100,8 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
   for (const r of radarRows) {
     if (!r || !r.repo) continue;
     if (r.repo === POSITIVE_CONTROL) continue;
-    const row = touch(keyFor(r.repo, r.pkg), r.repo, r.pkg);
+    const kind = text(r.kind) || "repo";
+    const row = touch(keyFor(r.repo, r.pkg, kind), r.repo, r.pkg, kind);
     addProject(row, r.project);
     if (hasText(r.why) && !hasText(row.why)) row.why = text(r.why);
     if (hasText(r.topic)) row.topic = text(r.topic);
@@ -113,7 +124,10 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
   for (const d of depRepos) {
     if (!d || !d.repo) continue;
     if (d.repo === POSITIVE_CONTROL) continue;
-    const row = touch(keyFor(d.repo, d.pkg), d.repo, d.pkg);
+    // A manifest resolves to a PACKAGE, which is always a repo. Keying the dep at
+    // kind "repo" is what stops a dependency attaching itself to a dataset of the
+    // same name and making an answer key read as something we ship.
+    const row = touch(keyFor(d.repo, d.pkg, "repo"), d.repo, d.pkg, "repo");
     if (!row.pkg && d.pkg) row.pkg = d.pkg;
     addProject(row, d.project);
   }
@@ -123,7 +137,12 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     projects: [...row.projects].sort(),
     explained: hasText(row.why),
   }));
-  rows.sort((a, b) => a.repo.localeCompare(b.repo) || String(a.pkg).localeCompare(String(b.pkg)));
+  rows.sort(
+    (a, b) =>
+      a.repo.localeCompare(b.repo) ||
+      String(a.kind).localeCompare(String(b.kind)) ||
+      String(a.pkg).localeCompare(String(b.pkg))
+  );
 
   return { rows, counts: countLedger(rows) };
 }
@@ -148,6 +167,13 @@ function countLedger(rows = []) {
     // Operator law 2026-08-17: a closed row the operator never saw is a decision,
     // not an adoption. Printed on the page so the gap cannot go quiet.
     closedEyeballed: closed.filter((r) => hasText(r.eyeballed)).length,
+    // Per-kind, so three dataset rows landing at once do not read as three new
+    // dependencies on the board.
+    byKind: rows.reduce((acc, r) => {
+      const k = r.kind || "repo";
+      acc[k] = (acc[k] || 0) + 1;
+      return acc;
+    }, {}),
     projects: [...new Set(rows.flatMap((r) => r.projects))].sort(),
   };
 }

@@ -85,3 +85,29 @@ test("summarize distinguishes partial failure from network-down", () => {
   assert.equal(down.sources_failed, 2);
   assert.equal(down.all_failed, true);
 });
+
+// ---------------------------------------------------------------------------
+// C3 - the near-miss store's ONE call site.
+//
+// A store that nothing hands to a module is armed and unreachable: it appears in
+// every search, its own tests pass, and it records nothing. The guard is not
+// "does the store work" - that is tested next door - it is "does anything CALL
+// it". Both arms, because a wiring line that fires unconditionally would also
+// overwrite a store a caller deliberately set.
+// ---------------------------------------------------------------------------
+
+test("the fetch runner hands the near-miss store to the module it just built", async () => {
+  const store = { record: () => {} };
+  const built = { canFetch: () => true, fetch: async () => [] };
+  const db = { ...fakeDb(), nearMissStore: store };
+  await runSource(src(), { db, createModule: () => built, timeoutMs: 1000 });
+  assert.equal(built.nearMissStore, store, "the store never reached the module - it is inert");
+});
+
+test("CONTROL: a db with no near-miss store leaves the module alone, and the fetch still runs", async () => {
+  const built = { canFetch: () => true, fetch: async () => [{ id: "a" }] };
+  const db = fakeDb();
+  const r = await runSource(src(), { db, createModule: () => built, timeoutMs: 1000 });
+  assert.equal(built.nearMissStore, undefined);
+  assert.equal(r.status, "success");
+});

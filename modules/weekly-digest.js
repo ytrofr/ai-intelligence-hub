@@ -221,6 +221,106 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
  * Per-project section: top-N hardened recommendations for every project in
  * config/projects.json (same ranking as /api/recommendations, in-process).
  */
+
+/**
+ * Ground-truth section: which HF datasets could serve as an external control
+ * for a project's own scoring instruments.
+ *
+ * This exists because a sweep on 2026-09-02 found ~25 scoring instruments across
+ * Apollo, Hermes, Atlas and Orion and NOT ONE of them had ever been run
+ * against ground truth we did not produce ourselves. Three were measured by hand
+ * that day; this is what makes the fourth happen without anyone remembering.
+ *
+ * RUNNABLE vs NEEDS YOU is the operator's own ruling made visible: small +
+ * permissive + ungated runs on its own; anything gated or restrictively licensed
+ * waits for them. The split is computed by `isCheapRun`, never re-decided here.
+ */
+/**
+ * The weekly ground-truth section - one row per INSTRUMENT, not per project.
+ *
+ * It used to list datasets that matched a PROJECT, which is a topic overlap and
+ * says nothing about whether anything can grade the thing. Worse, the section
+ * vanished when nothing matched - and an instrument nothing checks is precisely
+ * the row that has to be loudest, because that absence is the finding this whole
+ * arc started from.
+ *
+ * Reads modules/ground-truth.js, the SAME builder the page reads. Two renderers,
+ * one builder: a section with its own tally could report a different week from
+ * the page and both would look right.
+ */
+function formatGroundTruthSection(items, projects, nearMisses = []) {
+  const HuggingFaceModule = require('./huggingface');
+  const { buildGroundTruth } = require('./ground-truth');
+  const hf = new HuggingFaceModule({ id: 'huggingface', config: {} });
+
+  const { projects: tree, counts } = buildGroundTruth({
+    projects: projects || [],
+    items: items || [],
+    nearMisses: nearMisses || [],
+    // Anything the cheap-run gate refuses needs the operator: terms to accept, or
+    // a card to rule. The gate fails closed, so an unknown lands here.
+    classify: (item) => (hf.isCheapRun(item) ? 'runnable' : 'needs-you'),
+    refusal: (item) => hf.cheapRunRefusal(item),
+  });
+
+  const lines = [
+    '',
+    '## 🔬 External ground truth — what checks each instrument',
+    '',
+    `_${counts.slots} instruments · ${counts.slots_with_a_run} have a number · ` +
+      `**${counts.slots_never_run} never checked** · ${counts.slots_recording_a_gap} recorded gap · ` +
+      `${counts.near_misses} near misses_`,
+    '',
+  ];
+
+  for (const p of tree) {
+    lines.push(`### ${p.name}`);
+    if (!p.slots.length) {
+      lines.push('- _no instrument declared for this project yet_');
+    }
+    for (const s of p.slots) {
+      // Shape, not colour: ● ran · ◇ never · — a declared gap.
+      const mark = s.runs > 0 ? '●' : s.gap ? '—' : '◇';
+      const head = `- ${mark} \`${s.id}\`` + (s.instrument ? ` (\`${s.instrument}\`)` : '');
+      if (s.last_ran) {
+        const ref = [s.last_ran.reference, s.last_ran.n ? `n=${s.last_ran.n}` : null, s.last_ran.at]
+          .filter(Boolean)
+          .join(' · ');
+        lines.push(`${head} — **${s.last_ran.number || 'ran'}**${ref ? ` · ${ref}` : ''}`);
+        // The caveat is never dropped. It is what stops the number being quoted
+        // as something it does not support.
+        if (s.last_ran.caveat) lines.push(`    - _${s.last_ran.caveat}_`);
+      } else if (s.gap) {
+        lines.push(`${head} — _gap: ${s.gap}_`);
+      } else {
+        lines.push(`${head} — **never checked**`);
+      }
+      for (const c of s.candidates.slice(0, 5)) {
+        lines.push(
+          `    - [${c.title}](${c.url}) · ${(c.downloads || 0).toLocaleString()} downloads · ` +
+            `licence \`${c.license || 'UNDECLARED'}\`` +
+            (c.size_category ? ` · ${c.size_category}` : '') +
+            ` — **${c.status === 'runnable' ? 'RUNNABLE' : 'NEEDS YOU'}**` +
+            (c.why ? ` (${c.why})` : '')
+        );
+      }
+      if (s.candidates.length > 5) {
+        lines.push(`    - _+${s.candidates.length - 5} more candidates_`);
+      }
+    }
+    if (p.near_misses.length) {
+      // Not a defect: this is the corpus for the next slot, and the reason names
+      // the gate that refused it.
+      lines.push(`- _near misses (${p.near_misses.length}): ` +
+        p.near_misses.slice(0, 5).map((n) => `${n.title} — ${n.reason}`).join(' · ') + '_');
+    }
+    lines.push('');
+  }
+
+  if (!tree.length) lines.push('- _no projects declare an instrument yet_', '');
+  return lines.join('\n');
+}
+
 function formatProjectSections({ perProject = 5 } = {}) {
   let projects = [];
   try {
@@ -273,7 +373,28 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
     tracked = `\n## 📡 Adopted & tracked — what changed upstream\n\n_Unavailable this week: ${err.message}_\n`;
   }
 
-  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections();
+  // The ground-truth section reads the SAME pool the per-project section does,
+  // so a dataset that reached the index reaches the digest without a second fetch.
+  let groundTruth = '';
+  try {
+    const projects = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')
+    ).projects || [];
+    // The near-miss log is part of the weekly picture, not a page-only extra:
+    // it is the corpus for the next slot, and Monday is when anyone reads it.
+    let nearMisses = [];
+    try {
+      nearMisses = db.nearMissStore ? db.nearMissStore.all({ limit: 200 }) : [];
+    } catch (e) {
+      nearMisses = [];
+    }
+    groundTruth = formatGroundTruthSection(loadPool(db), projects, nearMisses);
+  } catch (err) {
+    // Best-effort enrichment: a digest that fails to build is worse than one
+    // missing a section, but a SILENT miss is worse than both - say it failed.
+    groundTruth = `\n## 🔬 External ground truth\n\n- _section failed: ${err.message}_\n`;
+  }
+  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections() + groundTruth;
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');
@@ -290,4 +411,4 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   return { digestPath: outPath, itemCount: items.length, runtimeMs };
 }
 
-module.exports = { generateDigest, formatDigest, formatProjectSections, formatTrackedSection, buildDigestStructure, classify, isRisingStar, parseMeta };
+module.exports = { generateDigest, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, buildDigestStructure, classify, isRisingStar, parseMeta };

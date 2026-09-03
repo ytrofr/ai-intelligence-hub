@@ -163,3 +163,62 @@ test("output is sorted by repo and stable across input ordering", () => {
   assert.deepEqual(a.rows.map((r) => r.repo), ["a/first", "z/last"]);
   assert.deepEqual(a.rows, b.rows);
 });
+
+// ---------------------------------------------------------------------------
+// C5 - `kind` on a ledger row.
+//
+// The ledger is keyed on the repo, which is right for repos and dangerous the
+// moment a DATASET enters it: a HuggingFace id and a GitHub slug are spelled
+// identically (`SALT-NLP/Design2Code` is both), so without kind in the identity
+// the answer key we measured against and the source code we depend on merge into
+// one row and one of the two reasons silently wins.
+// ---------------------------------------------------------------------------
+
+test("POSITIVE CONTROL: a row that declares no kind is a repo, as every existing row is", () => {
+  const { rows } = buildLedger({ radarRows: [{ repo: "a/one", project: "apollo", why: "x" }] });
+  assert.equal(rows[0].kind, "repo");
+});
+
+test("a radar row's kind is preserved, so a dataset can enter the ledger as a dataset", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "SALT-NLP/Design2Code", kind: "dataset", project: "apollo", why: "grades design-fidelity" }],
+  });
+  assert.equal(rows[0].kind, "dataset");
+});
+
+test("a DATASET and a REPO with the same slug are two rows, not one", () => {
+  // The collision is real, not hypothetical: the answer key we score against and
+  // a repo of the same name are different objects with different lessons.
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "SALT-NLP/Design2Code", kind: "dataset", project: "apollo", why: "the answer key" },
+      { repo: "SALT-NLP/Design2Code", kind: "repo", project: "apollo", why: "the code" },
+    ],
+  });
+  assert.equal(rows.length, 2, "kind is part of a row's identity, or one reason overwrites the other");
+  assert.deepEqual(rows.map((r) => r.why).sort(), ["the answer key", "the code"]);
+});
+
+test("a resolved dependency lands on the REPO row, never on a dataset of the same name", () => {
+  // Manifests resolve to packages, which are always repos. A dep must not attach
+  // itself to a dataset row and make an answer key look like a dependency.
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "SALT-NLP/Design2Code", kind: "dataset", project: "apollo", why: "the answer key" }],
+    depRepos: [{ repo: "SALT-NLP/Design2Code", pkg: "design2code", project: "hermes" }],
+  });
+  const dataset = rows.find((r) => r.kind === "dataset");
+  const repo = rows.find((r) => r.kind === "repo");
+  assert.deepEqual(dataset.projects, ["apollo"], "a manifest must not claim the answer key is a dependency");
+  assert.deepEqual(repo.projects, ["hermes"]);
+});
+
+test("counts tally by kind, so three dataset rows do not read as three new dependencies", () => {
+  const { counts } = buildLedger({
+    radarRows: [
+      { repo: "a/ds1", kind: "dataset", project: "apollo", why: "w" },
+      { repo: "a/ds2", kind: "dataset", project: "orion", why: "w" },
+      { repo: "a/repo", project: "apollo", why: "w" },
+    ],
+  });
+  assert.deepEqual(counts.byKind, { dataset: 2, repo: 1 });
+});
