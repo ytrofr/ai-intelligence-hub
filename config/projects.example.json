@@ -25,6 +25,35 @@
         "agent-framework",
         "web-app",
         "design-to-code"
+      ],
+      "slots": [
+        {
+          "id": "example-instrument",
+          "instrument": "path/to/the/scorer/or/checker.py",
+          "needs": "one plain sentence: what shape of data can GRADE this instrument",
+          "task_categories": [
+            "text-classification"
+          ],
+          "language": "he",
+          "licence_ok": [
+            "apache-2.0",
+            "mit",
+            "cc-by-4.0",
+            "cc0-1.0"
+          ],
+          "size_cap_mb": 500,
+          "kind": "dataset",
+          "ran": [
+            {
+              "reference": "org/dataset-id",
+              "date": "YYYY-MM-DD",
+              "n": 0,
+              "number": "the measured figure, in the units it was measured in",
+              "caveat": "OPTIONAL and load-bearing when present: the population the number actually bounds. A figure quoted without its population is how a bound on one corpus becomes a claim about production.",
+              "evidence": "a report path or a PR - never a bare assertion"
+            }
+          ]
+        }
       ]
     },
     {
@@ -218,5 +247,6 @@
         "claude-ecosystem"
       ]
     }
-  ]
+  ],
+  "_slots_comment": "slots[]: the instruments of THIS project that an outside answer key can grade. `matched_projects` says a dataset is about something the project does; a SLOT says the dataset can grade a specific scorer. A slot with an empty `ran` and a `gap` is a deliberate record of an absence - keep it, so the gap stays visible instead of looking unexamined."
 }
