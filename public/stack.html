@@ -113,6 +113,14 @@
       .st-rejected { color: var(--color-error); }
       .unresolved { color: var(--color-warning); font-family: var(--font-mono); }
 
+      /* KIND is not decoration. A HuggingFace dataset id and a GitHub slug are
+         spelled identically, so a row with no kind marker reads as a dependency
+         we ship - which is the exact confusion the ledger key was changed to
+         prevent. Repo rows carry no badge: they are the default and 303 of them
+         would be noise. */
+      .kind { font-family: var(--font-mono); font-size: var(--font-xs); color: var(--color-text-dim);
+              border: 1px solid var(--color-border); border-radius: 3px; padding: 0 .3rem; margin-right: .4rem; }
+
       .empty { padding: var(--spacing-xl); text-align: center; color: var(--color-text-muted); }
       footer { margin-top: var(--spacing-xl); color: var(--color-text-dim); font-size: var(--font-xs); }
       .from-project { display:inline-block; margin-left:.6rem; font-size:.78rem;
@@ -125,12 +133,13 @@
         <div class="eyebrow">Stack Ledger</div>
         <h1>What we use, for which project, and why</h1>
         <p>
-          One row per third-party repo. A library used by several projects is one row, not several -
-          so the same evaluation never gets paid for twice. A rejected adoption stays here on purpose:
+          One row per third-party thing we use - a repo we depend on, or a dataset we measure
+          ourselves against. A library used by several projects is one row, not several - so the
+          same evaluation never gets paid for twice. A rejected adoption stays here on purpose:
           "we tried this and here is what it taught us" is the row that saves another project the work.
         </p>
         <p>
-          Keyed on the <strong>repo</strong>. Its sibling, <a href="/inventory.html">What we have</a>,
+          Keyed on the <strong>repo AND its kind</strong> - a HuggingFace dataset id and a GitHub slug are spelled identically, so the answer key we measure against never merges with the source we ship. Its sibling, <a href="/inventory.html">What we have</a>,
           is keyed on the <strong>project</strong> - what each one is and what it is built on.
           Open that to ask "what is Apollo running"; open this to ask "who uses trafilatura, and why".
         </p>
@@ -186,8 +195,15 @@
       function renderCounts(c) {
         // Every number here is derived server-side from the rendered rows, so it
         // cannot disagree with the table below it.
+        // "306 repos" stopped being true the moment a dataset row landed: the
+        // total counts every KIND. Name the total honestly and let the kinds
+        // that are not repos say so beside it, rather than hiding three answer
+        // keys inside a dependency count.
+        const byKind = c.byKind || {};
+        const notRepo = Object.entries(byKind).filter(([k]) => k !== "repo");
         const cells = [
-          { k: "repos", n: c.total },
+          { k: "rows", n: c.total },
+          ...notRepo.map(([k, n]) => ({ k: `${k}s`, n })),
           { k: "explained", n: c.explained },
           { k: "no reason yet", n: c.unexplained, gap: c.unexplained > 0 },
           { k: "in use, undecided", n: c.inUse },
@@ -208,7 +224,7 @@
         if (f === "closed" && !["done", "rejected"].includes(r.status)) return false;
         if (f === "unresolved" && !r.unresolved) return false;
         if (!q) return true;
-        const hay = [r.repo, r.pkg, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status, r.eyeballed].join(" ").toLowerCase();
+        const hay = [r.repo, r.pkg, r.kind, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status, r.eyeballed].join(" ").toLowerCase();
         return hay.includes(q);
       }
 
@@ -230,9 +246,14 @@
 
         document.getElementById("rows").innerHTML = rows
           .map((r) => {
+            const href =
+              r.kind === "dataset" ? `https://huggingface.co/datasets/${esc(r.repo)}`
+              : r.kind === "model" ? `https://huggingface.co/${esc(r.repo)}`
+              : `https://github.com/${esc(r.repo)}`;
+            const badge = r.kind && r.kind !== "repo" ? `<span class="kind">${esc(r.kind)}</span>` : "";
             const repoCell = r.unresolved
               ? `<span class="unresolved">unresolved</span> <span class="muted">${esc(r.pkg || "")}</span>`
-              : `<a href="https://github.com/${esc(r.repo)}" target="_blank" rel="noopener">${esc(r.repo)}</a>`;
+              : `${badge}<a href="${href}" target="_blank" rel="noopener">${esc(r.repo)}</a>`;
             const why = r.explained
               ? `<span class="why">${esc(r.why)}</span>`
               : `<span class="why blank">no reason recorded</span>`;
