@@ -248,6 +248,24 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
  * one builder: a section with its own tally could report a different week from
  * the page and both would look right.
  */
+/**
+ * A title safe to use as MARKDOWN LINK TEXT.
+ *
+ * HuggingFace ids and titles are written by anyone with an account and we ingest
+ * them verbatim. A title containing `](` closes our link early and opens its own:
+ * `[evil](https://attacker.example)[](https://huggingface.co/datasets/x)` renders
+ * in the operator's digest as a link labelled "evil" pointing wherever the
+ * publisher chose. Measured 2026-09-03: 0 of 9,335 live titles carry `](` and 11
+ * carry a bare bracket (`[pdf]`, `[2026]`), so this is latent rather than live -
+ * but the digest is a file the operator reads and clicks.
+ *
+ * Escaping the brackets is enough: with `]` escaped the link text cannot end early.
+ * A renderer shows `\[pdf\]` as `[pdf]`, so benign titles are unchanged.
+ */
+function mdLinkText(s) {
+  return String(s == null ? '' : s).replace(/([[\]])/g, '\\$1');
+}
+
 function formatGroundTruthSection(items, projects, nearMisses = []) {
   const HuggingFaceModule = require('./huggingface');
   const { buildGroundTruth } = require('./ground-truth');
@@ -269,7 +287,8 @@ function formatGroundTruthSection(items, projects, nearMisses = []) {
     '',
     `_${counts.slots} instruments · ${counts.slots_with_a_run} have a number · ` +
       `**${counts.slots_never_run} never checked** · ${counts.slots_recording_a_gap} recorded gap · ` +
-      `${counts.near_misses} near misses_`,
+      `${counts.near_misses} near misses` +
+      (counts.candidates_unvetted ? ` · **${counts.candidates_unvetted} candidates are shape-only**` : '') + '_',
     '',
   ];
 
@@ -295,9 +314,15 @@ function formatGroundTruthSection(items, projects, nearMisses = []) {
       } else {
         lines.push(`${head} — **never checked**`);
       }
+      // Same claim the page makes, from the same builder: a slot that never said
+      // what it is about matched on HuggingFace's task category alone, which is a
+      // SHAPE signal. Unsaid, the list reads as answers.
+      if (s.candidates.length && !s.subject_declared) {
+        lines.push('    - _this slot has not said what it is about - the rows below are the right SHAPE of data, not vetted answer keys_');
+      }
       for (const c of s.candidates.slice(0, 5)) {
         lines.push(
-          `    - [${c.title}](${c.url}) · ${(c.downloads || 0).toLocaleString()} downloads · ` +
+          `    - [${mdLinkText(c.title)}](${c.url}) · ${(c.downloads || 0).toLocaleString()} downloads · ` +
             `licence \`${c.license || 'UNDECLARED'}\`` +
             (c.size_category ? ` · ${c.size_category}` : '') +
             ` — **${c.status === 'runnable' ? 'RUNNABLE' : 'NEEDS YOU'}**` +

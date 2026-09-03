@@ -84,6 +84,7 @@ const SLOT_MISS_DEPTH = [
   "licence-unknown",
   "licence-not-allowed",
   "too-big-for-this-slot",
+  "wrong-subject",
 ];
 
 /** Quantization/format mirrors - re-uploads of someone else's weights. */
@@ -272,7 +273,18 @@ class HuggingFaceModule extends BaseModule {
     const licenceTag = tags.find((t) => t.toLowerCase().startsWith("license:"));
     const licence = licenceTag ? licenceTag.slice("license:".length).toLowerCase() : null;
     const bucket = valuesOf("size_categories:")[0] || null;
-    return { tasks, langs, licence, bucket };
+    // What the subject gate is allowed to read: fields the PUBLISHER DECLARED -
+    // the id, the pretty name, the tags. Deliberately NOT the card body.
+    //
+    // The first version included `description`, which on a full payload is the
+    // whole README, and `nyu-visionx/VSI-590K` - a spatial-reasoning VQA set -
+    // was admitted to the screenshot-grading slot because its card carries the
+    // link bar "website | paper | github | models". A subject claim resting on a
+    // word that appears in passing is not a subject claim; free-form prose will
+    // eventually contain every term any slot declares.
+    const text = [raw.id, raw.title, (raw.cardData || {}).pretty_name, ...tags]
+      .filter(Boolean).join(" ").toLowerCase();
+    return { tasks, langs, licence, bucket, text };
   }
 
   /**
@@ -307,6 +319,22 @@ class HuggingFaceModule extends BaseModule {
       const floor = SIZE_BUCKET_FLOOR[String(facts.bucket || "").toLowerCase()];
       if (floor === undefined) return "too-big-for-this-slot";   // unknown or absent: fail closed
       if (floor >= capMb * ROWS_PER_MB) return "too-big-for-this-slot";
+    }
+
+    // SUBJECT. Everything above proves a reference has the right SHAPE; none of
+    // it proves it is ABOUT the thing this instrument does. HuggingFace's
+    // `task_categories` is a shape signal only - `image-to-text` covers OCR,
+    // captioning and VQA as well as screenshot->code, and `text-generation`
+    // covers almost everything - so a slot that stops here offers the operator
+    // Arabic book scans as an answer key for a screenshot grader and calls it
+    // "grades apollo/design-fidelity". Measured 2026-09-03: 22 of 23 candidates.
+    //
+    // A slot with no declared subject is NOT narrowed here - that would empty
+    // the page on the slots I could not describe. It is marked UNVETTED instead,
+    // and the page says so rather than presenting a shortlist as an answer.
+    const subject = slot.subject_any || [];
+    if (subject.length && !subject.some((w) => facts.text.includes(String(w).toLowerCase()))) {
+      return "wrong-subject";
     }
     return null;
   }

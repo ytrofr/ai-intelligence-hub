@@ -126,3 +126,36 @@ test("a run's date is read whether the config wrote `at` or `date`", () => {
   const { projects } = buildGroundTruth({ projects: withDate });
   assert.equal(projects[0].slots[0].last_ran.at, "2026-09-03");
 });
+
+// /deep-test C2 (2026-09-03): the page must not present a shortlist as an answer.
+test("a slot says whether its candidates cleared a SUBJECT gate or only a shape one", () => {
+  const built = buildGroundTruth({
+    projects: [{ id: "p", slots: [
+      { id: "declared", instrument: "a.py", kind: "dataset", task_categories: ["image-to-text"], subject_any: ["screenshot"], ran: [] },
+      { id: "shape-only", instrument: "b.py", kind: "dataset", task_categories: ["image-to-text"], ran: [] },
+    ] }],
+    items: [], nearMisses: [], classify: () => "runnable", refusal: () => null,
+  });
+  const [a, b] = built.projects[0].slots;
+  assert.equal(a.subject_declared, true);
+  assert.equal(b.subject_declared, false, "a slot with no subject matches on HF's task category alone");
+});
+
+test("the headline splits vetted from shape-only candidates - they are not the same claim", () => {
+  const item = (slot) => ({
+    id: `x-${slot}`, title: "t", url: "u",
+    metadata: { matched_slots: [{ project: "p", slot }], kind: "dataset" },
+  });
+  const built = buildGroundTruth({
+    projects: [{ id: "p", slots: [
+      { id: "declared", instrument: "a.py", kind: "dataset", subject_any: ["screenshot"], ran: [] },
+      { id: "shape-only", instrument: "b.py", kind: "dataset", ran: [] },
+    ] }],
+    items: [item("declared"), item("shape-only"), item("shape-only")],
+    nearMisses: [], classify: () => "runnable", refusal: () => null,
+  });
+  assert.equal(built.counts.candidates, 3);
+  assert.equal(built.counts.candidates_vetted, 1);
+  assert.equal(built.counts.candidates_unvetted, 2);
+  assert.equal(built.counts.slots_without_a_subject, 1);
+});

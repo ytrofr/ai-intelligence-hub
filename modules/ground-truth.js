@@ -95,6 +95,12 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
         // A declared gap is a FINDING — "HF cannot supply this" is knowledge, and
         // it is the reason this slot is allowed to have no candidates.
         gap: slot.gap || null,
+        // Did this slot say what it is ABOUT, or only what SHAPE of data it takes?
+        // A slot with no declared subject matches on HuggingFace's task category
+        // alone, and that is a shape signal: `image-to-text` covers OCR and
+        // captioning as well as screenshot->code. Its candidates are a shortlist
+        // to read, never answers, and the page has to say which kind it is showing.
+        subject_declared: Boolean((slot.subject_any || []).length),
         runs: runs.length,
         last_ran: last
           ? {
@@ -148,6 +154,13 @@ function countGroundTruth(projects = []) {
     slots_never_run: slots.filter((s) => s.runs === 0).length,
     slots_recording_a_gap: slots.filter((s) => s.gap).length,
     candidates: slots.reduce((n, s) => n + s.candidates.length, 0),
+    // Split, because the two are not the same claim: a candidate under a slot
+    // that declared its subject cleared a subject gate; one under a slot that did
+    // not is only the right SHAPE of data, and 22 of 23 such rows were measured
+    // wrong on 2026-09-03 (Arabic book scans offered to a screenshot grader).
+    candidates_vetted: slots.filter((s) => s.subject_declared).reduce((n, s) => n + s.candidates.length, 0),
+    candidates_unvetted: slots.filter((s) => !s.subject_declared).reduce((n, s) => n + s.candidates.length, 0),
+    slots_without_a_subject: slots.filter((s) => !s.subject_declared).length,
     runnable: slots.reduce((n, s) => n + s.counts.runnable, 0),
     needs_you: slots.reduce((n, s) => n + s.counts.needs_you, 0),
     near_misses: projects.reduce((n, p) => n + p.near_misses.length, 0),

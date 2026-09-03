@@ -659,3 +659,131 @@ test("a gated dataset's refusal names the terms, not the size", () => {
 test("CONTROL: a dataset that DOES pass has no refusal to report", () => {
   assert.equal(mod().cheapRunRefusal(mod().datasetItem(dataset())), null);
 });
+
+// ---------------------------------------------------------------------------
+// /deep-test C2 (2026-09-03) - the SUBJECT gate.
+//
+// Every gate above this one proves a reference has the right SHAPE. None of them
+// proves it is ABOUT what the instrument does, and HuggingFace's task_categories
+// is a shape signal only: `image-to-text` covers OCR, captioning and VQA as well
+// as screenshot->code; `text-generation` covers nearly everything. Measured on the
+// live page: 22 of 23 candidates could not grade the instrument they were filed
+// under - Arabic Islamic book scans and an 1770-1810 newspaper archive offered as
+// answer keys for a screenshot grader, gsm8k and truthful_qa for a function-calling
+// harness - each carrying the reason "grades apollo/design-fidelity", which is an
+// assertion and not evidence.
+//
+// These read the REAL config. A fixture would pass while the page kept showing
+// book scans, which is exactly how the fineweb defect survived its own test run.
+// ---------------------------------------------------------------------------
+
+const realMod = () => new HuggingFaceModule(cfg);
+const ds = (id, tags) => ({ id, tags });
+
+test("a book-scan OCR corpus is no longer offered as an answer key for a screenshot grader", () => {
+  const hits = realMod().matchSlots(
+    ds("ieasybooks-org/waqfeya-library",
+       ["task_categories:image-to-text", "license:mit", "size_categories:10k<n<100k"]),
+    "dataset"
+  );
+  assert.deepEqual(hits, [], `still filed under: ${hits.map((h) => h.slot).join(", ")}`);
+});
+
+test("grade-school maths is no longer offered as an answer key for tool-calling", () => {
+  const hits = realMod().matchSlots(
+    ds("openai/gsm8k", ["task_categories:text-generation", "license:mit", "size_categories:1k<n<10k"]),
+    "dataset"
+  );
+  assert.deepEqual(hits, [], `still filed under: ${hits.map((h) => h.slot).join(", ")}`);
+});
+
+test("CONTROL: every answer key we actually use still matches its own slot", () => {
+  // The vocabulary half of the fix is a hand-written list, and a hand-written list
+  // is proven complete only by the cases where it MUST fire. This control caught
+  // `halluc` vs `HaluEval` - the corpus spells it with one l - and nothing else
+  // would have: the wrong-subject cells above all stayed green while the one
+  // reference the groundedness instrument is built on was being dropped.
+  const cases = [
+    ["SALT-NLP/Design2Code", ["task_categories:image-to-text", "license:odc-by", "size_categories:n<1k"], "design-fidelity"],
+    ["gorilla-llm/Berkeley-Function-Calling-Leaderboard", ["task_categories:text-generation", "license:apache-2.0", "size_categories:1k<n<10k"], "tool-calling"],
+    ["NousResearch/hermes-function-calling-v1", ["task_categories:text-generation", "license:apache-2.0", "size_categories:1k<n<10k"], "tool-calling"],
+    ["pminervini/HaluEval", ["task_categories:text-classification", "license:apache-2.0", "size_categories:10k<n<100k"], "groundedness"],
+    ["bltlab/open-ner-standardized", ["task_categories:token-classification", "language:he", "license:cc-by-4.0", "size_categories:1k<n<10k"], "contact-name-ner"],
+    ["fsicoli/common_voice_22_0", ["task_categories:automatic-speech-recognition", "language:he", "license:cc0-1.0", "size_categories:10k<n<100k"], "voice-wer"],
+    ["gretelai/synthetic_text_to_sql", ["task_categories:text2text-generation", "license:apache-2.0", "size_categories:10k<n<100k"], "text-to-sql"],
+  ];
+  const lost = cases.filter(([id, tags, want]) =>
+    !realMod().matchSlots(ds(id, tags), "dataset").some((h) => h.slot === want));
+  assert.deepEqual(lost.map((c) => c[0]), [], "a subject vocabulary that drops our own references is worse than none");
+});
+
+test("CONTROL: a slot that declares no subject is NOT narrowed - absence must not empty the page", () => {
+  const m2 = new HuggingFaceModule(cfg);
+  m2.loadProjects = () => ({ projects: [{ id: "p", slots: [{
+    id: "no-subject", kind: "dataset", task_categories: ["image-to-text"],
+    licence_ok: ["mit"], size_cap_mb: 500,
+  }] }] });
+  const hits = m2.matchSlots(
+    ds("anyone/anything", ["task_categories:image-to-text", "license:mit", "size_categories:n<1k"]),
+    "dataset"
+  );
+  assert.equal(hits.length, 1, "an undeclared subject must leave the slot exactly as it was");
+});
+
+test("the subject refusal is nameable, and it is the DEEPEST gate", () => {
+  const m2 = new HuggingFaceModule(cfg);
+  m2.loadProjects = () => ({ projects: [{ id: "p", slots: [{
+    id: "subj", kind: "dataset", task_categories: ["image-to-text"],
+    licence_ok: ["mit"], size_cap_mb: 500, subject_any: ["screenshot"],
+  }] }] });
+  assert.equal(
+    m2.slotMissReason(ds("someone/book-scans", ["task_categories:image-to-text", "license:mit", "size_categories:n<1k"]), "dataset"),
+    "wrong-subject"
+  );
+});
+
+test("every gate _slotVerdict can emit is rankable in SLOT_MISS_DEPTH", () => {
+  // A gate name missing from the depth list is ranked -1, loses every comparison,
+  // and if it were the only verdict slotMissReason would return null - which means
+  // "something matched". A new gate would then make its own misses invisible AND
+  // report them as hits. This is the guard that makes adding a gate safe.
+  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "modules", "huggingface.js"), "utf8");
+  const body = src.slice(src.indexOf("_slotVerdict("), src.indexOf("matchSlots("));
+  const emitted = [...body.matchAll(/return "([a-z-]+)"/g)].map((x) => x[1]);
+  const depthSrc = src.slice(src.indexOf("const SLOT_MISS_DEPTH"));
+  const ranked = depthSrc.slice(depthSrc.indexOf("["), depthSrc.indexOf("];") + 1);
+  assert.ok(emitted.length >= 8, `expected the gate chain, found ${emitted.length} returns`);
+  const missing = [...new Set(emitted)].filter((g) => !ranked.includes(`"${g}"`));
+  assert.deepEqual(missing, [], "a gate that cannot be ranked makes its own misses read as matches");
+});
+
+test("a term appearing in the card PROSE is not a subject claim", () => {
+  // nyu-visionx/VSI-590K, a spatial-reasoning VQA set, was admitted to the
+  // screenshot-grading slot because its README carries the link bar
+  // "website | paper | github | models" and the gate was reading the card body.
+  // Free-form prose will eventually contain every term any slot declares, so the
+  // gate reads DECLARED fields only: id, pretty name, tags.
+  const raw = {
+    id: "nyu-visionx/VSI-590K",
+    title: "nyu-visionx/VSI-590K",
+    description: "VSI-590K\n\nwebsite | paper | github | models\n\nspatial reasoning instruction tuning",
+    tags: ["task_categories:image-to-text", "license:apache-2.0", "size_categories:10k<n<100k"],
+  };
+  assert.deepEqual(realMod().matchSlots(raw, "dataset"), []);
+  assert.equal(realMod().slotMissReason(raw, "dataset"), "wrong-subject");
+});
+
+test("CONTROL: a declared pretty_name still counts as a subject claim", () => {
+  // Narrowing must not go so far that a publisher's own title stops counting.
+  const m2 = new HuggingFaceModule(cfg);
+  m2.loadProjects = () => ({ projects: [{ id: "p", slots: [{
+    id: "s", kind: "dataset", task_categories: ["image-to-text"],
+    licence_ok: ["mit"], size_cap_mb: 500, subject_any: ["screenshot"],
+  }] }] });
+  const raw = {
+    id: "someone/opaque-id-123",
+    cardData: { pretty_name: "Screenshot to HTML pairs" },
+    tags: ["task_categories:image-to-text", "license:mit", "size_categories:n<1k"],
+  };
+  assert.equal(m2.matchSlots(raw, "dataset").length, 1);
+});

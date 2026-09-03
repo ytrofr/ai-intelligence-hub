@@ -212,3 +212,39 @@ test("the quiet-repo list is counted in its heading so it can be skipped", () =>
   assert.match(md, /Gone quiet \(no push in 180 days\) — 26/);
   assert.match(md, /26 gone quiet/);
 });
+
+// /deep-test C8 (2026-09-03): a HuggingFace title is written by anyone with an
+// account and we ingest it verbatim into a MARKDOWN file the operator clicks.
+const { formatGroundTruthSection: gtSection } = require("../modules/weekly-digest");
+
+test("a title containing ]( cannot open its own link in the digest", () => {
+  const hostile = 'evil](https://attacker.example "x")[';
+  const md = gtSection(
+    [{ id: "x", title: hostile, url: "https://huggingface.co/datasets/x",
+       metadata: { matched_slots: [{ project: "p", slot: "s" }], kind: "dataset",
+                   size_category: "n<1k", license: "mit", gated: false } }],
+    [{ id: "p", name: "P", slots: [{ id: "s", instrument: "i.py", kind: "dataset", ran: [] }] }],
+    []
+  );
+  const line = md.split("\n").find((l) => l.includes("huggingface.co/datasets/x")) || "";
+  // Only an UNESCAPED ]( ends the link text; counting all of them would read a
+  // correctly-escaped title as an escape.
+  const unescaped = (line.match(/(^|[^\\])\]\(/g) || []).length;
+  assert.equal(unescaped, 1, `title escaped its link: ${line}`);
+  assert.ok(line.includes("attacker.example"), "the title text itself must survive, just inertly");
+});
+
+test("CONTROL: an ordinary bracketed title is unchanged to a reader", () => {
+  // 11 of 9,335 live titles carry a bare bracket ([pdf], [2026]). Escaping them
+  // renders identically; a fix that mangled them would be worse than the hole.
+  const md = gtSection(
+    [{ id: "y", title: "Soft Rains [pdf]", url: "https://huggingface.co/datasets/y",
+       metadata: { matched_slots: [{ project: "p", slot: "s" }], kind: "dataset",
+                   size_category: "n<1k", license: "mit", gated: false } }],
+    [{ id: "p", name: "P", slots: [{ id: "s", instrument: "i.py", kind: "dataset", ran: [] }] }],
+    []
+  );
+  const line = md.split("\n").find((l) => l.includes("huggingface.co/datasets/y")) || "";
+  assert.match(line, /Soft Rains \\\[pdf\\\]/);
+  assert.equal((line.match(/(^|[^\\])\]\(/g) || []).length, 1);
+});
