@@ -13,7 +13,9 @@
  * page kept showing book scans.
  */
 const path = require("path");
-const HUB = "/home/ytr_o/ai-intelligence-hub";
+// Derived, never hardcoded: this repo is PUBLIC and its own deployment rule
+// treats an absolute-home path in a published diff as always wrong.
+const HUB = path.join(__dirname, "..");
 const HuggingFaceModule = require(path.join(HUB, "modules/huggingface.js"));
 const m = new HuggingFaceModule({ id:"huggingface", name:"HuggingFace", type:"huggingface",
   url:"https://huggingface.co/api/models", config:{} });
