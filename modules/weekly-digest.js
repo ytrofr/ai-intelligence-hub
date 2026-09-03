@@ -318,7 +318,7 @@ function formatGroundTruthSection(items, projects, nearMisses = []) {
       // what it is about matched on HuggingFace's task category alone, which is a
       // SHAPE signal. Unsaid, the list reads as answers.
       if (s.candidates.length && !s.subject_declared) {
-        lines.push('    - _this slot has not said what it is about - the rows below are the right SHAPE of data, not vetted answer keys_');
+        lines.push(`    - _${s.unvetted_caveat}_`);
       }
       for (const c of s.candidates.slice(0, 5)) {
         lines.push(

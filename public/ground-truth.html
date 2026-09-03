@@ -201,7 +201,7 @@
           // could not grade the instrument they were filed under. Saying so is
           // the difference between a shortlist and an answer.
           if (!slot.subject_declared) {
-            tdC.append(el("span", "unvetted", "this slot has not said what it is about - the rows below are the right SHAPE of data, not vetted answer keys"));
+            tdC.append(el("span", "unvetted", slot.unvetted_caveat));
           }
           for (const c of slot.candidates.slice(0, 6)) {
             const line = el("span", "cand");

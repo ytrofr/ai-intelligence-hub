@@ -35,6 +35,67 @@
  * @param {Function} input.classify    (item) => "runnable" | "needs-you" | "rejected"
  * @param {Function} input.refusal     (item) => why it is not runnable, or null
  */
+/**
+ * What a slot's candidate list actually claims.
+ *
+ * Written HERE and nowhere else. The page and the digest both render it, and two
+ * copies of one claim drift - the same reason `matchSlots` and `slotMissReason`
+ * share one gate chain and `isCheapRun` is defined as `cheapRunRefusal(...) === null`.
+ */
+const UNVETTED_CAVEAT =
+  "this slot has not said what it is about - the rows below are the right SHAPE of data, not vetted answer keys";
+
+/**
+ * One slot, as the page and the digest both read it. Extracted from
+ * `buildGroundTruth`, which had grown past the 50-line cap in §10 of the plan;
+ * the per-slot shape is the seam, and nothing about the row changed.
+ */
+function slotRow(slot, candidates) {
+  const runs = slot.ran || [];
+  // The LAST run, by the order they were recorded. `null` when there are
+  // none — an absence, not a zero.
+  const last = runs.length ? runs[runs.length - 1] : null;
+  return {
+    id: slot.id,
+    instrument: slot.instrument || "",
+    needs: slot.needs || "",
+    kind: slot.kind || "dataset",
+    language: slot.language || null,
+    // A declared gap is a FINDING — "HF cannot supply this" is knowledge, and
+    // it is the reason this slot is allowed to have no candidates.
+    gap: slot.gap || null,
+    // Did this slot say what it is ABOUT, or only what SHAPE of data it takes?
+    // A slot with no declared subject matches on HuggingFace's task category
+    // alone, and that is a shape signal: `image-to-text` covers OCR and
+    // captioning as well as screenshot->code. Its candidates are a shortlist
+    // to read, never answers, and the page has to say which kind it is showing.
+    subject_declared: Boolean((slot.subject_any || []).length),
+    // The sentence itself, so neither renderer writes its own copy of it.
+    unvetted_caveat: (slot.subject_any || []).length ? null : UNVETTED_CAVEAT,
+    runs: runs.length,
+    last_ran: last
+      ? {
+          reference: last.reference || "",
+          n: last.n === undefined ? null : last.n,
+          number: last.number || "",
+          // Never dropped. The caveat is what stops the number being quoted
+          // as something it does not support.
+          caveat: last.caveat || "",
+          // The slot config writes `date`; `at` was the builder's own name for
+          // it and matched nothing, so every recorded run rendered undated.
+          at: last.at || last.date || null,
+        }
+      : null,
+    candidates,
+    counts: {
+      candidates: candidates.length,
+      runnable: candidates.filter((c) => c.status === "runnable").length,
+      needs_you: candidates.filter((c) => c.status === "needs-you").length,
+      rejected: candidates.filter((c) => c.status === "rejected").length,
+    },
+  };
+}
+
 function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify = () => "needs-you", refusal = () => null } = {}) {
   // Index candidates by "project/slot" — the pair a matched_slots entry names.
   // A project-level topic match is NOT a slot match and must never become one:
@@ -80,51 +141,8 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
   }
 
   const out = projects.map((project) => {
-    const slots = (project.slots || []).map((slot) => {
-      const runs = slot.ran || [];
-      // The LAST run, by the order they were recorded. `null` when there are
-      // none — an absence, not a zero.
-      const last = runs.length ? runs[runs.length - 1] : null;
-      const candidates = byPair.get(`${project.id}/${slot.id}`) || [];
-      return {
-        id: slot.id,
-        instrument: slot.instrument || "",
-        needs: slot.needs || "",
-        kind: slot.kind || "dataset",
-        language: slot.language || null,
-        // A declared gap is a FINDING — "HF cannot supply this" is knowledge, and
-        // it is the reason this slot is allowed to have no candidates.
-        gap: slot.gap || null,
-        // Did this slot say what it is ABOUT, or only what SHAPE of data it takes?
-        // A slot with no declared subject matches on HuggingFace's task category
-        // alone, and that is a shape signal: `image-to-text` covers OCR and
-        // captioning as well as screenshot->code. Its candidates are a shortlist
-        // to read, never answers, and the page has to say which kind it is showing.
-        subject_declared: Boolean((slot.subject_any || []).length),
-        runs: runs.length,
-        last_ran: last
-          ? {
-              reference: last.reference || "",
-              n: last.n === undefined ? null : last.n,
-              number: last.number || "",
-              // Never dropped. The caveat is what stops the number being quoted
-              // as something it does not support.
-              caveat: last.caveat || "",
-              // The slot config writes `date`; `at` was the builder's own name for
-              // it and matched nothing, so every recorded run rendered undated.
-              at: last.at || last.date || null,
-            }
-          : null,
-        candidates,
-        counts: {
-          candidates: candidates.length,
-          runnable: candidates.filter((c) => c.status === "runnable").length,
-          needs_you: candidates.filter((c) => c.status === "needs-you").length,
-          rejected: candidates.filter((c) => c.status === "rejected").length,
-        },
-      };
-    });
-
+    const slots = (project.slots || []).map((slot) =>
+      slotRow(slot, byPair.get(`${project.id}/${slot.id}`) || []));
     const near_misses = missesByProject.get(project.id) || [];
     return {
       id: project.id,
@@ -167,4 +185,4 @@ function countGroundTruth(projects = []) {
   };
 }
 
-module.exports = { buildGroundTruth, countGroundTruth };
+module.exports = { buildGroundTruth, countGroundTruth, UNVETTED_CAVEAT };

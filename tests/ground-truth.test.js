@@ -159,3 +159,25 @@ test("the headline splits vetted from shape-only candidates - they are not the s
   assert.equal(built.counts.candidates_unvetted, 2);
   assert.equal(built.counts.slots_without_a_subject, 1);
 });
+
+test("the unvetted caveat has ONE source - the page and the digest never write their own", () => {
+  // Two copies of one claim drift. Same reason matchSlots and slotMissReason share
+  // a gate chain, and isCheapRun is defined as cheapRunRefusal(...) === null.
+  const { UNVETTED_CAVEAT } = require("../modules/ground-truth");
+  const built = buildGroundTruth({
+    projects: [{ id: "p", slots: [
+      { id: "declared", instrument: "a", kind: "dataset", subject_any: ["x"], ran: [] },
+      { id: "shape-only", instrument: "b", kind: "dataset", ran: [] },
+    ] }],
+    items: [], nearMisses: [], classify: () => "runnable", refusal: () => null,
+  });
+  const [a, b] = built.projects[0].slots;
+  assert.equal(a.unvetted_caveat, null, "a slot that declared its subject carries no caveat");
+  assert.equal(b.unvetted_caveat, UNVETTED_CAVEAT);
+
+  const fs = require("fs"), path = require("path");
+  const phrase = "the right SHAPE of data";
+  const copies = ["public/ground-truth.html", "modules/weekly-digest.js"].filter((f) =>
+    fs.readFileSync(path.join(__dirname, "..", f), "utf8").includes(phrase));
+  assert.deepEqual(copies, [], "a renderer is spelling the caveat out instead of reading it");
+});
