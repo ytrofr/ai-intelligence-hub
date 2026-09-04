@@ -31,10 +31,11 @@
  * as fact.
  *
  * H3 adoption fields (kind, cost_tier, licence, hardware_fit, hardware_mib, slot,
- * features, score — see routes/lib/radar-store.js for what each means) carry
- * through from radarRows the same way `why` does: first authored value wins,
- * never overwritten by a later row for the same repo. Two derived fields ride
- * on top, computed from the rendered row and never assigned independently:
+ * features, score, bench, telemetry, before_after — see routes/lib/radar-store.js
+ * for what each means) carry through from radarRows the same way `why` does: first
+ * authored value wins, never overwritten by a later row for the same repo. Two
+ * derived fields ride on top, computed from the rendered row and never assigned
+ * independently:
  *   state        the status, except `accepted` with neither evidence nor a
  *                pair reads as "accepted-without-evidence" — a decision made
  *                but never backed or shown to the operator.
@@ -52,6 +53,10 @@
  * evidence, pair, state, score_total }` — so a reader building a candidate
  * for a SPECIFIC project can read that project's own view instead of
  * whichever project happened to be authored (or alphabetized) first.
+ *
+ * `bench` / `telemetry` / `before_after` ride the same rule: objects, not
+ * strings, so "has it" is `!!row.bench` rather than `hasText(row.bench)` — see
+ * hasAnyH3Field and buildPerProjectEntry below.
  */
 
 const { POSITIVE_CONTROL } = require("./tracked-pool");
@@ -117,7 +122,10 @@ function hasAnyH3Field(r) {
     hasText(r.cost_tier) ||
     hasText(r.licence) ||
     hasText(r.hardware_fit) ||
-    Number.isInteger(r.hardware_mib)
+    Number.isInteger(r.hardware_mib) ||
+    !!(r.bench && typeof r.bench === "object") ||
+    !!(r.telemetry && typeof r.telemetry === "object") ||
+    !!(r.before_after && typeof r.before_after === "object")
   );
 }
 
@@ -139,6 +147,9 @@ function buildPerProjectEntry(r) {
     licence: text(r.licence),
     hardware_fit: text(r.hardware_fit),
     hardware_mib: Number.isInteger(r.hardware_mib) ? r.hardware_mib : null,
+    bench: r.bench && typeof r.bench === "object" ? r.bench : null,
+    telemetry: r.telemetry && typeof r.telemetry === "object" ? r.telemetry : null,
+    before_after: r.before_after && typeof r.before_after === "object" ? r.before_after : null,
     status,
     evidence: text(r.evidence),
     pair: text(r.pair),
@@ -201,6 +212,9 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
         slot: "",
         features: [],
         score: null,
+        bench: null,
+        telemetry: null,
+        before_after: null,
         // Keyed by project id. Only projects whose OWN radar row carried at
         // least one H3 field get an entry — a plain dependency mention never
         // does, so this stays absent (not an empty object) on ordinary rows.
@@ -246,6 +260,9 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     if (hasText(r.slot) && !hasText(row.slot)) row.slot = text(r.slot);
     if (Array.isArray(r.features) && r.features.length && !row.features.length) row.features = r.features;
     if (hasCompleteScore(r.score) && !row.score) row.score = r.score;
+    if (r.bench && typeof r.bench === "object" && !row.bench) row.bench = r.bench;
+    if (r.telemetry && typeof r.telemetry === "object" && !row.telemetry) row.telemetry = r.telemetry;
+    if (r.before_after && typeof r.before_after === "object" && !row.before_after) row.before_after = r.before_after;
 
     const incoming = text(r.status) || "in-use";
     if ((STATUS_RANK[incoming] ?? 0) >= (STATUS_RANK[row.status] ?? 0)) row.status = incoming;
@@ -319,6 +336,14 @@ function countLedger(rows = []) {
     // Operator law 2026-08-17: a closed row the operator never saw is a decision,
     // not an adoption. Printed on the page so the gap cannot go quiet.
     closedEyeballed: closed.filter((r) => hasText(r.eyeballed)).length,
+    // Operator ruling 2026-09-04: "adopted" means bench + telemetry +
+    // before/after — the store's own gate refuses a NEW `done` closure without
+    // all three. This still counts rows that reached `done` before that gate
+    // existed (or via a hand-edited config), so the gap it reports is real:
+    // "worked at some point" is not the same claim as "we can still show it did".
+    done: rows.filter((r) => r.status === "done").length,
+    doneWithAdoptionEvidence: rows.filter((r) => r.status === "done" && r.bench && r.telemetry && r.before_after)
+      .length,
     // Per-kind, so three dataset rows landing at once do not read as three new
     // dependencies on the board.
     byKind: rows.reduce((acc, r) => {

@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { RadarStore } = require("../routes/lib/radar-store");
+const { makeAdoptable } = require("./fixtures/adoption");
 
 /**
  * The PAIR half of the close gate — operator law, 2026-08-17.
@@ -71,6 +72,7 @@ test("done is REFUSED with a pair but no operator verdict", () => {
 
 test("done WITH all four is accepted, stored and persisted", () => {
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   const row = store.setStatus("proj", "a/one", "done", full());
   assert.equal(row.status, "done");
   assert.equal(row.pair, CARD);
@@ -97,6 +99,7 @@ test("a report path is not a pair either — that is what evidence is for", () =
 
 test("a Visual Hall batch counts as a pair", () => {
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   const row = store.setStatus("proj", "a/one", "done", full({ pair: HALL }));
   assert.equal(row.pair, HALL);
 });
@@ -169,6 +172,7 @@ test("re-opening drops the CLOSURE's claims but KEEPS the operator's verdict", (
   //
   // `evidence`, `lesson` and `done_at` DO describe the closure, so they still go.
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   store.setStatus("proj", "a/one", "done", full());
   const reopened = store.setStatus("proj", "a/one", "accepted");
   assert.equal(reopened.status, "accepted");
@@ -187,6 +191,7 @@ test("a verdict reached on a pair survives a re-close, without being re-supplied
   // in setStatus reads it off the row. A gate that made the operator re-answer
   // every transition would be a gate people route around.
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   store.setStatus("proj", "a/one", "done", full());
   store.setStatus("proj", "a/one", "trial");
   const reclosed = store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "none - x" });

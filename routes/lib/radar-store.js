@@ -23,6 +23,21 @@
  *                 measured, note }. ALL of it or none — a partial score is
  *                 refused rather than stored as zeros. basis "measured" needs
  *                 non-empty evidence (this call's or the row's own).
+ *
+ * Adoption-evidence fields (also H3-shaped: optional, fail-closed, absent by
+ * default). Operator ruling 2026-09-04: this evidence lives on the EXISTING
+ * ledger row, not on a separate page — so a `done` row is required to carry
+ * all three (see setStatus below), the same way it is required to carry
+ * evidence + a lesson + an eyeballed pair.
+ *   bench         { run, date, result } — the pre-adoption measurement: we ran
+ *                 this candidate against our own real data and here is the
+ *                 number. `run` is a report file path (same shape as a
+ *                 rejection's evidence); `result` is one line, <=200 chars.
+ *   telemetry     { project, counters, url } — the LIVE counters that make
+ *                 "did it help" a query instead of a claim. `counters` is a
+ *                 non-empty array of non-empty counter names.
+ *   before_after  { before, after, window, date } — the post-adoption
+ *                 comparison, read from those same counters.
  */
 
 const fs = require("fs");
@@ -68,6 +83,12 @@ const HARDWARE_FITS = ["fits-gpu", "fits-cpu", "too-big-here", "unmeasured"];
 const SCORE_BASES = ["estimated", "measured"];
 const SCORE_DIMS = ["effort", "effect", "time", "impact", "risk"];
 const SLOT_RE = /^[a-z0-9-]+\/[a-z0-9-]+$/;
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const BENCH_RESULT_MAX = 200;
+// A live counters endpoint — deliberately just "an http(s) URL", not narrowed
+// to :8776/:8772 like PAIR_RE: telemetry lives wherever the project exposes
+// its own dashboard, which this store has no fixed list of.
+const TELEMETRY_URL_RE = /^https?:\/\/\S+$/i;
 
 const isInt1to5 = (v) => Number.isInteger(v) && v >= 1 && v <= 5;
 
@@ -142,6 +163,75 @@ const scoreField = (value, evidenceText) => {
   return out;
 };
 
+/** "we ran this candidate against our own real data and here is the number" —
+ * `run` is a report file path, same shape as a rejection's evidence (REPORT_RE),
+ * never a URL or a commit: a bench is a measurement, not a build. All three
+ * subfields are required together — a bench missing its result is not a bench,
+ * it is a run nobody read. */
+const benchField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("bench must be an object with run, date, result");
+  }
+  const run = typeof value.run === "string" ? value.run.trim() : "";
+  if (!run) throw new Error("bench.run must be a non-empty path to a report file — omit bench if it was never run");
+  if (!REPORT_RE.test(run)) {
+    throw new Error(`bench.run must be a report file path (…/name.md|json|txt|csv|log) — got "${run}"`);
+  }
+  const date = typeof value.date === "string" ? value.date.trim() : "";
+  if (!DATE_RE.test(date)) throw new Error(`bench.date must be YYYY-MM-DD — got "${date}"`);
+  const result = typeof value.result === "string" ? value.result.trim() : "";
+  if (!result) throw new Error("bench.result must be a non-empty string — one line, what the run measured");
+  if (result.length > BENCH_RESULT_MAX) {
+    throw new Error(`bench.result must be at most ${BENCH_RESULT_MAX} chars — got ${result.length}`);
+  }
+  return { run, date, result };
+};
+
+/** The live counters that make "did it help" a query, not a claim. `counters`
+ * is a non-empty array of non-empty names — an empty array is refused rather
+ * than silently meaning "no counters", which is indistinguishable from "we
+ * never named them". */
+const telemetryField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("telemetry must be an object with project, counters, url");
+  }
+  const project = typeof value.project === "string" ? value.project.trim() : "";
+  if (!project) throw new Error("telemetry.project must be a non-empty project id");
+  if (!Array.isArray(value.counters) || value.counters.length === 0) {
+    throw new Error("telemetry.counters must be a non-empty array of counter names");
+  }
+  const counters = [];
+  for (const c of value.counters) {
+    if (typeof c !== "string" || !c.trim()) throw new Error("telemetry.counters must be non-empty strings");
+    counters.push(c.trim());
+  }
+  const url = typeof value.url === "string" ? value.url.trim() : "";
+  if (!url) throw new Error("telemetry.url must be a non-empty URL — where the counters are actually read");
+  if (!TELEMETRY_URL_RE.test(url)) throw new Error(`telemetry.url must be an http(s) URL — got "${url}"`);
+  return { project, counters, url };
+};
+
+/** The post-adoption comparison, read from those same live counters. All four
+ * subfields required together, same reasoning as bench: a before/after with
+ * no window is not a comparison anyone can trust. */
+const beforeAfterField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("before_after must be an object with before, after, window, date");
+  }
+  const before = typeof value.before === "string" ? value.before.trim() : "";
+  if (!before) throw new Error("before_after.before must be a non-empty string");
+  const after = typeof value.after === "string" ? value.after.trim() : "";
+  if (!after) throw new Error("before_after.after must be a non-empty string");
+  const win = typeof value.window === "string" ? value.window.trim() : "";
+  if (!win) throw new Error('before_after.window must be a non-empty string (e.g. "7d")');
+  const date = typeof value.date === "string" ? value.date.trim() : "";
+  if (!DATE_RE.test(date)) throw new Error(`before_after.date must be YYYY-MM-DD — got "${date}"`);
+  return { before, after, window: win, date };
+};
+
 /**
  * Validate the H3 optional fields on an upsertRow input. Returns only the keys
  * that were present and valid; an absent key comes back `undefined` so the
@@ -159,6 +249,9 @@ function adoptionFields(input, existingEvidence) {
     slot: slotField(input.slot),
     features: featuresField(input.features),
     score: scoreField(input.score, evidenceText),
+    bench: benchField(input.bench),
+    telemetry: telemetryField(input.telemetry),
+    before_after: beforeAfterField(input.before_after),
   };
 }
 
@@ -229,6 +322,14 @@ class RadarStore {
    * exactly as it was. A half-applied refusal would be worse than no gate at
    * all — the row would read `done` with nothing behind it. The refusal is also
    * logged, so a session that quietly gives up on closing a row leaves a trace.
+   *
+   * `done` additionally requires `bench`, `telemetry` and `before_after` to
+   * already be on the row (operator ruling 2026-09-04: "adopted" means bench +
+   * telemetry + before/after, not "merged"). Unlike evidence/lesson/pair/
+   * eyeballed, those three are NOT accepted here in `fields` — they are set on
+   * the row via `upsertRow`, the same way licence or score are, since they
+   * describe the candidate rather than this particular closure. `rejected`
+   * does not require them: a rejected candidate was never adopted.
    *
    * @param {object} [fields] - { outcome, evidence, lesson, pair, eyeballed }
    */
@@ -315,6 +416,41 @@ class RadarStore {
             `(which needs "${VERDICT_FOR[status]}"). Their answer wins — change the status, not the verdict.`,
         );
       }
+
+      // Operator ruling 2026-09-04: "adopted" means bench + telemetry +
+      // before/after, not "merged". These three are set on the row itself via
+      // upsertRow (like licence, kind, ...), never via `fields` here — closing
+      // just checks they are already there. Rejected needs none of this: a
+      // rejected candidate was never adopted, so a post-adoption comparison
+      // does not apply to it.
+      if (status === "done") {
+        const requireAdoption = (name, value, validator, hint) => {
+          if (value === undefined) refuse(`missing ${name}: ${hint}`);
+          try {
+            validator(value);
+          } catch (e) {
+            refuse(`${name} is malformed: ${e.message}`);
+          }
+        };
+        requireAdoption(
+          "bench",
+          row.bench,
+          benchField,
+          'the pre-adoption measurement — { run, date, result }. Set it on the row first (`upsertRow`), same as licence or score.',
+        );
+        requireAdoption(
+          "telemetry",
+          row.telemetry,
+          telemetryField,
+          'the live counters that make "did it help" a query — { project, counters, url }.',
+        );
+        requireAdoption(
+          "before_after",
+          row.before_after,
+          beforeAfterField,
+          "the post-adoption comparison, read from those counters — { before, after, window, date }.",
+        );
+      }
     }
 
     row.status = status;
@@ -376,6 +512,9 @@ class RadarStore {
         slot: f.slot ?? row.slot,
         features: f.features ?? row.features,
         score: f.score ?? row.score,
+        bench: f.bench ?? row.bench,
+        telemetry: f.telemetry ?? row.telemetry,
+        before_after: f.before_after ?? row.before_after,
         updated_at: now,
       });
     } else {
@@ -385,6 +524,7 @@ class RadarStore {
         kind: f.kind, cost_tier: f.cost_tier, licence: f.licence,
         hardware_fit: f.hardware_fit, hardware_mib: f.hardware_mib,
         slot: f.slot, features: f.features, score: f.score,
+        bench: f.bench, telemetry: f.telemetry, before_after: f.before_after,
         project, added_at: now, updated_at: now,
       };
       cfg.audit.push(row);

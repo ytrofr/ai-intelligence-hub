@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
 const { RadarStore } = require("../routes/lib/radar-store");
+const { makeAdoptable } = require("./fixtures/adoption");
 
 /**
  * The close gate: a row may not reach `done` or `rejected` without EVIDENCE and
@@ -68,6 +69,7 @@ test("T5 whitespace satisfies neither field", () => {
 
 test("T5 done is ACCEPTED with both, and both are persisted", () => {
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   const row = store.setStatus("proj", "a/one", "done", {
     evidence: SHA,
     lesson: "quality/measure-impact-not-existence.md",
@@ -98,6 +100,7 @@ test("T5 rejected is gated exactly like done — a rejection is the most valuabl
 
 test("T5 lesson 'none' is accepted — it is a deliberate sentence, not an empty field", () => {
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   const row = store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.lesson, "none");
 });
@@ -130,6 +133,7 @@ test("T6 a row that already carries evidence and lesson can close without repeat
   cfg.audit[0].pair = PAIR_OK;
   cfg.audit[0].eyeballed = ADOPT_OK;
   fs.writeFileSync(path.join(dir, "proj.json"), JSON.stringify(cfg));
+  makeAdoptable(store, "proj", "a/one");
   assert.equal(store.setStatus("proj", "a/one", "done").status, "done");
 });
 
@@ -137,6 +141,7 @@ test("T6 reopening a closed row clears BOTH evidence and lesson", () => {
   // A lesson describes an outcome. Reopen the row and the outcome no longer
   // holds, so keeping the lesson would leave a stale claim behind it.
   const { store } = tmpStore();
+  makeAdoptable(store, "proj", "a/one");
   store.setStatus("proj", "a/one", "done", { evidence: SHA, lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
   const row = store.setStatus("proj", "a/one", "accepted");
   assert.equal(row.evidence, undefined);

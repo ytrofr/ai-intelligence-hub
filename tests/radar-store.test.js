@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { RadarStore, STATUSES } = require("../routes/lib/radar-store");
 const { isLoopback } = require("../routes/lib/net");
+const { makeAdoptable } = require("./fixtures/adoption");
 
 // Operator law 2026-08-17: closing also needs the pair the operator saw and their
 // verdict on it. See tests/radar-pair-gate.test.js for that half of the gate.
@@ -79,6 +80,7 @@ test("DONE WITHOUT EVIDENCE IS REFUSED, and the row is left UNCHANGED", () => {
 
 test("done WITH evidence is stored, and stamps done_at", () => {
   const s = tmpStore();
+  makeAdoptable(s, "apollo", "a/b");
   const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.status, "done");
   assert.equal(row.evidence, "apollo@3f9a12c");
@@ -142,6 +144,7 @@ test("closing requires a LESSON as well as evidence", () => {
   const s = tmpStore();
   assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c" }), /lesson/i);
   assert.equal(s.load("apollo").audit[0].status, "proposed", "the refused write must not have landed");
+  makeAdoptable(s, "apollo", "a/b");
   const row = s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "none - nothing general", pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.lesson, "none - nothing general");
 });
@@ -158,12 +161,14 @@ test("evidence must look like a commit, a PR or a URL — not a sentence", () =>
   assert.throws(() => s.setStatus("apollo", "a/b", "done", { evidence: "we did this ages ago" }), /evidence/i);
   for (const ok of ["apollo@3f9a12c", "hermes#123", "https://github.com/a/b/pull/7", "3f9a12c"]) {
     const t = tmpStore();
+    makeAdoptable(t, "apollo", "a/b");
     assert.equal(t.setStatus("apollo", "a/b", "done", { evidence: ok, lesson: "none", pair: PAIR_OK, eyeballed: ADOPT_OK }).evidence, ok, `${ok} should be accepted`);
   }
 });
 
 test("moving OFF done clears the evidence rather than leaving a stale claim", () => {
   const s = tmpStore();
+  makeAdoptable(s, "apollo", "a/b");
   s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
   const row = s.setStatus("apollo", "a/b", "accepted");
   assert.equal(row.evidence, undefined, "evidence for a done-ness that no longer holds is a lie");

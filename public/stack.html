@@ -99,6 +99,14 @@
       .why { color: var(--color-text-muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
       tr.open .why { -webkit-line-clamp: unset; display: block; }
       .why.blank { color: var(--color-warning); font-style: italic; }
+      /* Adoption evidence (bench / telemetry / before-after) - only visible when
+         a row is expanded, same as the full "why". Nothing here is hidden from
+         search or copy, it just is not shouting three extra columns at every row. */
+      .adoptdetail { display: none; margin-top: .4rem; font-size: var(--font-xs); color: var(--color-text-muted); }
+      tr.open .adoptdetail { display: block; }
+      .adoptdetail .al { margin-top: .2rem; }
+      .adoptdetail .al b { color: var(--color-text); font-weight: 600; }
+      .adoptdetail .al.gapline { color: var(--color-warning); font-style: italic; }
       .lesson { font-family: var(--font-mono); font-size: var(--font-xs); word-break: break-word; }
       .muted { color: var(--color-text-dim); }
 
@@ -158,7 +166,7 @@
           <option value="unresolved">unresolved package</option>
         </select>
         <span class="hint" id="shown"></span>
-        <span class="hint">· click a row to read the full reason</span>
+        <span class="hint">· click a row to read the full reason and adoption evidence</span>
       </div>
 
       <div class="tablewrap">
@@ -210,6 +218,11 @@
           { k: "closed", n: c.closed },
           { k: "closed with a lesson", n: c.closedWithLesson, gap: c.closed > 0 && c.closedWithLesson < c.closed },
           { k: "you eyeballed", n: c.closedEyeballed, gap: c.closed > 0 && c.closedEyeballed < c.closed },
+          // Operator ruling 2026-09-04: "adopted" means bench + telemetry +
+          // before/after, not "merged" — a done row missing any of the three
+          // is a claim we can no longer show, and this is the tell for it.
+          { k: "done with full evidence", n: c.doneWithAdoptionEvidence,
+            gap: c.done > 0 && c.doneWithAdoptionEvidence < c.done },
           { k: "unresolved", n: c.unresolved, gap: c.unresolved > 0 },
         ];
         document.getElementById("counts").innerHTML = cells
@@ -224,7 +237,11 @@
         if (f === "closed" && !["done", "rejected"].includes(r.status)) return false;
         if (f === "unresolved" && !r.unresolved) return false;
         if (!q) return true;
-        const hay = [r.repo, r.pkg, r.kind, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status, r.eyeballed].join(" ").toLowerCase();
+        const hay = [
+          r.repo, r.pkg, r.kind, r.projects.join(" "), r.why, r.lesson, r.outcome, r.status, r.eyeballed,
+          r.bench && r.bench.result, r.telemetry && r.telemetry.project,
+          r.before_after && `${r.before_after.before} ${r.before_after.after}`,
+        ].join(" ").toLowerCase();
         return hay.includes(q);
       }
 
@@ -260,10 +277,29 @@
             const lesson = r.lesson
               ? `<span class="lesson">${esc(r.lesson)}</span>`
               : `<span class="muted">-</span>`;
+            // Adoption evidence — bench (pre-adoption: it works, on our data),
+            // telemetry (the live counters) and before_after (post-adoption: it
+            // helped, on our data). Only shown expanded, same as the full "why" -
+            // the table is for scanning; nothing here is hidden from search or
+            // copy, it just is not shouting three extra columns at every row.
+            const adopt = [];
+            if (r.bench) {
+              adopt.push(`<div class="al"><b>bench</b> ${esc(r.bench.result)} <span class="muted">(${esc(r.bench.date)}, ${esc(r.bench.run)})</span></div>`);
+            }
+            if (r.telemetry) {
+              adopt.push(`<div class="al"><b>telemetry</b> ${esc(r.telemetry.counters.join(", "))} <span class="muted">at ${esc(r.telemetry.url)}</span></div>`);
+            }
+            if (r.before_after) {
+              adopt.push(`<div class="al"><b>before → after</b> ${esc(r.before_after.before)} → ${esc(r.before_after.after)} <span class="muted">(${esc(r.before_after.window)}, ${esc(r.before_after.date)})</span></div>`);
+            }
+            const doneGap = r.status === "done" && adopt.length < 3
+              ? `<div class="al gapline">missing ${["bench", "telemetry", "before_after"].filter((k) => !r[k]).join(", ")} - this "done" cannot be shown to have helped</div>`
+              : "";
+            const adoptBlock = adopt.length || doneGap ? `<div class="adoptdetail">${adopt.join("")}${doneGap}</div>` : "";
             return `<tr>
               <td class="repo">${repoCell}</td>
               <td class="projects">${esc(r.projects.join(" "))}</td>
-              <td>${why}${r.outcome ? `<div class="muted" style="font-size:var(--font-xs);margin-top:.25rem">${esc(r.outcome)}</div>` : ""}</td>
+              <td>${why}${r.outcome ? `<div class="muted" style="font-size:var(--font-xs);margin-top:.25rem">${esc(r.outcome)}</div>` : ""}${adoptBlock}</td>
               <td><span class="st st-${esc(r.status)}">${esc(r.status)}</span></td>
               <td>${lesson}</td>
             </tr>`;

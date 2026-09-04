@@ -28,6 +28,13 @@ function tmpStore(auditRow = {}) {
 
 const FULL_SCORE = { effort: 3, effect: 3, time: 3, impact: 3, risk: 3, basis: "estimated", note: "gut call" };
 
+// H4 — adoption-evidence fields: bench, telemetry, before_after. Operator
+// ruling 2026-09-04: a row may not reach `adopted` (i.e. status "done") without
+// all three, extending the evidence/lesson/pair/eyeballed close gate.
+const BENCH_OK = { run: "~/.claude/reports/bench-a-b-2026-09-04.md", date: "2026-09-04", result: "42ms p50 vs 118ms incumbent" };
+const TELEMETRY_OK = { project: "apollo", counters: ["adopt_a_b_total"], url: "http://localhost:4444/api/health" };
+const BEFORE_AFTER_OK = { before: "118ms p50", after: "42ms p50", window: "7d", date: "2026-09-04" };
+
 // --- kind ---------------------------------------------------------------
 
 test("upsertRow accepts kind repo|dataset|model (positive control)", () => {
@@ -214,6 +221,190 @@ test("score basis measured is accepted when the EXISTING row already carries evi
   assert.equal(row.score.basis, "measured");
 });
 
+// --- bench --------------------------------------------------------------
+
+test("upsertRow accepts a well-formed bench (positive control)", () => {
+  const s = tmpStore();
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: BENCH_OK });
+  assert.deepEqual(row.bench, BENCH_OK);
+});
+
+test("upsertRow REFUSES bench with an empty result — never-measured must stay distinct from measured-nothing", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { ...BENCH_OK, result: "" } }),
+    /bench\.result/i,
+  );
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { ...BENCH_OK, result: "   " } }),
+    /bench\.result/i,
+  );
+});
+
+test("upsertRow REFUSES a malformed bench shape", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { ...BENCH_OK, run: "not-a-report-path" } }), /bench\.run/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { ...BENCH_OK, date: "09/04/2026" } }), /bench\.date/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: "42ms" } ), /bench/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { run: BENCH_OK.run } }), /bench\.date/i);
+});
+
+test("upsertRow REFUSES an over-long bench.result", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: { ...BENCH_OK, result: "x".repeat(201) } }),
+    /bench\.result/i,
+  );
+});
+
+test("omitting bench leaves an existing one alone, and never invents one", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", bench: BENCH_OK });
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT" });
+  assert.deepEqual(row.bench, BENCH_OK);
+  const fresh = s.upsertRow("apollo", { repo: "c/d", verdict: "WATCH" });
+  assert.equal(fresh.bench, undefined, "a row never benched must not gain the key");
+});
+
+// --- telemetry ------------------------------------------------------------
+
+test("upsertRow accepts well-formed telemetry (positive control)", () => {
+  const s = tmpStore();
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: TELEMETRY_OK });
+  assert.deepEqual(row.telemetry, TELEMETRY_OK);
+});
+
+test("upsertRow REFUSES telemetry with an empty counters array — a MALFORMED shape, not zero counters", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, counters: [] } }),
+    /telemetry\.counters/i,
+  );
+});
+
+test("upsertRow REFUSES telemetry with a blank counter name, project or url", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, counters: ["ok", ""] } }),
+    /telemetry\.counters/i,
+  );
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, project: "   " } }),
+    /telemetry\.project/i,
+  );
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, url: "" } }),
+    /telemetry\.url/i,
+  );
+});
+
+test("upsertRow REFUSES a telemetry url that is not http(s)", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, url: "localhost:4444/health" } }),
+    /telemetry\.url/i,
+  );
+});
+
+test("upsertRow REFUSES a malformed telemetry shape", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: "apollo" }), /telemetry/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, counters: "adopt_total" } }), /telemetry\.counters/i);
+});
+
+test("omitting telemetry leaves an existing one alone, and never invents one", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: TELEMETRY_OK });
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT" });
+  assert.deepEqual(row.telemetry, TELEMETRY_OK);
+  const fresh = s.upsertRow("apollo", { repo: "c/d", verdict: "WATCH" });
+  assert.equal(fresh.telemetry, undefined, "a row nobody wired telemetry for must not gain the key");
+});
+
+// --- before_after -----------------------------------------------------------
+
+test("upsertRow accepts a well-formed before_after (positive control)", () => {
+  const s = tmpStore();
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: BEFORE_AFTER_OK });
+  assert.deepEqual(row.before_after, BEFORE_AFTER_OK);
+});
+
+test("upsertRow REFUSES before_after with any blank subfield", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: { ...BEFORE_AFTER_OK, before: "" } }), /before_after\.before/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: { ...BEFORE_AFTER_OK, after: "   " } }), /before_after\.after/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: { ...BEFORE_AFTER_OK, window: "" } }), /before_after\.window/i);
+});
+
+test("upsertRow REFUSES a malformed before_after date or shape", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: { ...BEFORE_AFTER_OK, date: "yesterday" } }), /before_after\.date/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: "better now" }), /before_after/i);
+});
+
+test("omitting before_after leaves an existing one alone, and never invents one", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", before_after: BEFORE_AFTER_OK });
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT" });
+  assert.deepEqual(row.before_after, BEFORE_AFTER_OK);
+  const fresh = s.upsertRow("apollo", { repo: "c/d", verdict: "WATCH" });
+  assert.equal(fresh.before_after, undefined, "a row with no comparison yet must not gain the key");
+});
+
+// --- the close gate: `done` needs all three, extending evidence/lesson/pair/eyeballed ----
+
+const PAIR_OK = "http://localhost:8776/?session=t#c1";
+const ADOPT_OK = "adopt 2026-09-04T11:42Z";
+const CLOSE_FIELDS = { evidence: "apollo@3f9a12c", lesson: "none - nothing general", pair: PAIR_OK, eyeballed: ADOPT_OK };
+
+test("done is REFUSED when bench/telemetry/before_after are all missing, even with evidence+lesson+pair+eyeballed", () => {
+  const s = tmpStore();
+  assert.throws(() => s.setStatus("apollo", "a/b", "done", CLOSE_FIELDS), /missing bench/i);
+  assert.equal(s.load("apollo").audit[0].status, "proposed", "a refused close must not mutate the row");
+});
+
+test("done is REFUSED when only ONE of the three is missing", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", bench: BENCH_OK, telemetry: TELEMETRY_OK });
+  assert.throws(() => s.setStatus("apollo", "a/b", "done", CLOSE_FIELDS), /missing before_after/i);
+  assert.equal(s.load("apollo").audit[0].status, "proposed");
+});
+
+test("done is ACCEPTED once bench+telemetry+before_after are all on the row (positive control)", () => {
+  // Proves the gate can actually be satisfied — a refusal-only suite would
+  // pass even if the gate refused everyone.
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", bench: BENCH_OK, telemetry: TELEMETRY_OK, before_after: BEFORE_AFTER_OK });
+  const row = s.setStatus("apollo", "a/b", "done", CLOSE_FIELDS);
+  assert.equal(row.status, "done");
+  assert.deepEqual(row.bench, BENCH_OK);
+  assert.deepEqual(row.telemetry, TELEMETRY_OK);
+  assert.deepEqual(row.before_after, BEFORE_AFTER_OK);
+  const onDisk = s.load("apollo").audit[0];
+  assert.deepEqual(onDisk.before_after, BEFORE_AFTER_OK, "and persisted");
+});
+
+test("rejected needs none of the three — a rejected candidate was never adopted", () => {
+  const s = tmpStore();
+  const row = s.setStatus("apollo", "a/b", "rejected", {
+    evidence: "~/.claude/reports/spike.md",
+    lesson: "none - measured, nothing general",
+    pair: PAIR_OK,
+    eyeballed: "reject 2026-09-04T11:42Z",
+  });
+  assert.equal(row.status, "rejected");
+});
+
+test("re-closing a row that already carries all three does not demand them again", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", bench: BENCH_OK, telemetry: TELEMETRY_OK, before_after: BEFORE_AFTER_OK });
+  s.setStatus("apollo", "a/b", "done", CLOSE_FIELDS);
+  s.setStatus("apollo", "a/b", "trial");
+  const row = s.setStatus("apollo", "a/b", "done", CLOSE_FIELDS);
+  assert.equal(row.status, "done");
+  assert.deepEqual(row.bench, BENCH_OK);
+});
+
 // --- absence never mutates a legacy row -------------------------------------
 
 test("legacy row with none of the new fields stays free of them after an unrelated update", () => {
@@ -226,8 +417,12 @@ test("legacy row with none of the new fields stays free of them after an unrelat
   assert.equal(row.slot, undefined);
   assert.equal(row.features, undefined);
   assert.equal(row.score, undefined);
+  assert.equal(row.bench, undefined);
+  assert.equal(row.telemetry, undefined);
+  assert.equal(row.before_after, undefined);
   const reloaded = s.load("apollo").audit[0];
   assert.ok(!("kind" in reloaded), "an absent field must not even round-trip through JSON");
+  assert.ok(!("bench" in reloaded), "an absent bench must not even round-trip through JSON");
 });
 
 // ---------------------------------------------------------------------------
@@ -252,6 +447,38 @@ test("buildLedger carries kind/cost_tier/hardware_fit/slot/features/score throug
   assert.equal(row.slot, "apollo/x");
   assert.deepEqual(row.features, ["ocr"]);
   assert.deepEqual(row.score, FULL_SCORE);
+});
+
+test("buildLedger carries bench/telemetry/before_after through, first authored value wins", () => {
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "a/b", project: "apollo", verdict: "ADOPT", status: "done",
+        bench: BENCH_OK, telemetry: TELEMETRY_OK, before_after: BEFORE_AFTER_OK },
+      { repo: "a/b", project: "hermes", verdict: "ADOPT", status: "accepted",
+        bench: { ...BENCH_OK, result: "second project's own number" },
+        telemetry: { ...TELEMETRY_OK, project: "hermes" },
+        before_after: { ...BEFORE_AFTER_OK, before: "second" } },
+    ],
+  });
+  const row = rows.find((r) => r.repo === "a/b");
+  assert.deepEqual(row.bench, BENCH_OK, "first authored value wins, like why");
+  assert.deepEqual(row.telemetry, TELEMETRY_OK);
+  assert.deepEqual(row.before_after, BEFORE_AFTER_OK);
+  // per_project keeps the SECOND project's own view — the whole point of
+  // per_project is that the merge-loser's fields are not just gone.
+  assert.deepEqual(row.per_project.hermes.bench, { ...BENCH_OK, result: "second project's own number" });
+});
+
+test("buildLedger done counters: doneWithAdoptionEvidence gaps on a done row missing any of the three", () => {
+  const { counts } = buildLedger({
+    radarRows: [
+      { repo: "a/full", project: "apollo", verdict: "ADOPT", status: "done",
+        bench: BENCH_OK, telemetry: TELEMETRY_OK, before_after: BEFORE_AFTER_OK },
+      { repo: "a/gap", project: "apollo", verdict: "ADOPT", status: "done", bench: BENCH_OK },
+    ],
+  });
+  assert.equal(counts.done, 2);
+  assert.equal(counts.doneWithAdoptionEvidence, 1, "the gap row must not count as having full evidence");
 });
 
 test("buildLedger state is the status by default", () => {
