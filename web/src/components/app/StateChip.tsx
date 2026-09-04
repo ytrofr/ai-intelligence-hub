@@ -44,13 +44,13 @@ export function StateChip({
       title={title}
       className={cn(
         "b-" + level,
-        "inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium",
+        "inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium",
         "border-[color:var(--fav)]/35 bg-[color:var(--fav)]/10 text-[color:var(--fav)]",
         className,
       )}
     >
       <span aria-hidden className="font-mono leading-none">{mark}</span>
-      <span>{word}</span>
+      <span className="truncate">{word}</span>
     </span>
   );
 }

@@ -47,6 +47,9 @@ describe("the ramp is reached only through components that carry a word", () => 
     const walk = (d: string): string[] => {
       let out: string[] = [];
       for (const e of readdirSync(d)) {
+        // A test that forbids a pattern contains that pattern. Scanning itself
+        // makes the guard fail on its own text.
+        if (e === "__tests__") continue;
         const p = join(d, e);
         out = out.concat(statSync(p).isDirectory() ? walk(p) : [p]);
       }

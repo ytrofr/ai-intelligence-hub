@@ -5,6 +5,16 @@ import { AppSidebar } from "@/components/app/AppSidebar";
 import { PageShell } from "@/components/app/PageShell";
 import { AbsenceRow } from "@/components/app/AbsenceRow";
 import { DESTINATIONS, destinationById } from "@/components/app/nav";
+import { ProjectsPage } from "@/features/projects/ProjectsPage";
+import { NeedsPage } from "@/features/needs/NeedsPage";
+import { InventoryPage } from "@/features/inventory/InventoryPage";
+import { StackPage } from "@/features/stack/StackPage";
+import { MatrixPage } from "@/features/matrix/MatrixPage";
+import { GroundTruthPage } from "@/features/ground-truth/GroundTruthPage";
+import { RadarPage } from "@/features/radar/RadarPage";
+import { ItemsPage } from "@/features/items/ItemsPage";
+import { DigestsPage } from "@/features/digests/DigestsPage";
+import { DiscoveryPage } from "@/features/discovery/DiscoveryPage";
 import { useProject } from "@/components/app/useProject";
 
 /**
@@ -31,6 +41,24 @@ function Stub({ id }: { id: string }) {
     </PageShell>
   );
 }
+
+/**
+ * Destinations that have been built. Anything absent still renders the shell
+ * with an explicit "not built yet" row, so a half-finished rebuild never
+ * presents as a blank page.
+ */
+const BUILT: Record<string, () => JSX.Element> = {
+  items: ItemsPage,
+  digests: DigestsPage,
+  discovery: DiscoveryPage,
+  needs: NeedsPage,
+  matrix: MatrixPage,
+  stack: StackPage,
+  radar: RadarPage,
+  "ground-truth": GroundTruthPage,
+  projects: ProjectsPage,
+  inventory: InventoryPage,
+};
 
 /** Sends /p/:project/<nothing> style typos somewhere real rather than blank. */
 function NotFound() {
@@ -61,10 +89,13 @@ export function App() {
           <AppSidebar />
           <SidebarInset>
             <Routes>
-              {DESTINATIONS.map((d) => (
-                <Route key={d.id} path={d.path} element={<Stub id={d.id} />} />
-              ))}
-              <Route path="/digests/:date" element={<Stub id="digests" />} />
+              {DESTINATIONS.map((d) => {
+                const Built = BUILT[d.id];
+                return (
+                  <Route key={d.id} path={d.path} element={Built ? <Built /> : <Stub id={d.id} />} />
+                );
+              })}
+              <Route path="/digests/:date" element={<DigestsPage />} />
               {/* The old app's addresses. Every one of them resolves. */}
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
