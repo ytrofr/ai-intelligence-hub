@@ -1,26 +1,30 @@
 /**
- * No tracked file names an internal project.
+ * No tracked file names a project this repo is not allowed to name.
  *
  * This repo is PUBLIC. The operator's standing instruction, twice, verbatim:
  * "make sure we dont expose anything sensitive to this this repo" and
  * "MAKE SURE WE DONT EXPOSE ANYTHING ABOUT THESE PROJECTS PUBLIC!!!!".
  *
- * The real project ids live in config/projects.json, which is gitignored and
- * has never been pushed. Nothing in the CODE needs to know them: the app reads
- * them at runtime, and config/projects.example.json ships fictional ones
- * (apollo / atlas / hermes). So the guarantee this file enforces is the strong
- * one - not "the config is ignored" but "no tracked file names a project".
+ * ── why this is an ALLOW-list and not a deny-list ───────────────────────────
  *
- * POPULATION is `git ls-files`, not a hand-listed directory. A new file is
- * covered the moment it is tracked, which is the moment it can leak. A glob
- * would have to be remembered; this cannot be forgotten.
+ * The obvious guard is a list of forbidden ids. It cannot work here, and the
+ * failure is not subtle: a list of the private project names, committed to the
+ * public repo, IS the leak. It would have published the portfolio in a tidier
+ * form than anything it was written to catch.
  *
- * `remotion` is the one term that needs care. It is ALSO a public npm package
- * and a topic this hub legitimately tracks, so a bare-word regex would fire on
- * "@remotion/player" and on a keywords list - and a guard that cries wolf on
- * legitimate content is a guard someone deletes. It is therefore matched only
- * in IDENTIFIER position. The two controls below exist so that neither half of
- * that trade can rot silently.
+ * So the vocabulary is inverted. Layer 1 enumerates what this repo MAY name -
+ * the ids in the tracked example config, plus the two projects that are public
+ * anyway, plus the synthetic placeholders the fixtures use. Everything else in
+ * an id position fails, INCLUDING an id that does not exist yet. The unknown
+ * case is refused rather than allowed, and nothing private is written down.
+ *
+ * Layer 2 is the part an allow-list cannot reach: prose. A project named in
+ * an ordinary sentence carries no id syntax, so only a deny-list finds it - and the deny-list
+ * may not live here. It therefore reads the real ids from config/projects.json,
+ * which is gitignored and present only on a machine that already has them. On
+ * CI that file is absent, and the cell reports SKIPPED rather than passing:
+ * three states, never two, because a scan that could not run must not be
+ * indistinguishable from a scan that found nothing.
  */
 
 const test = require("node:test");
@@ -32,36 +36,40 @@ const path = require("node:path");
 const ROOT = path.join(__dirname, "..");
 
 /**
- * Terms with no legitimate public meaning inside this repo. Measured before
- * this guard was written: every occurrence of `hermes` outside `hermes` was
- * one of three real leaks, so it belongs here rather than in ANCHORED.
+ * Where a project id can appear such that it IS an id rather than a word:
+ * a query string, a quoted object/JSON value, or a per-project config path.
+ * Deliberately narrow - a wide pattern would drag in every `const project =`
+ * and drown the finding in variable names.
  */
-const UNCONDITIONAL = ["apollo", "hermes", "hermes", "atlas", "orion", "lyra"];
+const ID_POSITIONS = [
+  /[?&]project=([A-Za-z][A-Za-z0-9_-]*)/g,
+  /["']?project["']?\s*[=:]\s*"([A-Za-z][A-Za-z0-9_-]*)"/g,
+  /["']?project["']?\s*[=:]\s*'([A-Za-z][A-Za-z0-9_-]*)'/g,
+  /config\/radar\/([A-Za-z][A-Za-z0-9_-]*)\.json/g,
+];
+
+/** Ids the tracked example config declares - fictional by construction. */
+function exampleIds() {
+  const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config/projects.example.json"), "utf8"));
+  return (cfg.projects || []).map((p) => p.id);
+}
 
 /**
- * Terms that are also real public things. Each carries a pattern that fires
- * ONLY where the term is being used as one of our project ids.
- *
- * The lookbehind on the last alternative is the whole point: `@remotion/player`
- * and `node_modules/remotion/` must not match, `"remotion/scene-generation"`
- * (a slot id of ours) must.
+ * Public by nature, so naming them leaks nothing: this repo itself, and the
+ * documentation site that is already a public repo.
  */
-const ANCHORED = [
-  {
-    // The account name alone is not a leak: it is in this repo's own clone URL
-    // and in the LICENSE's copyright line, both of which must stay. What leaks
-    // is the account paired with a DIFFERENT repo - `ytrofr/Apollo` names a
-    // private project, `ytrofr/ai-intelligence-hub` names the thing you are
-    // already reading. Measured before writing this: all 9 occurrences in the
-    // repo today are the second kind.
-    term: "ytrofr",
-    re: /ytrofr\/(?!ai-intelligence-hub\b)/i,
-  },
-  {
-    term: "remotion",
-    re: /(?:"id"\s*:\s*"remotion"|'id'\s*:\s*'remotion'|project\s*[=:]\s*['"]?remotion|['"]remotion['"]\s*:|radar\/remotion|(?<![@\w/-])remotion\/[a-z])/i,
-  },
-];
+const PUBLIC_PROJECTS = ["hub", "guide", "ai-intelligence-hub"];
+
+/**
+ * Placeholders the fixtures use. Kept explicit rather than allowed by a
+ * "short token" rule - the shortest real id is four characters too, so a
+ * length heuristic would have waved the real thing straight through.
+ */
+const SYNTHETIC = ["proj", "p", "a", "b", "all", "example", "none", "definitely-not-a-real-project"];
+
+function allowed() {
+  return new Set([...exampleIds(), ...PUBLIC_PROJECTS, ...SYNTHETIC]);
+}
 
 function trackedFiles() {
   return execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, maxBuffer: 1 << 24 })
@@ -70,55 +78,98 @@ function trackedFiles() {
     .filter(Boolean);
 }
 
-/** Every internal-identity hit in one blob of text, as `term` strings. */
-function hits(text) {
-  const found = [];
-  for (const t of UNCONDITIONAL) {
-    if (new RegExp(t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(text)) found.push(t);
+function readTracked() {
+  const out = [];
+  for (const rel of trackedFiles()) {
+    try {
+      out.push([rel, fs.readFileSync(path.join(ROOT, rel), "utf8")]);
+    } catch (_) {
+      /* deleted-but-indexed, or not utf8 */
+    }
   }
-  for (const { term, re } of ANCHORED) {
-    if (re.test(text)) found.push(term);
+  return out;
+}
+
+/** Every id-position token in a blob. */
+function idsIn(text) {
+  const found = new Set();
+  for (const re of ID_POSITIONS) {
+    for (const m of text.matchAll(re)) found.add(m[1]);
   }
   return found;
 }
 
-test("POSITIVE CONTROL: the matcher fires on a synthetic project id", () => {
-  // Without this, a matcher broken into never matching anything reports a
-  // spotlessly clean repo, which is the most convincing possible lie.
-  assert.deepEqual(hits("const url = `/radar.html?project=apollo`;"), ["apollo"]);
-  assert.deepEqual(hits('{ "id": "remotion", "name": "x" }'), ["remotion"]);
-  assert.deepEqual(hits("slot: 'remotion/scene-generation'"), ["remotion"]);
-  // A different repo under the same account. Deliberately named with no
-  // internal id in it, so this cell proves the ytrofr anchor and nothing else.
-  assert.deepEqual(hits("https://github.com/ytrofr/some-private-repo"), ["ytrofr"]);
+test("POSITIVE CONTROL: an id outside the allow-list is rejected", () => {
+  // Without this, a matcher that extracts nothing reports a spotless repo,
+  // which is the most convincing lie available to it.
+  const ok = allowed();
+  const bad = [...idsIn('fetch("/api/radar?project=notarealproject")')].filter((i) => !ok.has(i));
+  assert.deepEqual(bad, ["notarealproject"]);
+
+  const bad2 = [...idsIn('{ "project": "someprivatething" }')].filter((i) => !ok.has(i));
+  assert.deepEqual(bad2, ["someprivatething"]);
+
+  const bad3 = [...idsIn("config/radar/someprivatething.json")].filter((i) => !ok.has(i));
+  assert.deepEqual(bad3, ["someprivatething"]);
 });
 
-test("NEGATIVE CONTROL: the matcher does NOT fire on the public remotion package", () => {
-  // remotion.dev is a real public library. Flagging it would make this guard
-  // wrong about legitimate content, and a guard that is wrong gets switched off.
-  assert.deepEqual(hits('import { Player } from "@remotion/player";'), []);
-  assert.deepEqual(hits('"keywords": ["remotion", "video-generation"]'), []);
-  assert.deepEqual(hits("node_modules/remotion/dist/index.js"), []);
-  assert.deepEqual(hits("git clone https://github.com/ytrofr/ai-intelligence-hub.git"), []);
-  assert.deepEqual(hits("Copyright (c) 2026 ytrofr"), []);
+test("NEGATIVE CONTROL: the example config's own ids are accepted", () => {
+  // A gate that refuses everyone passes every negative test ever written.
+  const ok = allowed();
+  const ids = exampleIds();
+  assert.ok(ids.length >= 2, "the example config must declare ids for this control to mean anything");
+  for (const id of ids) {
+    const bad = [...idsIn(`fetch("/api/radar?project=${id}")`)].filter((i) => !ok.has(i));
+    assert.deepEqual(bad, [], `${id} is in the tracked example config and must be allowed`);
+  }
 });
 
-test("no tracked file names an internal project", () => {
+test("no tracked file names a project outside the allow-list", () => {
+  const ok = allowed();
   const offenders = [];
-  for (const rel of trackedFiles()) {
-    const abs = path.join(ROOT, rel);
-    let body;
-    try {
-      body = fs.readFileSync(abs, "utf8");
-    } catch (_) {
-      continue; // deleted-but-still-indexed, or binary we cannot read as utf8
-    }
-    const found = new Set([...hits(rel), ...hits(body)]);
-    if (found.size) offenders.push(`${rel}: ${[...found].sort().join(", ")}`);
+  for (const [rel, body] of readTracked()) {
+    const bad = [...idsIn(body)].filter((i) => !ok.has(i)).sort();
+    if (bad.length) offenders.push(`${rel}: ${bad.join(", ")}`);
   }
   assert.deepEqual(
     offenders,
     [],
-    `${offenders.length} tracked file(s) name an internal project:\n  ${offenders.join("\n  ")}`,
+    `${offenders.length} tracked file(s) name a project outside the allow-list:\n  ${offenders.join("\n  ")}`,
+  );
+});
+
+test("PROSE: no tracked file mentions a real project by name", () => {
+  const LOCAL = path.join(ROOT, "config/projects.json");
+  if (!fs.existsSync(LOCAL)) {
+    // Not a pass. This cell has no vocabulary to scan with, and saying so is
+    // the only honest result - a silent green here is exactly the "clean
+    // report from a scan that could not fire" failure.
+    console.log("SKIPPED: no config/projects.json - the prose scan has no vocabulary on this machine");
+    return;
+  }
+  const ok = allowed();
+  const real = (JSON.parse(fs.readFileSync(LOCAL, "utf8")).projects || [])
+    .map((p) => p.id)
+    .filter((id) => !ok.has(id));
+  assert.ok(real.length >= 1, "the local config must name at least one non-allowed project, or this cell is vacuous");
+
+  const offenders = [];
+  for (const [rel, body] of readTracked()) {
+    if (rel === "tests/no-internal-identity.test.js") continue; // it names none; it only reads them
+    const hay = `${rel}\n${body}`;
+    const bad = real.filter((id) => {
+      // Not preceded by @ or / - some ids collide with real public package
+      // names, where a scoped import or a node_modules path is legitimate
+      // content. Flagging legitimate content is how a guard earns the right
+      // to be switched off.
+      const re = new RegExp(`(?<![@\\w/-])${id.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")}\\b`, "i");
+      return re.test(hay);
+    });
+    if (bad.length) offenders.push(`${rel}: ${bad.sort().join(", ")}`);
+  }
+  assert.deepEqual(
+    offenders,
+    [],
+    `${offenders.length} tracked file(s) mention a real project by name:\n  ${offenders.join("\n  ")}`,
   );
 });
