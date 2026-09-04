@@ -147,7 +147,8 @@ function hasAnyH3Field(r) {
     Number.isInteger(r.hardware_mib) ||
     !!(r.bench && typeof r.bench === "object") ||
     !!(r.telemetry && typeof r.telemetry === "object") ||
-    !!(r.before_after && typeof r.before_after === "object")
+    !!(r.before_after && typeof r.before_after === "object") ||
+    !!(r.eval && typeof r.eval === "object")
   );
 }
 
@@ -179,6 +180,10 @@ function buildPerProjectEntry(r) {
     bench: r.bench && typeof r.bench === "object" ? r.bench : null,
     telemetry: r.telemetry && typeof r.telemetry === "object" ? r.telemetry : null,
     before_after: r.before_after && typeof r.before_after === "object" ? r.before_after : null,
+    // The recurring eval a benchmark is wired into. Merged like the other H3
+    // objects - first authored wins - and per-project, because two projects
+    // can wire the same dataset into two different instruments.
+    eval: r.eval && typeof r.eval === "object" ? r.eval : null,
     status,
     evidence: text(r.evidence),
     pair: text(r.pair),
@@ -244,6 +249,7 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
         bench: null,
         telemetry: null,
         before_after: null,
+        eval: null,
         // Keyed by project id. Only projects whose OWN radar row carried at
         // least one H3 field get an entry — a plain dependency mention never
         // does, so this stays absent (not an empty object) on ordinary rows.
@@ -292,6 +298,7 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     if (r.bench && typeof r.bench === "object" && !row.bench) row.bench = r.bench;
     if (r.telemetry && typeof r.telemetry === "object" && !row.telemetry) row.telemetry = r.telemetry;
     if (r.before_after && typeof r.before_after === "object" && !row.before_after) row.before_after = r.before_after;
+    if (r.eval && typeof r.eval === "object" && !row.eval) row.eval = r.eval;
 
     const incoming = text(r.status) || "in-use";
     if ((STATUS_RANK[incoming] ?? 0) >= (STATUS_RANK[row.status] ?? 0)) row.status = incoming;

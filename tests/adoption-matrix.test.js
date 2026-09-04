@@ -416,3 +416,77 @@ test("a project that only DEPENDS on a repo another project decided is not credi
   const byProject = Object.fromEntries(m.hidden.map((r) => [r.project, r.hidden_class]));
   assert.deepEqual(byProject, { apollo: "decided", hermes: "dependency" });
 });
+
+// --- eval freshness on the board ------------------------------------------
+
+const EVAL_ROW = {
+  slot: "apollo/design-fidelity", cadence_days: 90, runner: "scripts/x.py",
+  metric: "DQI composite median", first_run: "~/.claude/reports/x.md",
+};
+const PROJ_WITH_SLOT = (ran) => [
+  { id: "apollo", name: "Apollo", features: [{ id: "design-scoring", label: "Score a generated page" }], slots: [{ id: "design-fidelity", ran }] },
+  { id: "hermes", name: "Hermes", features: [] },
+];
+const NOW2 = Date.parse("2026-09-04T12:00:00Z");
+const ago = (n) => new Date(NOW2 - n * 86400000).toISOString().slice(0, 10);
+
+test("a row with no eval reads not-wired, and that is not a failure", () => {
+  const { rows } = buildLedger({ radarRows: [{ repo: "a/x", project: "apollo", status: "proposed", why: "x", score: scored() }] });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJ_WITH_SLOT([]), now: NOW2 });
+  assert.equal(m.top[0].eval_freshness.state, "not-wired");
+  assert.equal(m.population.evals.wired, 0, "not-wired rows are not a denominator");
+});
+
+test("a wired eval whose slot ran recently reads running, and is counted", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/x", project: "apollo", status: "proposed", why: "x", score: scored(), eval: EVAL_ROW }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJ_WITH_SLOT([{ date: ago(5) }]), now: NOW2 });
+  assert.equal(m.top[0].eval_freshness.state, "running");
+  assert.equal(m.top[0].eval_freshness.age_days, 5);
+  assert.equal(m.population.evals.wired, 1);
+  assert.equal(m.population.evals.running, 1);
+});
+
+test("a STALLED eval outranks the state's own next action - a done row resting on a dead benchmark", () => {
+  const { rows } = buildLedger({
+    radarRows: [{
+      repo: "a/x", project: "apollo", status: "done", why: "x", score: scored(),
+      evidence: "abc1234", lesson: "l", eyeballed: "adopt 2026-01-01", eval: EVAL_ROW,
+      bench: { run: "~/r.json", date: "2026-01-01", result: "n" },
+      telemetry: { project: "apollo", counters: ["c"], url: "http://localhost:8770/x" },
+      before_after: { before: "1", after: "2", window: "7d", date: "2026-01-01" },
+    }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJ_WITH_SLOT([{ date: ago(400) }]), now: NOW2 });
+  assert.equal(m.top[0].eval_freshness.state, "stalled");
+  assert.equal(m.top[0].next_action, "re-run the eval");
+  assert.equal(m.population.evals.stalled, 1);
+});
+
+test("CONTROL: the SAME row with a fresh run keeps the state's own next action", () => {
+  const mk = (ran) => {
+    const { rows } = buildLedger({
+      radarRows: [{
+        repo: "a/x", project: "apollo", status: "done", why: "x", score: scored(),
+        evidence: "abc1234", lesson: "l", eyeballed: "adopt 2026-01-01", eval: EVAL_ROW,
+        bench: { run: "~/r.json", date: "2026-01-01", result: "n" },
+        telemetry: { project: "apollo", counters: ["c"], url: "http://localhost:8770/x" },
+        before_after: { before: "1", after: "2", window: "7d", date: "2026-01-01" },
+      }],
+    });
+    return buildMatrix({ ledgerRows: rows, projects: PROJ_WITH_SLOT(ran), now: NOW2 }).top[0];
+  };
+  assert.equal(mk([{ date: ago(5) }]).next_action, "adopt card", "only the STALL changes the action");
+  assert.notEqual(mk([{ date: ago(5) }]).next_action, mk([{ date: ago(400) }]).next_action);
+});
+
+test("an eval naming an undeclared slot reads slot-missing, never running", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/x", project: "apollo", status: "proposed", why: "x", score: scored(), eval: { ...EVAL_ROW, slot: "apollo/nope" } }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJ_WITH_SLOT([{ date: ago(1) }]), now: NOW2 });
+  assert.equal(m.top[0].eval_freshness.state, "slot-missing");
+  assert.equal(m.population.evals.slot_missing, 1);
+  assert.equal(m.population.evals.running, 0, "a fresh run on a DIFFERENT slot proves nothing about this one");
+});

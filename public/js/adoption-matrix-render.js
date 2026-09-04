@@ -110,6 +110,31 @@ function tierChip(tier, { good, warn, bad }) {
 
 const costChip = (tier) => tierChip(tier, { good: ["free"], warn: ["free-tier"], bad: ["paid"] });
 
+/**
+ * Is the recurring eval behind this row still running?
+ *
+ * Only shown when there IS one - a library that was never a benchmark should
+ * not carry a "not wired" chip forever. `not-wired` on a row that ought to
+ * have one shows up as the missing chip plus the close gate's refusal, which
+ * is where it belongs.
+ *
+ * Word AND shape, like every other chip here: the operator cannot rely on hue.
+ */
+function evalChip(f) {
+  if (!f || f.state === "not-wired") return "";
+  const level = { running: "good", due: "warn", stalled: "bad", "never-ran": "warn", "slot-missing": "bad", undated: "none" }[f.state] || "none";
+  const age = f.age_days === null ? "" : ` ${f.age_days}d`;
+  const title =
+    f.state === "slot-missing"
+      ? `eval names "${f.slot}", which no project declares - nothing can check it`
+      : f.state === "never-ran"
+        ? `wired to ${f.slot}, and that slot has never run`
+        : f.state === "undated"
+          ? `${f.slot} has runs, but none carries a date this can compare`
+          : `${f.slot} last ran ${f.age_days}d ago, cadence ${f.cadence_days}d (stale at ${f.cadence_days * 2}d)`;
+  return chip(level, `eval ${f.word}${age}`, title);
+}
+
 function fitChip(fit, mib) {
   const size = Number.isInteger(mib) ? ` ${mib >= 1024 ? (mib / 1024).toFixed(1) + " GiB" : mib + " MiB"}` : "";
   const base = tierChip(fit, { good: ["fits-cpu", "fits-gpu"], warn: ["unmeasured"], bad: ["too-big"] });
@@ -158,7 +183,7 @@ function rowHtml(r, { withProject } = {}) {
     ${improvesCell(r)}
     ${scoreCell(r.total)}
     ${DIMS.map((d) => dimCell(r[d.key], d.better)).join("")}
-    <td class="checks">${basisChip(r.basis)}${licenceChip(r.licence, r.licence_class)}${costChip(r.cost_tier)}${fitChip(r.hardware_fit, r.hardware_mib)}</td>
+    <td class="checks">${basisChip(r.basis)}${licenceChip(r.licence, r.licence_class)}${costChip(r.cost_tier)}${fitChip(r.hardware_fit, r.hardware_mib)}${evalChip(r.eval_freshness)}</td>
     ${stateCell(r)}
   </tr>`;
 }
@@ -195,6 +220,14 @@ function renderCounts(pop) {
     { k: "ledger rows", n: pop.ledger_rows },
     { k: "not shown", n: pop.hidden, gap: pop.hidden > 0 },
     { k: "adopted unscored", n: pop.adopted_unscored, gap: pop.adopted_unscored > 0 },
+    // Only meaningful once something is wired; a strip of zeros teaches its
+    // reader to skip the strip.
+    ...(pop.evals && pop.evals.wired
+      ? [
+          { k: "evals wired", n: pop.evals.wired },
+          { k: "evals stalled", n: pop.evals.stalled, gap: pop.evals.stalled > 0 },
+        ]
+      : []),
     { k: "scored", n: pop.scored },
     { k: "unscored", n: pop.unscored, gap: pop.unscored > 0 },
     { k: "measured", n: pop.measured },
@@ -312,5 +345,5 @@ function renderMatrix(data) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { renderMatrix, renderHidden, DIMS, favour, band, scoreBand, dimCell, basisChip, licenceChip, costChip, fitChip, chip };
+  module.exports = { renderMatrix, renderHidden, evalChip, DIMS, favour, band, scoreBand, dimCell, basisChip, licenceChip, costChip, fitChip, chip };
 }

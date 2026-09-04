@@ -29,6 +29,7 @@
 
 const { scoreTotal } = require("./ledger");
 const { PERMISSIVE_LICENSES } = require("./slot-gate");
+const { evalFreshness, countEvalStates, indexSlots } = require("./eval-freshness");
 
 const SCORE_DIMS = ["effort", "effect", "time", "impact", "risk"];
 const PAID_LATER = "paid-later";
@@ -151,6 +152,7 @@ function projectFields(ledgerRow, projectId) {
     licence: ledgerRow.licence,
     hardware_fit: ledgerRow.hardware_fit,
     hardware_mib: ledgerRow.hardware_mib,
+    eval: ledgerRow.eval,
     status: ledgerRow.status,
     evidence: ledgerRow.evidence,
     pair: ledgerRow.pair,
@@ -174,8 +176,9 @@ function licenceClass(licence) {
 }
 
 /** One ledger row, attributed to one project, as a matrix candidate row. */
-function buildRow(ledgerRow, projectId, project, counters) {
+function buildRow(ledgerRow, projectId, project, counters, slotIndex, now) {
   const fields = projectFields(ledgerRow, projectId);
+  const freshness = evalFreshness((fields && fields.eval) || null, slotIndex, now);
   const scored = isCompleteScore(fields && fields.score);
   const score = (fields && fields.score) || {};
   // No per-project record, and the row is shared with at least one other
@@ -207,7 +210,14 @@ function buildRow(ledgerRow, projectId, project, counters) {
     basis: scored ? score.basis || "estimated" : "",
     note: scored ? score.note || "" : "",
     why: ledgerRow.why || "",
-    next_action: NEXT_ACTION[state] || "-",
+    // Derived at READ time from the slot's own ran[], never stored. You cannot
+    // make this row green by writing to this row; you have to append a run.
+    eval: (fields && fields.eval) || null,
+    eval_freshness: freshness,
+    // A stalled eval OUTRANKS the state's own next action. A row can be
+    // perfectly `done` and still be resting on a benchmark that stopped
+    // running months ago, and that is the more urgent of the two facts.
+    next_action: freshness.state === "stalled" ? "re-run the eval" : NEXT_ACTION[state] || "-",
   };
 }
 
@@ -226,7 +236,7 @@ function byProjectThenRepo(a, b) {
  * silent 0-row result for an id nobody configured yet, as long as at least
  * one ledger row actually names it.
  */
-function buildCandidates(ledgerRows, projectById, project, counters) {
+function buildCandidates(ledgerRows, projectById, project, counters, slotIndex, now) {
   const candidates = [];
   const hidden = [];
   const adoptedUnscored = [];
@@ -235,7 +245,7 @@ function buildCandidates(ledgerRows, projectById, project, counters) {
     for (const pid of Array.isArray(row.projects) ? row.projects : []) {
       if (project && pid !== project) continue;
       const proj = projectById.get(pid) || { id: pid, name: pid, features: [] };
-      const built = buildRow(row, pid, proj, counters);
+      const built = buildRow(row, pid, proj, counters, slotIndex, now);
 
       // Read THIS project's own record, never the merged row's. First-authored-
       // wins puts one project's score on the shared row, so counting per row
@@ -302,10 +312,14 @@ function slotParkedPaid(projects, project) {
   return out;
 }
 
-function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
+function buildMatrix({ ledgerRows = [], projects = [], project = null, now = Date.now() } = {}) {
   const projectById = new Map(projects.map((p) => [p.id, p]));
   const counters = { undeclared: 0 };
-  const { candidates, hidden, adoptedUnscored } = buildCandidates(ledgerRows, projectById, project, counters);
+  // The slot index is the ONLY reason this module reads `projects` for
+  // anything but feature labels. It stays here rather than in buildLedger: a
+  // repo-keyed merge has no business reading slots.
+  const slotIndex = indexSlots(projects);
+  const { candidates, hidden, adoptedUnscored } = buildCandidates(ledgerRows, projectById, project, counters, slotIndex, now);
 
   const projectsOut = resolveProjectIds(projectById, candidates, project).map((id) => {
     const rows = candidates.filter((r) => r.project === id);
@@ -354,6 +368,10 @@ function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
       licence_read: candidates.filter((r) => r.licence_class !== "unknown").length,
       licence_restricted: candidates.filter((r) => r.licence_class === "restricted").length,
       undeclared_features: counters.undeclared,
+      // A benchmark that quietly stopped is silent by construction: nothing
+      // errors, the row still says done, the number is just old. These are
+      // the tell, and they are derived from the same computation the chip is.
+      evals: countEvalStates(candidates.map((r) => r.eval_freshness)),
       by_project: byProject,
     },
     projects: projectsOut,

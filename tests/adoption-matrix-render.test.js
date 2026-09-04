@@ -191,3 +191,43 @@ test("REGRESSION: a truncated payload still reports the count the SERVER made", 
   assert.match(html, /5 decided/);
   assert.match(html, /4 plain deps/);
 });
+
+// --- the eval chip --------------------------------------------------------
+
+test("a row with no eval gets NO chip - a library was never a benchmark", () => {
+  assert.equal(R.evalChip(null), "");
+  assert.equal(R.evalChip({ state: "not-wired", word: "not wired", shape: "◇" }), "");
+});
+
+test("each eval state renders its own word, and colour is never the only channel", () => {
+  const mk = (state, word, extra = {}) => R.evalChip({ state, word, age_days: 10, cadence_days: 90, slot: "apollo/s", ...extra });
+  const cells = [
+    mk("running", "running"), mk("due", "due"), mk("stalled", "stalled"),
+    mk("never-ran", "never ran", { age_days: null }), mk("slot-missing", "slot missing", { age_days: null }),
+    mk("undated", "undated run", { age_days: null }),
+  ];
+  assert.equal(new Set(cells).size, 6, "six states, six distinct chips");
+  for (const html of cells) {
+    assert.match(html, /<span class="g">/, `no shape glyph in: ${html}`);
+    assert.match(html, /eval [a-z]/, `no word in: ${html}`);
+  }
+  assert.match(cells[0], /b-good/);
+  assert.match(cells[2], /b-bad/, "stalled must not read favourable");
+});
+
+test("REGRESSION: running and stalled do not render identically", () => {
+  const running = R.evalChip({ state: "running", word: "running", age_days: 10, cadence_days: 90, slot: "apollo/s" });
+  const stalled = R.evalChip({ state: "stalled", word: "stalled", age_days: 400, cadence_days: 90, slot: "apollo/s" });
+  assert.notEqual(running, stalled);
+  // CONTROL: two chips that really ARE the same news still match, or the
+  // assertion above passes for a renderer that never repeats itself.
+  assert.equal(
+    R.evalChip({ state: "running", word: "running", age_days: 10, cadence_days: 90, slot: "apollo/s" }),
+    R.evalChip({ state: "running", word: "running", age_days: 10, cadence_days: 90, slot: "apollo/s" }),
+  );
+});
+
+test("the chip carries the age, so 'running' is checkable rather than trusted", () => {
+  assert.match(R.evalChip({ state: "running", word: "running", age_days: 12, cadence_days: 90, slot: "apollo/s" }), /12d/);
+  assert.ok(!/null/.test(R.evalChip({ state: "never-ran", word: "never ran", age_days: null, cadence_days: 90, slot: "apollo/s" })));
+});

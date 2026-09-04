@@ -663,3 +663,196 @@ test("accepted-without-evidence still derives as it did - the done branch did no
   const { rows } = BL({ radarRows: [{ repo: "a/acc", project: "apollo", status: "accepted", why: "x" }] });
   assert.equal(rows[0].state, "accepted-without-evidence");
 });
+
+// --- the done gate, routed by kind ----------------------------------------
+//
+// Same question, different answer per kind: a library shipping in production
+// is observable THERE; an answer key has no runtime counters at all and is
+// adopted by being wired as a recurring eval; a model can be either.
+//
+// Every REFUSES cell has its ACCEPTS twin. A gate that throws unconditionally
+// passes every refusal test ever written.
+
+const path2 = require("node:path");
+const fs2 = require("node:fs");
+const os2 = require("node:os");
+const { RadarStore: RS } = require("../routes/lib/radar-store");
+
+const EVAL_OK = {
+  slot: "apollo/design-fidelity",
+  cadence_days: 90,
+  runner: "scripts/run-design-eval.py",
+  metric: "DQI composite median",
+  first_run: "~/.claude/reports/design-eval.md",
+};
+const BENCH_OK2 = { run: "~/.claude/reports/b.json", date: "2026-09-04", result: "median 55.7 -> 57.6" };
+const TELEM_OK2 = { project: "apollo", counters: ["pages_scored"], url: "http://localhost:8770/x" };
+const BA_OK2 = { before: "55.7", after: "57.6", window: "7d", date: "2026-09-04" };
+const CLOSE = {
+  evidence: "apollo@3f9a12c", lesson: "~/.claude/rules/quality/x.md",
+  pair: "http://localhost:8776/?session=s#c", eyeballed: "adopt 2026-09-04T10:00Z",
+};
+
+function freshStore() {
+  const dir = fs2.mkdtempSync(path2.join(os2.tmpdir(), "radar-kind-"));
+  fs2.writeFileSync(
+    path2.join(dir, "apollo.json"),
+    JSON.stringify({
+      project: "apollo", title: "Apollo", starThreshold: 20000,
+      topics: [{ id: "t", label: "T", blurb: "", keywords: ["x"] }],
+      verdicts: { ADOPT: "a", WATCH: "w", SKIP: "s" },
+      audit: [],
+    }),
+  );
+  return { store: new RS(dir), dir };
+}
+
+/** Close one row and report the refusal message, or null when it closed. */
+function tryClose(kind, extra) {
+  const { store } = freshStore();
+  store.upsertRow("apollo", {
+    repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind,
+    bench: BENCH_OK2, before_after: BA_OK2, ...extra,
+  });
+  try {
+    store.setStatus("apollo", "a/thing", "done", CLOSE);
+    return null;
+  } catch (e) {
+    return e.message;
+  }
+}
+
+test("kind=repo REFUSES done with an eval and no telemetry - a library ships, it does not run on a cadence", () => {
+  const msg = tryClose("repo", { eval: EVAL_OK });
+  assert.ok(msg, "it must refuse");
+  assert.match(msg, /missing telemetry/);
+});
+
+test("ACCEPTS: kind=repo closes with telemetry - the twin, so the cell above is not vacuous", () => {
+  assert.equal(tryClose("repo", { telemetry: TELEM_OK2 }), null);
+});
+
+test("an unset kind is treated as repo - the default demands telemetry", () => {
+  const msg = tryClose(undefined, { eval: EVAL_OK });
+  assert.ok(msg);
+  assert.match(msg, /missing telemetry/);
+});
+
+test("kind=dataset REFUSES done with telemetry and no eval - an answer key has no runtime counters", () => {
+  const msg = tryClose("dataset", { telemetry: TELEM_OK2 });
+  assert.ok(msg, "it must refuse");
+  assert.match(msg, /missing eval/);
+});
+
+test("ACCEPTS: kind=dataset closes with an eval - this is what unblocks a benchmark", () => {
+  assert.equal(tryClose("dataset", { eval: EVAL_OK }), null);
+});
+
+test("kind=model closes with EITHER, and refuses with NEITHER", () => {
+  assert.equal(tryClose("model", { eval: EVAL_OK }), null, "an eval is enough");
+  assert.equal(tryClose("model", { telemetry: TELEM_OK2 }), null, "telemetry is enough");
+  const msg = tryClose("model", {});
+  assert.ok(msg, "neither is not enough");
+  assert.match(msg, /missing eval or telemetry/);
+});
+
+test("bench and before_after stay required in EVERY branch", () => {
+  for (const [kind, extra] of [["repo", { telemetry: TELEM_OK2 }], ["dataset", { eval: EVAL_OK }], ["model", { eval: EVAL_OK }]]) {
+    const { store } = freshStore();
+    store.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind, before_after: BA_OK2, ...extra });
+    assert.throws(() => store.setStatus("apollo", "a/thing", "done", CLOSE), /missing bench/, `${kind} must still need a bench`);
+
+    const { store: s2 } = freshStore();
+    s2.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind, bench: BENCH_OK2, ...extra });
+    assert.throws(() => s2.setStatus("apollo", "a/thing", "done", CLOSE), /missing before_after/, `${kind} must still need a before_after`);
+  }
+});
+
+test("a MALFORMED eval never reaches disk - upsertRow refuses it before the close gate sees it", () => {
+  // The close gate re-validates too, but the earlier refusal is the better
+  // one: the row never exists in a shape the gate would have to reject.
+  const { store } = freshStore();
+  assert.throws(
+    () => store.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind: "dataset", eval: { ...EVAL_OK, cadence_days: 7.5 } }),
+    /cadence_days/,
+  );
+  // ACCEPTS twin: the same call with an integer cadence goes through, so the
+  // refusal above is about the value and not about the shape of the call.
+  assert.doesNotThrow(() =>
+    store.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind: "dataset", eval: EVAL_OK }),
+  );
+});
+
+test("the close gate re-validates a HAND-EDITED eval, so the file is not the only guard", () => {
+  const { store, dir } = freshStore();
+  store.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind: "dataset", bench: BENCH_OK2, before_after: BA_OK2 });
+  // Straight past upsertRow, the way the one live malformed field arrived.
+  const cfg = JSON.parse(fs2.readFileSync(path2.join(dir, "apollo.json"), "utf8"));
+  cfg.audit[0].eval = { ...EVAL_OK, runner: "   " };
+  fs2.writeFileSync(path2.join(dir, "apollo.json"), JSON.stringify(cfg));
+  assert.throws(() => store.setStatus("apollo", "a/thing", "done", CLOSE), /eval is malformed[\s\S]*runner/);
+});
+
+test("REGRESSION: a rejected row needs none of this - it was never adopted", () => {
+  const { store } = freshStore();
+  store.upsertRow("apollo", { repo: "a/no", topic: "t", verdict: "SKIP", why: "x", kind: "dataset" });
+  assert.doesNotThrow(() =>
+    store.setStatus("apollo", "a/no", "rejected", {
+      evidence: "~/.claude/reports/spike.md", lesson: "none - too slow",
+      pair: "http://localhost:8776/?session=s#c", eyeballed: "reject 2026-09-04T10:00Z",
+    }),
+  );
+});
+
+test("a refused close leaves the row BYTE-IDENTICAL - validation runs before any write", () => {
+  const { store, dir } = freshStore();
+  store.upsertRow("apollo", { repo: "a/thing", topic: "t", verdict: "ADOPT", why: "x", kind: "dataset", bench: BENCH_OK2, before_after: BA_OK2 });
+  const file = path2.join(dir, "apollo.json");
+  const before = fs2.readFileSync(file, "utf8");
+  assert.throws(() => store.setStatus("apollo", "a/thing", "done", CLOSE));
+  assert.equal(fs2.readFileSync(file, "utf8"), before, "a refusal must not half-write");
+});
+
+// --- evalField, every subfield, each refusal with its accepting twin -------
+
+test("evalField ACCEPTS a complete eval and returns it trimmed", () => {
+  const { evalField } = require("../routes/lib/radar-store");
+  assert.deepEqual(evalField({ ...EVAL_OK, runner: "  scripts/x.py  " }), { ...EVAL_OK, runner: "scripts/x.py" });
+  assert.equal(evalField(undefined), undefined, "absent stays absent - a legacy row must not gain a field");
+});
+
+test("evalField REFUSES each subfield's bad value, and names which one", () => {
+  const { evalField } = require("../routes/lib/radar-store");
+  const cases = [
+    ["slot", { ...EVAL_OK, slot: "nope" }, /eval\.slot/],
+    ["slot missing", { ...EVAL_OK, slot: "" }, /eval\.slot/],
+    ["cadence non-integer", { ...EVAL_OK, cadence_days: 7.5 }, /cadence_days/],
+    ["cadence as a word", { ...EVAL_OK, cadence_days: "weekly" }, /cadence_days/],
+    ["cadence 0", { ...EVAL_OK, cadence_days: 0 }, /cadence_days/],
+    ["cadence 400", { ...EVAL_OK, cadence_days: 400 }, /cadence_days/],
+    ["blank runner", { ...EVAL_OK, runner: "   " }, /eval\.runner/],
+    ["overlong runner", { ...EVAL_OK, runner: "x".repeat(121) }, /eval\.runner/],
+    ["blank metric", { ...EVAL_OK, metric: "" }, /eval\.metric/],
+    ["overlong metric", { ...EVAL_OK, metric: "x".repeat(201) }, /eval\.metric/],
+    // first_run is a MEASUREMENT, not a build. Same rule as bench.run: a
+    // commit says code changed, not that anything was measured.
+    ["commit as first_run", { ...EVAL_OK, first_run: "1a1bd6c" }, /first_run/],
+    ["PR as first_run", { ...EVAL_OK, first_run: "Orion#152" }, /first_run/],
+    ["URL as first_run", { ...EVAL_OK, first_run: "https://example.com/r" }, /first_run/],
+    ["blank first_run", { ...EVAL_OK, first_run: "" }, /first_run/],
+    ["an array", [], /eval must be an object/],
+    ["null", null, /eval must be an object/],
+  ];
+  for (const [why, value, pattern] of cases) {
+    assert.throws(() => evalField(value), pattern, `should have refused: ${why}`);
+  }
+});
+
+test("CONTROL: a report path in every accepted extension still passes", () => {
+  const { evalField } = require("../routes/lib/radar-store");
+  for (const ext of ["md", "json", "txt", "csv", "log"]) {
+    assert.doesNotThrow(() => evalField({ ...EVAL_OK, first_run: `~/.claude/reports/x.${ext}` }));
+  }
+  // ...so the refusals above are about the VALUE, not about the field being
+  // unsatisfiable.
+});

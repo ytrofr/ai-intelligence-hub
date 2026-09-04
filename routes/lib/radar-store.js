@@ -188,6 +188,53 @@ const benchField = (value) => {
   return { run, date, result };
 };
 
+/**
+ * "This dataset is not something we shipped - it is something that RUNS on a
+ * cadence and grades an instrument." Operator ruling 2026-09-04: for a
+ * benchmark, ADOPTED means wired as a recurring eval.
+ *
+ * Deliberately NOT a sixth status. A dataset moves through the same five
+ * states; what differs is which evidence `done` demands of it, and that is a
+ * property of the row, not of the funnel.
+ *
+ * The run LOG is not here either - it lives in the slot's own `ran[]` in
+ * config/projects.json, and freshness is derived from it at READ time
+ * (modules/eval-freshness.js). That is what makes a green eval unforgeable:
+ * you cannot make this row look fresh by writing to this row, you have to
+ * actually append a run.
+ *
+ * All five subfields are required together, same reasoning as bench: an eval
+ * with no cadence is a run that happened once, and an eval with no metric is a
+ * job whose output nobody reads.
+ */
+const evalField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("eval must be an object with slot, cadence_days, runner, metric, first_run");
+  }
+  const slot = typeof value.slot === "string" ? value.slot.trim() : "";
+  if (!SLOT_RE.test(slot)) {
+    throw new Error(`eval.slot must be "<project>/<slot>" - it names the instrument whose ran[] proves this runs, got "${slot}"`);
+  }
+  // A NUMBER, never "weekly". Staleness has to be computable, and a word is
+  // not a comparison anyone can make.
+  const cadence = value.cadence_days;
+  if (!Number.isInteger(cadence) || cadence < 1 || cadence > 365) {
+    throw new Error(`eval.cadence_days must be an integer 1-365 - got ${JSON.stringify(cadence)}`);
+  }
+  const runner = typeof value.runner === "string" ? value.runner.trim() : "";
+  if (!runner) throw new Error("eval.runner must say where the recurring job is defined - omit eval if nothing runs it");
+  if (runner.length > 120) throw new Error(`eval.runner must be at most 120 chars - got ${runner.length}`);
+  const metric = typeof value.metric === "string" ? value.metric.trim() : "";
+  if (!metric) throw new Error("eval.metric must name the ONE number this eval gates - it is what before_after compares");
+  if (metric.length > 200) throw new Error(`eval.metric must be at most 200 chars - got ${metric.length}`);
+  const firstRun = typeof value.first_run === "string" ? value.first_run.trim() : "";
+  if (!REPORT_RE.test(firstRun)) {
+    throw new Error(`eval.first_run must be a report file path (…/name.md|json|txt|csv|log) - a measurement, not a commit - got "${firstRun}"`);
+  }
+  return { slot, cadence_days: cadence, runner, metric, first_run: firstRun };
+};
+
 /** The live counters that make "did it help" a query, not a claim. `counters`
  * is a non-empty array of non-empty names — an empty array is refused rather
  * than silently meaning "no counters", which is indistinguishable from "we
@@ -252,6 +299,7 @@ function adoptionFields(input, existingEvidence) {
     bench: benchField(input.bench),
     telemetry: telemetryField(input.telemetry),
     before_after: beforeAfterField(input.before_after),
+    eval: evalField(input.eval),
   };
 }
 
@@ -418,11 +466,28 @@ class RadarStore {
       }
 
       // Operator ruling 2026-09-04: "adopted" means bench + telemetry +
-      // before/after, not "merged". These three are set on the row itself via
+      // before/after, not "merged". These are set on the row itself via
       // upsertRow (like licence, kind, ...), never via `fields` here — closing
       // just checks they are already there. Rejected needs none of this: a
       // rejected candidate was never adopted, so a post-adoption comparison
       // does not apply to it.
+      //
+      // The "did we actually use it" half is ROUTED BY KIND, because the same
+      // question has a different answer for different things:
+      //
+      //   repo (or unset)  telemetry — a library shipping in production is
+      //                    observable there, and an eval does not show that
+      //   dataset          eval — an answer key has no runtime counters at
+      //                    all; adopted means WIRED AS A RECURRING EVAL
+      //   model            either — both deployments are real
+      //
+      // Honest note, correcting this plan's own claim: this is NOT
+      // stricter-or-equal in every branch. A dataset carrying telemetry and no
+      // eval used to close and no longer does (stricter), but a dataset
+      // carrying an eval and no telemetry used to be refused and now closes
+      // (looser). That second direction is the point — it is what lets a
+      // benchmark be adopted at all — and `eval` is a validated artifact, not
+      // a waiver. Saying it plainly beats letting a reader discover it.
       if (status === "done") {
         const requireAdoption = (name, value, validator, hint) => {
           if (value === undefined) refuse(`missing ${name}: ${hint}`);
@@ -438,12 +503,33 @@ class RadarStore {
           benchField,
           'the pre-adoption measurement — { run, date, result }. Set it on the row first (`upsertRow`), same as licence or score.',
         );
-        requireAdoption(
-          "telemetry",
-          row.telemetry,
-          telemetryField,
-          'the live counters that make "did it help" a query — { project, counters, url }.',
-        );
+
+        const kind = text(row.kind) || "repo";
+        const TELEMETRY_HINT =
+          'the live counters that make "did it help" a query — { project, counters, url }.';
+        const EVAL_HINT =
+          "the recurring eval this is wired into — { slot, cadence_days, runner, metric, first_run }. " +
+          "For a benchmark, adopted means it RUNS on a cadence; the runs themselves live in the slot's ran[].";
+
+        if (kind === "dataset") {
+          requireAdoption("eval", row.eval, evalField, EVAL_HINT);
+        } else if (kind === "model") {
+          // Exactly one is enough, but SOMETHING must be there — a deployed
+          // model with neither is a claim with no reader.
+          const hasEval = row.eval !== undefined;
+          const hasTelemetry = row.telemetry !== undefined;
+          if (!hasEval && !hasTelemetry) {
+            refuse(
+              "missing eval or telemetry: a model is adopted either as a recurring eval or as something " +
+                `production emits counters for. ${EVAL_HINT} ${TELEMETRY_HINT}`,
+            );
+          }
+          if (hasEval) requireAdoption("eval", row.eval, evalField, EVAL_HINT);
+          if (hasTelemetry) requireAdoption("telemetry", row.telemetry, telemetryField, TELEMETRY_HINT);
+        } else {
+          requireAdoption("telemetry", row.telemetry, telemetryField, TELEMETRY_HINT);
+        }
+
         requireAdoption(
           "before_after",
           row.before_after,
@@ -515,6 +601,7 @@ class RadarStore {
         bench: f.bench ?? row.bench,
         telemetry: f.telemetry ?? row.telemetry,
         before_after: f.before_after ?? row.before_after,
+        eval: f.eval ?? row.eval,
         updated_at: now,
       });
     } else {
@@ -524,7 +611,7 @@ class RadarStore {
         kind: f.kind, cost_tier: f.cost_tier, licence: f.licence,
         hardware_fit: f.hardware_fit, hardware_mib: f.hardware_mib,
         slot: f.slot, features: f.features, score: f.score,
-        bench: f.bench, telemetry: f.telemetry, before_after: f.before_after,
+        bench: f.bench, telemetry: f.telemetry, before_after: f.before_after, eval: f.eval,
         project, added_at: now, updated_at: now,
       };
       cfg.audit.push(row);
@@ -548,4 +635,5 @@ module.exports = {
   benchField,
   telemetryField,
   beforeAfterField,
+  evalField,
 };
