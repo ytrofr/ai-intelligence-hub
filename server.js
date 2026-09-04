@@ -28,24 +28,22 @@ const PORT = Number(process.env.PORT) || 4444;
 
 // Middleware
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
-
-// ---------------------------------------------------------------------------
-// The rebuild's preview mount. INTERIM, and it goes at cutover.
+// The front end is a build, not a directory of hand-written pages.
 //
-// public/ is still the app; this serves the React build beside it so the shell
-// can be looked at on a real browser at a real size without swapping anything
-// over. It needs its own SPA fallback because the client owns those routes -
-// without it, /preview/p/<id>/stack is a 404 from Express and the page cannot
-// be reached except by clicking into it, which is not a test of the routing.
-//
-// Built with `npm --prefix web run build:preview` (base=/preview/), so the
-// bundle's asset URLs and the router's basename agree.
-const PREVIEW_DIR = path.join(__dirname, "dist-preview");
-if (fs.existsSync(PREVIEW_DIR)) {
-  app.use("/preview", express.static(PREVIEW_DIR));
-  app.get(/^\/preview(\/.*)?$/, (_req, res) => res.sendFile(path.join(PREVIEW_DIR, "index.html")));
+// `dist/` is produced by `npm --prefix web run build` and is gitignored, so a
+// fresh clone has no UI until it builds one. That is a real failure mode and it
+// gets a real message: without this guard the server starts happily, every page
+// 404s, and the app reads as broken rather than as unbuilt.
+const DIST = path.join(__dirname, "dist");
+if (!fs.existsSync(path.join(DIST, "index.html"))) {
+  console.error(
+    "[hub] dist/index.html is missing - the front end has not been built.\n" +
+      "      Run:  npm --prefix web install && npm --prefix web run build\n" +
+      "      The API will still serve; every page will 404 until you do.",
+  );
 }
+app.use(express.static(DIST));
+
 
 // Load routes
 app.use("/api/items", require("./routes/items"));
@@ -119,6 +117,20 @@ function initializeConfig() {
     console.error("Config initialization error:", err.message);
   }
 }
+
+// ---------------------------------------------------------------------------
+// SPA fallback. LAST, and after every /api mount above, so an unknown API path
+// still 404s as JSON instead of being answered with an HTML page - a 200 of
+// markup where a caller expected JSON is far harder to diagnose than a 404.
+//
+// The client owns every other address, including the old .html ones: nine of
+// them redirect to their new route, carrying ?project= and #/<id> through
+// rather than dropping the reader on a fleet page.
+app.get(/^(?!\/api\/).*/, (_req, res, next) => {
+  const index = path.join(DIST, "index.html");
+  if (!fs.existsSync(index)) return next();
+  res.sendFile(index);
+});
 
 // Start server
 app.listen(PORT, () => {

@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app/AppSidebar";
@@ -15,6 +15,7 @@ import { RadarPage } from "@/features/radar/RadarPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
 import { DigestsPage } from "@/features/digests/DigestsPage";
 import { DiscoveryPage } from "@/features/discovery/DiscoveryPage";
+import { LEGACY_PATHS, LegacyRedirect } from "@/components/app/LegacyRedirect";
 import { useProject } from "@/components/app/useProject";
 
 /**
@@ -97,7 +98,9 @@ export function App() {
               })}
               <Route path="/digests/:date" element={<DigestsPage />} />
               {/* The old app's addresses. Every one of them resolves. */}
-              <Route path="/index.html" element={<Navigate to="/" replace />} />
+              {LEGACY_PATHS.map((p) => (
+                <Route key={p} path={p} element={<LegacyRedirect />} />
+              ))}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </SidebarInset>

@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test 'tests/*.test.js'"
+    "test": "npm run test:server && npm run test:web",
+    "test:server": "node --test 'tests/*.test.js'",
+    "test:web": "npm --prefix web run test",
+    "build": "npm --prefix web run build"
   },
   "dependencies": {
     "better-sqlite3": "^11.0.0",

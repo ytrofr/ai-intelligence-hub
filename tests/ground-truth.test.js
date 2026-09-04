@@ -177,16 +177,27 @@ test("the unvetted caveat has ONE source - the page and the digest never write t
 
   const fs = require("fs"), path = require("path");
   const phrase = "the right SHAPE of data";
-  // Every surface that RENDERS the caveat, not a list frozen when it was written -
-  // a new page spelling it out would otherwise fork the wording away from the
-  // constant, and this guard would stay green for a reason unrelated to the risk.
-  const copies = [
-    "public/ground-truth.html",
-    "modules/weekly-digest.js",
-    "public/js/ground-truth-render.js",
-    "public/js/projects-hub-render.js",
-    "public/projects.html",
-  ].filter((f) =>
-    fs.readFileSync(path.join(__dirname, "..", f), "utf8").includes(phrase));
+  // WALKED, not listed. The list this replaces was frozen when it was written,
+  // so it named five files - three of which no longer exist after the front end
+  // moved to web/, and none of which would have covered a NEW page spelling the
+  // caveat out. A guard against wording forking away from the constant has to
+  // see every renderer, including ones added after it.
+  const roots = ["modules", path.join("web", "src")];
+  const walk = (d) =>
+    fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+      const f = path.join(d, e.name);
+      if (e.isDirectory()) return e.name === "node_modules" ? [] : walk(f);
+      return /\.(js|ts|tsx)$/.test(e.name) ? [f] : [];
+    });
+  const root = path.join(__dirname, "..");
+  const surfaces = roots
+    .map((r) => path.join(root, r))
+    .filter((d) => fs.existsSync(d))
+    .flatMap(walk);
+  assert.ok(surfaces.length > 20, `only ${surfaces.length} surfaces scanned - the walk is not reaching the code`);
+  const copies = surfaces
+    .filter((f) => !f.includes("ground-truth.js"))
+    .filter((f) => fs.readFileSync(f, "utf8").includes(phrase))
+    .map((f) => path.relative(root, f));
   assert.deepEqual(copies, [], "a renderer is spelling the caveat out instead of reading it");
 });

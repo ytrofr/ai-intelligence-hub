@@ -25,4 +25,9 @@ jobs:
         with:
           node-version: "24"
       - run: npm ci --no-audit --no-fund
+      - run: npm --prefix web ci --no-audit --no-fund
+      # Builds before testing: dist/ is gitignored, and one of the guards
+      # asserts the capture tag survives into the BUILT artifact, not just the
+      # source. Without a build that cell reports SKIPPED forever.
+      - run: npm --prefix web run build
       - run: npm test

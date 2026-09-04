@@ -95,21 +95,18 @@ test("the route narrows the projects list BEFORE building, never the payload aft
   assert.match(src, /no such project/, "an unknown id must 404, not render an empty tree");
 });
 
-test("the ground-truth page passes ?project= through to the API rather than filtering locally", () => {
-  const page = fs.readFileSync(path.join(__dirname, "..", "public", "ground-truth.html"), "utf8");
-  assert.match(page, /\/api\/ground-truth\?project=\$\{encodeURIComponent\(project\)\}/);
-});
-
-test("the stack page filters on MEMBERSHIP, not by pre-filling the search box", () => {
-  const page = fs.readFileSync(path.join(__dirname, "..", "public", "stack.html"), "utf8");
-  assert.match(page, /if \(PROJECT && !r\.projects\.includes\(PROJECT\)\) return false;/);
-  // The exact regression: the id used to be typed into the search box, which
-  // matches nine fields by substring.
-  assert.doesNotMatch(page, /box\.value = wanted/);
-});
-
-test("the stack page SAYS its counts strip is still ledger-wide while the table is filtered", () => {
-  const page = fs.readFileSync(path.join(__dirname, "..", "public", "stack.html"), "utf8");
-  assert.match(page, /across all projects/i,
-    "a filtered table under an unfiltered strip must say so, or the strip reads as the project's");
-});
+/*
+ * The three page-level cells that used to live here moved to the front end's
+ * own suite when public/ was deleted:
+ *
+ *   web/src/features/__tests__/routes.test.tsx
+ *     "the ledger filters by project MEMBERSHIP, not by substring"
+ *
+ *   web/src/features/__tests__/lens.test.tsx
+ *     the ground-truth lens passes ?project= to the API
+ *     the ledger's counts strip says it is still ledger-wide
+ *
+ * They are not lost, and they are not duplicated. Everything remaining in this
+ * file asserts the ROUTE's behaviour, which is where the guarantee actually
+ * lives - a page can only be right about a filter the server applied.
+ */

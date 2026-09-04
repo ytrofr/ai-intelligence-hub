@@ -15,10 +15,19 @@
 git clone https://github.com/ytrofr/ai-intelligence-hub.git
 cd ai-intelligence-hub
 npm install
+npm --prefix web install
+npm run build                                          # builds the front end into dist/
 cp config/projects.example.json config/projects.json   # then edit with your own projects
 node server.js
 # Open http://localhost:4444
 ```
+
+> The front end is a **build**, not a directory of pages. `dist/` is gitignored, so a fresh
+> clone has no UI until `npm run build` produces one — the server says so on startup rather
+> than serving 404s that read like a broken app. While working on it, `npm --prefix web run
+> watch` rebuilds on save and `npm --prefix web run test:watch` is the fast component loop.
+> There is deliberately no dev server: the app is served from the same origin as the API, so
+> there is no proxy, no CORS and no second port.
 
 > `config/projects.json` is gitignored — it holds your personal project portfolio. The repo ships `config/projects.example.json` as a template; copy it and customize the `projects` array. The `claude-ecosystem` entry works as-is. `config/radar/*.json` is gitignored for the same reason — see `config/radar/example.json` for the schema.
 
@@ -90,11 +99,20 @@ server.js (port 4444)
 │   ├── bookmarks.js   # Bookmark CRUD
 │   ├── stats.js       # Dashboard statistics
 │   └── search.js      # FTS5 search + suggestions
-└── public/            # Frontend (vanilla JS)
-    ├── index.html     # Single-page dashboard
-    ├── css/           # Styles (variables, layout, components)
-    └── js/            # App logic (api, filters, ui, icons)
+└── web/               # Frontend (React + Vite + Tailwind + shadcn/ui)
+    ├── index.html     # the ONE html file
+    ├── src/styles/    # tokens.css (the design contract) + the ramp
+    ├── src/components/ui/    # shadcn-generated, never hand-edited
+    ├── src/components/app/   # AppSidebar, PageShell, DataTable, StateChip …
+    ├── src/features/  # one directory per destination
+    └── src/lib/       # api.ts (the only fetch) + pure helpers
+        ↓  npm run build
+    dist/              # what Express serves (gitignored)
 ```
+
+The front end has its own `package.json` on purpose rather than being a workspace: the
+server ships three runtime dependencies and nothing in the UI toolchain may change that
+tree.
 
 ---
 
