@@ -1,0 +1,105 @@
+/**
+ * The design tokens. Shape from the house shadcn contract, VALUES from the
+ * hub's own variables.css, so the rebuilt app still looks like this product
+ * rather than like stock shadcn slate.
+ *
+ * Roles are bare HSL CHANNELS, not colours, because shadcn composes them as
+ * `hsl(var(--primary) / <alpha-value>)`. A hex here yields `hsl(#6366f1 / 1)`,
+ * which is not a colour and renders as nothing at all - no error, no warning.
+ *
+ * TWO traps are worth naming, because both look deliberate in this file:
+ *
+ *   --accent is the HOVER surface, not the brand. Pointing it at --primary is
+ *   the single most common way a shadcn theme goes wrong: it reads as
+ *   "our colour, applied consistently" and turns every hover into a shout.
+ *
+ *   The per-source brand colours and the favourability ramp are NOT roles.
+ *   They live in their own files and reach the page only through <SourceBadge>
+ *   and <StateChip>, so a component cannot reach for them by accident.
+ *
+ * tokenContract.test.ts pins all of it, including the two signature colours -
+ * `shadcn init` and `shadcn add` both rewrite theme files, and a silent
+ * overwrite back to slate is the failure this repo would otherwise ship.
+ */
+
+:root {
+  /* Light. Defined in full so the palette is complete, but NOT approved yet -
+     the app ships `class="dark"` on <html> until the light theme has been
+     looked at. See the plan's EYEBALL 4. */
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
+  --primary: 239 84% 67%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 210 40% 94%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 239 84% 67%;
+
+  --sidebar-background: 210 40% 98%;
+  --sidebar-foreground: 215 16% 47%;
+  --sidebar-primary: 239 84% 67%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 210 40% 94%;
+  --sidebar-accent-foreground: 222 47% 11%;
+  --sidebar-border: 214 32% 91%;
+  --sidebar-ring: 239 84% 67%;
+
+  --radius: 0.5rem;
+
+  /* Not shadcn roles - the hub's own semantics, carried over unchanged. */
+  --success: 142 71% 45%;
+  --warning: 38 92% 50%;
+  --info: 217 91% 60%;
+  --text-dim: 216 15% 52%;
+
+  /* One font stack for the whole app. The pages this replaces had three. */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+}
+
+.dark {
+  --background: 225 21.1% 7.5%;          /* #0f1117 - signature, pinned by a test */
+  --foreground: 214.3 31.8% 91.4%;         /* #e2e8f0 */
+  --card: 227.1 21.2% 12.9%;               /* #1a1d28 */
+  --card-foreground: 214.3 31.8% 91.4%;
+  --popover: 227.1 21.2% 12.9%;
+  --popover-foreground: 214.3 31.8% 91.4%;
+  --primary: 238.7 83.5% 66.7%;            /* #6366f1 - signature, pinned by a test */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 229.4 18.7% 17.8%;          /* #252836 */
+  --secondary-foreground: 214.3 31.8% 91.4%;
+  --muted: 227.1 21.2% 12.9%;
+  --muted-foreground: 213.8 20.3% 69%;   /* #a0aec0 */
+  --accent: 229.4 18.7% 17.8%;             /* #252836 - the HOVER surface, not the brand */
+  --accent-foreground: 214.3 31.8% 91.4%;
+  --destructive: 0 84.2% 60.2%;          /* #ef4444 - always beside a word, never a status hue */
+  --destructive-foreground: 0 0% 100%;
+  --border: 217.8 23.1% 22.9%;             /* #2d3748 */
+  --input: 217.8 23.1% 22.9%;
+  --ring: 238.7 83.5% 66.7%;
+
+  --sidebar-background: 222.9 24.1% 5.7%;  /* #0b0d12 - a shade under the page, so the rail reads as a rail */
+  --sidebar-foreground: 213.8 20.3% 69%;
+  --sidebar-primary: 238.7 83.5% 66.7%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 227.1 21.2% 12.9%;
+  --sidebar-accent-foreground: 214.3 31.8% 91.4%;
+  --sidebar-border: 222.4 21.5% 15.5%;     /* #1f2430 */
+  --sidebar-ring: 238.7 83.5% 66.7%;
+
+  --success: 142.1 70.6% 45.3%;
+  --warning: 37.7 92.1% 50.2%;
+  --info: 217.2 91.2% 59.8%;
+  --text-dim: 215.7 15% 51.6%;
+}
