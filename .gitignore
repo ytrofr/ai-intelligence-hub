@@ -50,4 +50,5 @@ CLAUDE.md
 # Front-end build output. Express serves this directory; it is produced by
 # `npm --prefix web run build` and never edited by hand.
 dist/
+dist-preview/
 web/node_modules/

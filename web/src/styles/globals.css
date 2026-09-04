@@ -1,3 +1,28 @@
+/**
+ * The ONE stylesheet the app loads.
+ *
+ * tokens.css is imported FIRST and is the only file allowed to declare a shadcn
+ * role. That ordering is load-bearing: `shadcn add sidebar` appends its own
+ * stock `--sidebar-*` block to this file, and because it lands after the import
+ * it WINS the cascade. It did exactly that on the first run of this arc, and the
+ * token contract test went green through it - the test read tokens.css, which
+ * was untouched, while the served page had quietly reverted to slate.
+ *
+ * tokenContract.test.ts now asserts that no file but tokens.css declares a role,
+ * so the next time the CLI does this the suite says so.
+ */
+@import "./tokens.css";
+@import "./favourability.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+}

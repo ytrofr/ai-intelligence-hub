@@ -30,6 +30,23 @@ const PORT = Number(process.env.PORT) || 4444;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
+// ---------------------------------------------------------------------------
+// The rebuild's preview mount. INTERIM, and it goes at cutover.
+//
+// public/ is still the app; this serves the React build beside it so the shell
+// can be looked at on a real browser at a real size without swapping anything
+// over. It needs its own SPA fallback because the client owns those routes -
+// without it, /preview/p/<id>/stack is a 404 from Express and the page cannot
+// be reached except by clicking into it, which is not a test of the routing.
+//
+// Built with `npm --prefix web run build:preview` (base=/preview/), so the
+// bundle's asset URLs and the router's basename agree.
+const PREVIEW_DIR = path.join(__dirname, "dist-preview");
+if (fs.existsSync(PREVIEW_DIR)) {
+  app.use("/preview", express.static(PREVIEW_DIR));
+  app.get(/^\/preview(\/.*)?$/, (_req, res) => res.sendFile(path.join(PREVIEW_DIR, "index.html")));
+}
+
 // Load routes
 app.use("/api/items", require("./routes/items"));
 app.use("/api/fetch", require("./routes/fetch"));

@@ -34,6 +34,7 @@ import { join } from "node:path";
 const read = (f: string) => readFileSync(join(process.cwd(), "src", "styles", f), "utf8");
 
 const tokens = read("tokens.css");
+const globals = read("globals.css");
 const ramp = read("favourability.css");
 
 /**
@@ -107,6 +108,33 @@ describe("the shadcn role contract", () => {
       expect(bad, `not bare HSL channels in ${theme}`).toEqual([]);
     });
   }
+});
+
+describe("only tokens.css declares a role", () => {
+  /**
+   * This exists because it already happened. `shadcn add sidebar` appended its
+   * own stock `--sidebar-*` block to globals.css, AFTER the `@import` of
+   * tokens.css - so the stock values won the cascade and the app rendered
+   * slate. Every assertion in this file passed throughout, because they all
+   * read tokens.css and tokens.css was untouched.
+   *
+   * A guard that reads the file it expects the value to be in cannot see a
+   * value arriving from somewhere else. This one reads the OTHER file.
+   */
+  it("globals.css declares no shadcn role of its own", () => {
+    const declared = [...globals.matchAll(/--([a-z-]+)\s*:/g)].map((m) => m[1]);
+    const stolen = declared.filter((d) => ROLES.includes(d) || SIDEBAR.includes(d));
+    expect(
+      [...new Set(stolen)],
+      "globals.css is imported AFTER tokens.css, so anything it declares here WINS",
+    ).toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: the role scanner can see a declaration at all", () => {
+    // Against an empty or unread file the assertion above passes trivially.
+    const declared = [...tokens.matchAll(/--([a-z-]+)\s*:/g)].map((m) => m[1]);
+    expect(declared).toContain("sidebar-background");
+  });
 });
 
 describe("the brand is not the hover surface", () => {
