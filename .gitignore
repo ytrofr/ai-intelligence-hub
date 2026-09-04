@@ -38,3 +38,11 @@ digests/*.md
 fetch.log
 .claude/state/
 digest.log
+
+# Working context, not public artifacts. CLAUDE.md named all nine project ids,
+# their stacks and the internal API surface; .claude/rules/ and settings.json
+# are this machine's session config. Both stay on disk - they are ignored, not
+# deleted. The two rules here that were genuinely reusable knowledge rather
+# than internal context live in docs/, scrubbed.
+CLAUDE.md
+.claude/
