@@ -128,7 +128,7 @@ function readPriorDigests(dir = path.join(__dirname, "..", "digests")) {
 function loadLedgerRows() {
   try {
     // eslint-disable-next-line global-require
-    const ledgerRoute = require("../routes/ledger");
+    const ledgerRoute = require("../routes/lib/hub-sources");
     const { buildLedger } = require("./ledger");
     const { depRepos } = ledgerRoute.readDepRepos();
     return buildLedger({ radarRows: ledgerRoute.readAllRadarRows(), depRepos }).rows;

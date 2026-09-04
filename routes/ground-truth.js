@@ -19,28 +19,14 @@
 
 const express = require("express");
 const router = express.Router();
-const fs = require("fs");
-const path = require("path");
 const db = require("../database/db");
 const { buildGroundTruth, validateFeatures } = require("../modules/ground-truth");
 const { buildLedger } = require("../modules/ledger");
-const { readAllRadarRows, readDepRepos } = require("./ledger");
+const { readAllRadarRows, readDepRepos, readProjects } = require("./lib/hub-sources");
 const HuggingFaceModule = require("../modules/huggingface");
-
-const PROJECTS_FILE = path.join(__dirname, "..", "config", "projects.json");
 
 /** The cheap-run gate is the module's, not a second copy of it here. */
 const hf = new HuggingFaceModule({ id: "huggingface", config: {} });
-
-function readProjects() {
-  try {
-    const cfg = JSON.parse(fs.readFileSync(PROJECTS_FILE, "utf-8"));
-    return cfg.projects || [];
-  } catch (err) {
-    console.warn(`[ground-truth] unreadable projects config: ${err.message}`);
-    return [];
-  }
-}
 
 /** Stored HF rows, with metadata parsed. A row we cannot parse is skipped, not guessed. */
 function readItems() {

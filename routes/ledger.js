@@ -22,80 +22,12 @@
 
 const express = require("express");
 const router = express.Router();
-const fs = require("fs");
-const path = require("path");
-const { RadarStore, benchField, telemetryField, beforeAfterField } = require("./lib/radar-store");
 const { buildLedger } = require("../modules/ledger");
-
-const RADAR_DIR = path.join(__dirname, "..", "config", "radar");
-const DEPS_FILE = path.join(__dirname, "..", "config", "ledger", "deps.json");
-const store = new RadarStore(RADAR_DIR);
-
-/** Every audited row from every radar config, with the reason intact. */
-function readAllRadarRows() {
-  const rows = [];
-  for (const p of store.listProjects()) {
-    if (p.id === "example") continue;
-    try {
-      const cfg = store.load(p.id);
-      for (const r of cfg.audit || []) rows.push({ ...r, project: r.project || cfg.project || p.id });
-    } catch (err) {
-      // A single unreadable config must not empty the whole ledger.
-      console.warn(`[ledger] unreadable radar config ${p.id}: ${err.message}`);
-    }
-  }
-  return rows;
-}
-
-/**
- * Resolved dependencies, flattened to one entry per (repo, project).
- * Absent file is not an error — it means the backfill has not run yet, and the
- * ledger then honestly shows only the decisions.
- */
-function readDepRepos() {
-  if (!fs.existsSync(DEPS_FILE)) return { depRepos: [], generatedAt: null };
-  try {
-    const data = JSON.parse(fs.readFileSync(DEPS_FILE, "utf-8"));
-    const depRepos = [];
-    for (const d of data.deps || []) {
-      for (const project of d.projects || []) depRepos.push({ repo: d.repo, project, pkg: d.pkg });
-    }
-    return { depRepos, generatedAt: data.generated_at || null };
-  } catch (err) {
-    console.warn(`[ledger] unreadable deps file: ${err.message}`);
-    return { depRepos: [], generatedAt: null };
-  }
-}
-
-/**
- * How many adoption fields on disk would be REFUSED if they were written
- * today. The store validates before every write, so a field can only get into
- * this state by being hand-edited straight into the JSON - and then it sits
- * there looking like evidence while the gate it was meant to satisfy would
- * reject it.
- *
- * Counted here rather than in modules/ledger.js because the validators belong
- * to the store, and a domain module must not reach up into routes/ to ask.
- * Today this reads 1: openclaw's telemetry.url is a source path, not a URL.
- */
-function countMalformedAdoptionFields(radarRows) {
-  let bad = 0;
-  for (const r of radarRows) {
-    for (const [value, validate] of [
-      [r.bench, benchField],
-      [r.telemetry, telemetryField],
-      [r.before_after, beforeAfterField],
-    ]) {
-      if (value === undefined || value === null) continue;
-      try {
-        validate(value);
-      } catch {
-        bad += 1;
-      }
-    }
-  }
-  return bad;
-}
+const {
+  readAllRadarRows,
+  readDepRepos,
+  countMalformedAdoptionFields,
+} = require("./lib/hub-sources");
 
 function load() {
   const { depRepos, generatedAt } = readDepRepos();

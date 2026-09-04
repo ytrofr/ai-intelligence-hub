@@ -283,7 +283,7 @@ function buildGroundTruthDigestSection() {
   try {
     const { validateFeatures } = require('./ground-truth');
     const { buildLedger } = require('./ledger');
-    const { readAllRadarRows, readDepRepos } = require('../routes/ledger');
+    const { readAllRadarRows, readDepRepos } = require('../routes/lib/hub-sources');
     const projects = JSON.parse(
       fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')
     ).projects || [];

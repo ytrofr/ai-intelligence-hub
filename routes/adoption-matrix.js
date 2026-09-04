@@ -17,15 +17,14 @@ const express = require("express");
 const router = express.Router();
 const { buildLedger } = require("../modules/ledger");
 const { buildMatrix } = require("../modules/adoption-matrix");
-const { readAllRadarRows, readDepRepos } = require("./ledger");
-const projectsConfig = require("../config/projects.json");
+const { readAllRadarRows, readDepRepos, readProjects } = require("./lib/hub-sources");
 
 function load(project) {
   const { depRepos } = readDepRepos();
   const { rows } = buildLedger({ radarRows: readAllRadarRows(), depRepos });
   return buildMatrix({
     ledgerRows: rows,
-    projects: projectsConfig.projects || [],
+    projects: readProjects(),
     project: project || null,
   });
 }
