@@ -60,12 +60,12 @@
       .stats.wide { margin: var(--spacing-md) 0; }
       .stat b { font-family: var(--font-mono); font-size: 1.15rem; display: block; }
       .stat span { font-size: var(--font-xs); color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
-      .stat.b-bad b { color: var(--color-error); }
-      .stat.b-warn b { color: var(--color-warning); }
-      .stat.b-good b { color: var(--color-success); }
-      .stat.b-none b { color: var(--color-text-dim); }
-      .stat.b-mid b { color: var(--color-warning); }
-      .stat.b-poor b { color: var(--color-text-dim); }
+      /* The numbers read from the SAME ramp as the chips. They used to use the
+         generic --color-success / --color-error tokens, which is precisely the
+         red/green pair the ramp exists to avoid - and the `--fav:` scan could
+         not see it, because this is a different mechanism. */
+      .stat.b-bad b, .stat.b-warn b, .stat.b-good b,
+      .stat.b-none b, .stat.b-mid b, .stat.b-poor b { color: var(--fav); }
 
       table.t { width: 100%; border-collapse: collapse; margin-bottom: var(--spacing-md); font-size: var(--font-sm); }
       table.t th {
@@ -219,7 +219,10 @@
         const res = await fetch("/api/projects-hub");
         if (!res.ok) throw new Error("/api/projects-hub returned " + res.status);
         const data = await res.json();
-        MODEL = { projects: data.projects, population: data.population };
+        // Carry the payload whole. Naming the keys here is what dropped `shared`
+        // on its first render: the section said 0 while the API said 2, and only
+        // looking at the page showed it.
+        MODEL = data;
         GENERATED_AT = data.generated_at;
       }
 

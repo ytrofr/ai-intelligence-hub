@@ -336,3 +336,20 @@ test("L0 carries the shared section, so the hub covers what inventory.html showe
   m.shared = [{ repo: "a/b", projects: ["apollo", "empty-proj"] }];
   has(R.renderL0(m), "Adopted by more than one project");
 });
+
+test("the page hands the renderer the payload WHOLE, not a re-listed subset", () => {
+  // This is the one defect in this arc that no pure test could see: the page's
+  // load() built `{ projects, population }` by hand, so `shared` never reached
+  // the renderer and the section rendered "0" while the API returned 2. Every
+  // cell above passed, because they call the renderers directly. The guard is
+  // therefore on the WIRING: re-listing keys is what drops the next field.
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const page = fs.readFileSync(path.join(__dirname, "..", "public", "projects.html"), "utf8");
+  assert.match(page, /MODEL\s*=\s*data\s*;/, "projects.html must assign the payload whole");
+  assert.doesNotMatch(
+    page,
+    /MODEL\s*=\s*\{\s*projects\s*:/,
+    "re-listing payload keys silently drops any field added to the endpoint later",
+  );
+});
