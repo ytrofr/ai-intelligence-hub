@@ -11,6 +11,15 @@
  * status is recorded verbatim — 200, 301 (moved), 404 (gone) — because those
  * three ARE three of the six events. A 5xx is not an answer about upstream at
  * all, so it records an error and leaves the last good snapshot alone.
+ *
+ * H2 fix (2026-09): every row used to be asked at api.github.com regardless of
+ * what it actually was. A HuggingFace model/dataset id is spelled exactly
+ * like a GitHub slug ("owner/name"), so GitHub answered 404 for repos that
+ * were alive and well on HF — reported "DELETED" in the weekly digest. A row
+ * declaring `kind: model|dataset` now goes straight to HuggingFace instead
+ * (modules/tracked-hf.js); a plain `repo` row still asks GitHub first, and
+ * only rescues a 404 there with one extra HF look before believing it —
+ * see probeByKind().
  */
 
 const fs = require("fs");
@@ -21,6 +30,7 @@ const { diffRepo } = require("./tracker-diff");
 const { buildPool, POSITIVE_CONTROL } = require("./tracked-pool");
 const { createResolver } = require("./dep-resolve");
 const { readDeps } = require("./project-deps");
+const { hfClient } = require("./tracked-hf");
 
 const API = "https://api.github.com";
 const CONCURRENCY = 5;
@@ -58,8 +68,45 @@ function ghClient({ token = process.env.GITHUB_TOKEN, timeoutMs = 15000 } = {}) 
   return { repo, latestRelease: (slug) => call(`/repos/${slug}/releases/latest`) };
 }
 
-/** Run the pool through the check. Pure of I/O except the injected gh + store. */
-async function runTracker({ pool, gh, store, now = new Date().toISOString(), staleDays }) {
+/**
+ * Route a tracked row to the right upstream host by its `kind`. A `model` or
+ * `dataset` NEVER touches GitHub — that host has never heard of a
+ * HuggingFace id and would 404 it, which is exactly the false "DELETED" this
+ * exists to fix.
+ *
+ * A `repo` row — the default, since most radar rows never declare a kind at
+ * all — still asks GitHub first, same as always. But a GitHub 404 there is
+ * not proof the repo is gone: our own radar rows do not reliably record
+ * `kind`, and a HuggingFace slug is spelled EXACTLY like a GitHub one
+ * ("owner/name"). Before recording "deleted", such a row gets ONE more look
+ * at HuggingFace — model, then dataset — because a false DELETED alarm is
+ * worse than one extra HTTP call. When `hf` was not injected (every existing
+ * caller before this fix), the rescue is skipped and behaviour is EXACTLY
+ * what it always was.
+ *
+ * The `viaHf` marker on the result tells the caller two things a GitHub
+ * result never needs said: don't ask for a "latest release" (HF has no such
+ * concept), and don't blame api.github.com in an error message.
+ */
+async function probeByKind(row, { gh, hf }) {
+  const kind = row.kind === "model" || row.kind === "dataset" ? row.kind : "repo";
+  if (kind !== "repo") {
+    const r = await hf.probe(row.repo, kind);
+    return { ...r, viaHf: true };
+  }
+
+  const ghResult = await gh.repo(row.repo);
+  if (ghResult.status !== 404 || !hf) return ghResult;
+
+  for (const guess of ["model", "dataset"]) {
+    const rescue = await hf.probe(row.repo, guess);
+    if (rescue && rescue.status === 200) return { ...rescue, viaHf: true };
+  }
+  return ghResult; // genuinely gone from both hosts we know to ask
+}
+
+/** Run the pool through the check. Pure of I/O except the injected gh/hf + store. */
+async function runTracker({ pool, gh, hf, store, now = new Date().toISOString(), staleDays }) {
   const events = [];
   let checked = 0;
   let errors = 0;
@@ -69,7 +116,7 @@ async function runTracker({ pool, gh, store, now = new Date().toISOString(), sta
     checked += 1;
     let meta;
     try {
-      meta = await gh.repo(slug);
+      meta = await probeByKind(entry, { gh, hf });
     } catch (err) {
       errors += 1;
       store.recordError(slug, String((err && err.message) || err), now);
@@ -79,13 +126,15 @@ async function runTracker({ pool, gh, store, now = new Date().toISOString(), sta
     // 5xx (and a null body on a 2xx) tells us nothing about upstream.
     if (meta.status >= 500 || (meta.status === 200 && !meta.body)) {
       errors += 1;
-      store.recordError(slug, `HTTP ${meta.status} from api.github.com`, now);
+      store.recordError(slug, `HTTP ${meta.status} from ${meta.viaHf ? "huggingface.co" : "api.github.com"}`, now);
       return;
     }
 
+    // HuggingFace has no "latest release" concept — asking GitHub about a
+    // slug it never served would only manufacture a spurious repo() call.
     let tag = null;
     let tagAt = null;
-    if (meta.status === 200) {
+    if (meta.status === 200 && !meta.viaHf) {
       try {
         const rel = await gh.latestRelease(slug);
         if (rel.status === 200 && rel.body) {
@@ -139,25 +188,36 @@ class TrackedReposModule extends BaseModule {
 
   /** Assemble the pool from the radar and the live repos, unless tests injected one. */
   async assemble(db) {
+    let radarRows;
+    let depRepos;
     if (this.deps.radarRows || this.deps.depRepos) {
-      return buildPool({ radarRows: this.deps.radarRows || [], depRepos: this.deps.depRepos || [] });
+      radarRows = this.deps.radarRows || [];
+      depRepos = this.deps.depRepos || [];
+    } else {
+      radarRows = readRadarRows();
+      const { names, owners } = readProjectDeps();
+      const resolver = createResolver({ cache: db.tracked.depCache() });
+      const { resolved, unresolved, unknown } = await resolver.resolveAll(names);
+      if (unknown.length) console.warn(`[tracker] ${unknown.length} packages could not be looked up this run`);
+      console.log(`[tracker] deps: ${resolved.size} resolved · ${unresolved.length} unresolved · ${unknown.length} unknown`);
+      depRepos = [];
+      for (const [pkg, repo] of resolved) for (const project of owners.get(pkg) || []) depRepos.push({ repo, project });
     }
-    const radarRows = readRadarRows();
-    const { names, owners } = readProjectDeps();
-    const resolver = createResolver({ cache: db.tracked.depCache() });
-    const { resolved, unresolved, unknown } = await resolver.resolveAll(names);
-    if (unknown.length) console.warn(`[tracker] ${unknown.length} packages could not be looked up this run`);
-    console.log(`[tracker] deps: ${resolved.size} resolved · ${unresolved.length} unresolved · ${unknown.length} unknown`);
-    const depRepos = [];
-    for (const [pkg, repo] of resolved) for (const project of owners.get(pkg) || []) depRepos.push({ repo, project });
-    return buildPool({ radarRows, depRepos });
+    const pool = buildPool({ radarRows, depRepos });
+    // buildPool keys everything on the bare repo and does not carry `kind`
+    // through (it isn't its job — it decides membership, not identity), so
+    // it is reattached here from the same radarRows, for any repo that
+    // declares one.
+    const kinds = kindMap(radarRows);
+    return kinds.size ? pool.map((e) => (kinds.has(e.repo) ? { ...e, kind: kinds.get(e.repo) } : e)) : pool;
   }
 
   async fetch() {
     const db = this.deps.db || require("../database/db");
     const pool = await this.assemble(db);
     const gh = this.deps.gh || ghClient({ timeoutMs: this.config.timeout_ms || 15000 });
-    const r = await runTracker({ pool, gh, store: db.tracked, staleDays: this.config.stale_days });
+    const hf = this.deps.hf || hfClient({ timeoutMs: this.config.timeout_ms || 15000 });
+    const r = await runTracker({ pool, gh, hf, store: db.tracked, staleDays: this.config.stale_days });
 
     console.log(
       `[tracker] checked ${r.checked} repos · ${r.events.length} events (${r.alarms} ALARM) · ${r.errors} errors`
@@ -181,7 +241,12 @@ class TrackedReposModule extends BaseModule {
   }
 }
 
-/** Every radar verdict row, flattened, from config/radar/<project>.json. */
+/**
+ * Every radar verdict row, flattened, from config/radar/<project>.json.
+ * `kind` is carried through when a row declares one (a handful of dataset
+ * rows do) — dropping it here was itself half of the H2 bug: even an
+ * explicitly-declared `kind: dataset` never reached the tracker before this.
+ */
 function readRadarRows(dir = path.join(__dirname, "..", "config", "radar")) {
   const rows = [];
   if (!fs.existsSync(dir)) return rows;
@@ -190,13 +255,26 @@ function readRadarRows(dir = path.join(__dirname, "..", "config", "radar")) {
     try {
       const cfg = JSON.parse(fs.readFileSync(path.join(dir, f), "utf-8"));
       for (const r of cfg.audit || []) {
-        rows.push({ repo: r.repo, project: r.project || cfg.project, verdict: r.verdict, status: r.status });
+        rows.push({ repo: r.repo, project: r.project || cfg.project, verdict: r.verdict, status: r.status, kind: r.kind });
       }
     } catch (err) {
       console.warn(`[tracker] unreadable radar config ${f}: ${err.message}`);
     }
   }
   return rows;
+}
+
+/**
+ * repo -> the first non-empty `kind` any radar row declares for it. Most rows
+ * declare none at all, which is exactly why probeByKind() cannot rely on
+ * `kind` alone to catch every HuggingFace id — see its own comment.
+ */
+function kindMap(radarRows) {
+  const m = new Map();
+  for (const r of radarRows || []) {
+    if (r && r.repo && r.kind && !m.has(r.repo)) m.set(r.repo, r.kind);
+  }
+  return m;
 }
 
 /** Distinct package names across every profile with a repoPath, and who uses each. */
@@ -226,3 +304,5 @@ module.exports.readRadarRows = readRadarRows;
 module.exports.readProjectDeps = readProjectDeps;
 module.exports.runTracker = runTracker;
 module.exports.ghClient = ghClient;
+module.exports.probeByKind = probeByKind;
+module.exports.kindMap = kindMap;

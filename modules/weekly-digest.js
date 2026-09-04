@@ -55,13 +55,19 @@ function isRisingStar(item) {
   return ageDays <= 90 && (item.stars || 0) >= 200 && (item.stars || 0) < 5000;
 }
 
+// mdLinkText lives in ./digest-sections — the canonical escaper for every
+// markdown link built from a third-party title, in this file (renderItem,
+// renderTLDR, formatProjectSections below) AND in digest-sections.js's own
+// ground-truth renderer. See that file for the full rationale.
+const { mdLinkText, formatGroundTruthSection } = require('./digest-sections');
+
 function renderItem(item) {
   const meta = parseMeta(item);
   const stars = (item.stars || 0).toLocaleString();
   const reason = meta.match_reason || meta.perplexity_summary || meta.discovery_strategy || '';
   const lang = meta.language ? ` · ${meta.language}` : '';
   const desc = (item.description || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-  return `- **[${item.title}](${item.url})** · ${stars}★${lang}\n  - ${desc}${desc ? '\n  - ' : ''}_${reason}_`;
+  return `- **[${mdLinkText(item.title)}](${item.url})** · ${stars}★${lang}\n  - ${desc}${desc ? '\n  - ' : ''}_${reason}_`;
 }
 
 function renderTLDR(items) {
@@ -70,7 +76,7 @@ function renderTLDR(items) {
   return top
     .map((it, i) => {
       const stars = (it.stars || 0).toLocaleString();
-      return `${i + 1}. **[${it.title}](${it.url})** — ${stars}★`;
+      return `${i + 1}. **[${mdLinkText(it.title)}](${it.url})** — ${stars}★`;
     })
     .join('\n');
 }
@@ -169,13 +175,29 @@ function formatDigest({ items, runDate, channelStats = {} }) {
  * Alarm count is stated even when it is zero, because "0 alarms" is a result and
  * an omitted section is an absence of one.
  */
+/**
+ * A `deleted` ALARM is a claim about the LAST probe, not a fact about the week.
+ * When a later run finds the repo alive (http 200 - e.g. an HF model the old
+ * GitHub-only probe 404'd on), the stale alarm is downgraded to a NOTE that
+ * says so, instead of standing beside the run that cleared it. Anything short
+ * of a 200 (404, 429, null) keeps the alarm: a rate limit is not proof of life.
+ */
+function dropClearedDeletions(events = [], rows = []) {
+  const alive = new Set(rows.filter((r) => Number(r.http_status) === 200).map((r) => r.repo));
+  return events.map((e) => {
+    if (e.event !== 'deleted' || !alive.has(e.repo)) return e;
+    return { ...e, event: 'cleared', severity: 'NOTE', to: '200 on re-probe (was 404)', to_value: '200 on re-probe (was 404)' };
+  });
+}
+
 function formatTrackedSection({ events = [], checked = null, projectsByRepo = {} } = {}) {
   const lines = ['', '## 📡 Adopted & tracked — what changed upstream', ''];
   const scope = checked === null ? '' : ` across ${checked} repos we adopted, watch, or depend on`;
 
   const alarms = events.filter((e) => e.severity === 'ALARM');
   const warns = events.filter((e) => e.severity === 'WARN');
-  const notes = events.filter((e) => e.severity === 'NOTE');
+  const cleared = events.filter((e) => e.event === 'cleared');
+  const notes = events.filter((e) => e.severity === 'NOTE' && e.event !== 'cleared');
 
   if (!events.length) {
     lines.push(`Nothing changed upstream this week — **0 alarms**${scope}.`, '');
@@ -185,7 +207,7 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
   lines.push(
     `**${alarms.length} alarm${alarms.length === 1 ? '' : 's'}**, ` +
       `${notes.length} release${notes.length === 1 ? '' : 's'}, ` +
-      `${warns.length} gone quiet${scope}.`,
+      `${warns.length} gone quiet${scope}` + (cleared.length ? `, ${cleared.length} cleared` : '') + '.',
     ''
   );
 
@@ -193,7 +215,7 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
     const ps = projectsByRepo[repo] || [];
     return ps.length ? ` — ${ps.join(', ')}` : '';
   };
-  const label = { archived: 'ARCHIVED', deleted: 'DELETED', renamed: 'RENAMED', major_release: 'MAJOR', release: 'release', stale: 'quiet' };
+  const label = { archived: 'ARCHIVED', deleted: 'DELETED', cleared: 'cleared (false alarm)', renamed: 'RENAMED', major_release: 'MAJOR', release: 'release', stale: 'quiet' };
   const render = (e) => {
     const arrow = e.to && e.event !== 'archived' ? ` → \`${e.to}\`` : '';
     return `- **${label[e.event] || e.event}** \`${e.repo}\`${arrow}${who(e.repo)}`;
@@ -202,6 +224,11 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
   if (alarms.length) {
     lines.push('### ⛔ Needs a look', '');
     for (const e of alarms) lines.push(render(e));
+    lines.push('');
+  }
+  if (cleared.length) {
+    lines.push('### ✅ Cleared — a later probe found them alive', '');
+    for (const e of cleared) lines.push(render(e));
     lines.push('');
   }
   if (notes.length) {
@@ -214,135 +241,6 @@ function formatTrackedSection({ events = [], checked = null, projectsByRepo = {}
     for (const e of warns) lines.push(`- \`${e.repo}\`${who(e.repo)}`);
     lines.push('');
   }
-  return lines.join('\n');
-}
-
-/**
- * Per-project section: top-N hardened recommendations for every project in
- * config/projects.json (same ranking as /api/recommendations, in-process).
- */
-
-/**
- * Ground-truth section: which HF datasets could serve as an external control
- * for a project's own scoring instruments.
- *
- * This exists because a sweep on 2026-09-02 found ~25 scoring instruments across
- * Apollo, Hermes, Atlas and Orion and NOT ONE of them had ever been run
- * against ground truth we did not produce ourselves. Three were measured by hand
- * that day; this is what makes the fourth happen without anyone remembering.
- *
- * RUNNABLE vs NEEDS YOU is the operator's own ruling made visible: small +
- * permissive + ungated runs on its own; anything gated or restrictively licensed
- * waits for them. The split is computed by `isCheapRun`, never re-decided here.
- */
-/**
- * The weekly ground-truth section - one row per INSTRUMENT, not per project.
- *
- * It used to list datasets that matched a PROJECT, which is a topic overlap and
- * says nothing about whether anything can grade the thing. Worse, the section
- * vanished when nothing matched - and an instrument nothing checks is precisely
- * the row that has to be loudest, because that absence is the finding this whole
- * arc started from.
- *
- * Reads modules/ground-truth.js, the SAME builder the page reads. Two renderers,
- * one builder: a section with its own tally could report a different week from
- * the page and both would look right.
- */
-/**
- * A title safe to use as MARKDOWN LINK TEXT.
- *
- * HuggingFace ids and titles are written by anyone with an account and we ingest
- * them verbatim. A title containing `](` closes our link early and opens its own:
- * `[evil](https://attacker.example)[](https://huggingface.co/datasets/x)` renders
- * in the operator's digest as a link labelled "evil" pointing wherever the
- * publisher chose. Measured 2026-09-03: 0 of 9,335 live titles carry `](` and 11
- * carry a bare bracket (`[pdf]`, `[2026]`), so this is latent rather than live -
- * but the digest is a file the operator reads and clicks.
- *
- * Escaping the brackets is enough: with `]` escaped the link text cannot end early.
- * A renderer shows `\[pdf\]` as `[pdf]`, so benign titles are unchanged.
- */
-function mdLinkText(s) {
-  return String(s == null ? '' : s).replace(/([[\]])/g, '\\$1');
-}
-
-function formatGroundTruthSection(items, projects, nearMisses = []) {
-  const HuggingFaceModule = require('./huggingface');
-  const { buildGroundTruth } = require('./ground-truth');
-  const hf = new HuggingFaceModule({ id: 'huggingface', config: {} });
-
-  const { projects: tree, counts } = buildGroundTruth({
-    projects: projects || [],
-    items: items || [],
-    nearMisses: nearMisses || [],
-    // Anything the cheap-run gate refuses needs the operator: terms to accept, or
-    // a card to rule. The gate fails closed, so an unknown lands here.
-    classify: (item) => (hf.isCheapRun(item) ? 'runnable' : 'needs-you'),
-    refusal: (item) => hf.cheapRunRefusal(item),
-  });
-
-  const lines = [
-    '',
-    '## 🔬 External ground truth — what checks each instrument',
-    '',
-    `_${counts.slots} instruments · ${counts.slots_with_a_run} have a number · ` +
-      `**${counts.slots_never_run} never checked** · ${counts.slots_recording_a_gap} recorded gap · ` +
-      `${counts.near_misses} near misses` +
-      (counts.candidates_unvetted ? ` · **${counts.candidates_unvetted} candidates are shape-only**` : '') + '_',
-    '',
-  ];
-
-  for (const p of tree) {
-    lines.push(`### ${p.name}`);
-    if (!p.slots.length) {
-      lines.push('- _no instrument declared for this project yet_');
-    }
-    for (const s of p.slots) {
-      // Shape, not colour: ● ran · ◇ never · — a declared gap.
-      const mark = s.runs > 0 ? '●' : s.gap ? '—' : '◇';
-      const head = `- ${mark} \`${s.id}\`` + (s.instrument ? ` (\`${s.instrument}\`)` : '');
-      if (s.last_ran) {
-        const ref = [s.last_ran.reference, s.last_ran.n ? `n=${s.last_ran.n}` : null, s.last_ran.at]
-          .filter(Boolean)
-          .join(' · ');
-        lines.push(`${head} — **${s.last_ran.number || 'ran'}**${ref ? ` · ${ref}` : ''}`);
-        // The caveat is never dropped. It is what stops the number being quoted
-        // as something it does not support.
-        if (s.last_ran.caveat) lines.push(`    - _${s.last_ran.caveat}_`);
-      } else if (s.gap) {
-        lines.push(`${head} — _gap: ${s.gap}_`);
-      } else {
-        lines.push(`${head} — **never checked**`);
-      }
-      // Same claim the page makes, from the same builder: a slot that never said
-      // what it is about matched on HuggingFace's task category alone, which is a
-      // SHAPE signal. Unsaid, the list reads as answers.
-      if (s.candidates.length && !s.subject_declared) {
-        lines.push(`    - _${s.unvetted_caveat}_`);
-      }
-      for (const c of s.candidates.slice(0, 5)) {
-        lines.push(
-          `    - [${mdLinkText(c.title)}](${c.url}) · ${(c.downloads || 0).toLocaleString()} downloads · ` +
-            `licence \`${c.license || 'UNDECLARED'}\`` +
-            (c.size_category ? ` · ${c.size_category}` : '') +
-            ` — **${c.status === 'runnable' ? 'RUNNABLE' : 'NEEDS YOU'}**` +
-            (c.why ? ` (${c.why})` : '')
-        );
-      }
-      if (s.candidates.length > 5) {
-        lines.push(`    - _+${s.candidates.length - 5} more candidates_`);
-      }
-    }
-    if (p.near_misses.length) {
-      // Not a defect: this is the corpus for the next slot, and the reason names
-      // the gate that refused it.
-      lines.push(`- _near misses (${p.near_misses.length}): ` +
-        p.near_misses.slice(0, 5).map((n) => `${n.title} — ${n.reason}`).join(' · ') + '_');
-    }
-    lines.push('');
-  }
-
-  if (!tree.length) lines.push('- _no projects declare an instrument yet_', '');
   return lines.join('\n');
 }
 
@@ -367,11 +265,52 @@ function formatProjectSections({ perProject = 5 } = {}) {
     if (!recs.discoveries.length) lines.push('- _no candidates above the floor yet_');
     for (const r of recs.discoveries) {
       const why = (r.relevance && r.relevance.matchReason) || '';
-      lines.push(`- **[${r.title}](${r.url})** · ${(r.stars || 0).toLocaleString()}★${why ? ` — _${why}_` : ''}`);
+      lines.push(`- **[${mdLinkText(r.title)}](${r.url})** · ${(r.stars || 0).toLocaleString()}★${why ? ` — _${why}_` : ''}`);
     }
     lines.push('');
   }
   return lines.join('\n');
+}
+
+/**
+ * The ground-truth section reads the SAME pool the per-project section does,
+ * so a dataset that reached the index reaches the digest without a second
+ * fetch. Split out of generateDigest so that function stays under the
+ * 50-line cap; a failure here becomes a visible section, never a thrown
+ * error that would take the other five sections down with it.
+ */
+function buildGroundTruthDigestSection() {
+  try {
+    const { validateFeatures } = require('./ground-truth');
+    const { buildLedger } = require('./ledger');
+    const { readAllRadarRows, readDepRepos } = require('../routes/ledger');
+    const projects = JSON.parse(
+      fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')
+    ).projects || [];
+    // Fail closed on the real config before it is rendered into the digest —
+    // the same gate routes/ground-truth.js runs before the page.
+    validateFeatures(projects);
+    // The near-miss log is part of the weekly picture, not a page-only extra:
+    // it is the corpus for the next slot, and Monday is when anyone reads it.
+    let nearMisses = [];
+    try {
+      nearMisses = db.nearMissStore ? db.nearMissStore.all({ limit: 200 }) : [];
+    } catch (e) {
+      nearMisses = [];
+    }
+    let ledgerRows = [];
+    try {
+      const { depRepos } = readDepRepos();
+      ledgerRows = buildLedger({ radarRows: readAllRadarRows(), depRepos }).rows;
+    } catch (e) {
+      ledgerRows = [];
+    }
+    return formatGroundTruthSection(loadPool(db), projects, nearMisses, ledgerRows);
+  } catch (err) {
+    // Best-effort enrichment: a digest that fails to build is worse than one
+    // missing a section, but a SILENT miss is worse than both - say it failed.
+    return `\n## 🔬 External ground truth\n\n- _section failed: ${err.message}_\n`;
+  }
 }
 
 async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs = Date.now() } = {}) {
@@ -385,8 +324,8 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   // Upstream changes since the last digest — see formatTrackedSection.
   let tracked = '';
   try {
-    const events = db.tracked.eventsSince(sevenDaysAgo);
     const rows = db.tracked.all();
+    const events = dropClearedDeletions(db.tracked.eventsSince(sevenDaysAgo), rows);
     const projectsByRepo = Object.fromEntries(rows.map((r) => [r.repo, r.projects]));
     // Rows retired from the pool stay in the table but are no longer checked;
     // counting them would overstate the sweep by exactly the retired set.
@@ -398,27 +337,7 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
     tracked = `\n## 📡 Adopted & tracked — what changed upstream\n\n_Unavailable this week: ${err.message}_\n`;
   }
 
-  // The ground-truth section reads the SAME pool the per-project section does,
-  // so a dataset that reached the index reaches the digest without a second fetch.
-  let groundTruth = '';
-  try {
-    const projects = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')
-    ).projects || [];
-    // The near-miss log is part of the weekly picture, not a page-only extra:
-    // it is the corpus for the next slot, and Monday is when anyone reads it.
-    let nearMisses = [];
-    try {
-      nearMisses = db.nearMissStore ? db.nearMissStore.all({ limit: 200 }) : [];
-    } catch (e) {
-      nearMisses = [];
-    }
-    groundTruth = formatGroundTruthSection(loadPool(db), projects, nearMisses);
-  } catch (err) {
-    // Best-effort enrichment: a digest that fails to build is worse than one
-    // missing a section, but a SILENT miss is worse than both - say it failed.
-    groundTruth = `\n## 🔬 External ground truth\n\n- _section failed: ${err.message}_\n`;
-  }
+  const groundTruth = buildGroundTruthDigestSection();
   const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections() + groundTruth;
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
@@ -436,4 +355,4 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   return { digestPath: outPath, itemCount: items.length, runtimeMs };
 }
 
-module.exports = { generateDigest, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, buildDigestStructure, classify, isRisingStar, parseMeta };
+module.exports = { generateDigest, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, dropClearedDeletions, buildDigestStructure, classify, isRisingStar, parseMeta };
