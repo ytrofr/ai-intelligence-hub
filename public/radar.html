@@ -240,7 +240,10 @@
           </div>`;
       }
       const STATUSES = ["proposed", "accepted", "done", "rejected"];
-      let CURRENT_PROJECT = new URLSearchParams(location.search).get("project") || "apollo";
+      // No literal default. The page does not know which projects exist until
+      // /api/radar/projects answers, so it waits rather than guessing an id
+      // that may not be configured on this install.
+      let CURRENT_PROJECT = new URLSearchParams(location.search).get("project") || "";
 
       function topicSection(t) {
         if (t.count === 0) return "";
@@ -339,7 +342,7 @@
         card.innerHTML = `
           <div class="close-form">
             <div class="close-q">Closing as <b>${status}</b> — what settled it?</div>
-            <input class="cf-ev" placeholder="${isDone ? "commit, PR or URL — apollo@3f9a12c" : "commit, PR, URL or a report path"}" />
+            <input class="cf-ev" placeholder="${isDone ? "commit, PR or URL — repo@3f9a12c" : "commit, PR, URL or a report path"}" />
             <input class="cf-le" placeholder="what it taught us, or: none - <why not>" />
             <div class="close-actions">
               <button class="cf-go">save</button>
@@ -391,6 +394,17 @@
       }
 
       fetch("/api/radar/projects").then((r) => r.json()).then(({ projects }) => {
+        // An absence is a ROW, never a blank page: with nothing configured the
+        // page says so and names the file to copy, rather than rendering an
+        // empty radar that reads like "this project has nothing to adopt".
+        if (!projects.length) {
+          document.getElementById("root").innerHTML =
+            `<div class="error">No projects configured. Copy <code>config/projects.example.json</code> to <code>config/projects.json</code>.</div>`;
+          return;
+        }
+        // The URL wins when it names a project we actually have; otherwise the
+        // first configured one. Neither is a literal in this file.
+        if (!projects.some((p) => p.id === CURRENT_PROJECT)) CURRENT_PROJECT = projects[0].id;
         const sel = document.getElementById("project-select");
         sel.innerHTML = projects.map((p) => `<option value="${esc(p.id)}" ${p.id === CURRENT_PROJECT ? "selected" : ""}>${esc(p.title)} (${p.rows})</option>`).join("");
         sel.addEventListener("change", () => load(sel.value));

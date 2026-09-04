@@ -47,8 +47,6 @@ app.use("/api/adoption-matrix", require("./routes/adoption-matrix"));
 app.use("/api/ground-truth", require("./routes/ground-truth"));
 app.use("/api/projects-hub", require("./routes/projects-hub"));
 app.use("/api/maintenance", require("./routes/maintenance"));
-// Back-compat alias: the old Apollo-only endpoint, forced to project=apollo
-app.use("/api/hermes-radar", (req, _res, next) => { req.forcedProject = "apollo"; next(); }, require("./routes/radar"));
 
 // Health endpoint
 app.get("/api/health", (req, res) => {

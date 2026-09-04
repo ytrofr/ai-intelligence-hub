@@ -109,7 +109,6 @@ test("projectFromUrl reads ?project= and returns '' rather than null", () => {
  * is how a real page quietly joins it.
  */
 const REDIRECT_STUBS = {
-  "hermes-radar.html": /http-equiv="refresh"/,
   "digest.html": /window\.location\.href = '\/\?view=digests'/,
 };
 

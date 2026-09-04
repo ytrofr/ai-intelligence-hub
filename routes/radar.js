@@ -7,11 +7,10 @@
  * high-star repos matching topic keywords for review.
  *
  *   GET  /api/radar/projects              -> [{id,title,rows,updated}]
- *   GET  /api/radar?project=apollo          -> radar payload
+ *   GET  /api/radar?project=<id>          -> radar payload
  *   POST /api/radar/status {project,repo,status,outcome?,evidence?,lesson?}  (loopback only)
  *                          done|rejected REQUIRE evidence + lesson
  *   POST /api/radar/row    {project,repo,topic,verdict,why,outcome?,evidence?,lesson?} (loopback only)
- *   /api/hermes-radar is mounted on the same router with project forced to apollo.
  */
 
 const express = require("express");
@@ -39,6 +38,7 @@ const staleDays = configuredStaleDays();
 const path = require("path");
 const Database = require("better-sqlite3");
 const { RadarStore } = require("./lib/radar-store");
+const { readProjects } = require("./lib/hub-sources");
 const { upstreamView } = require("../modules/upstream-view");
 const { TrackedStore } = require("../database/tracked-store");
 const { requireLoopback } = require("./lib/net");
@@ -78,7 +78,16 @@ router.post("/row", requireLoopback, (req, res) => {
 router.get("/", (req, res) => {
   let db;
   try {
-    const project = req.forcedProject || req.query.project || "apollo";
+    // The default is the first project the config declares, never a literal.
+    // A hardcoded id would be both a leak and a lie the day the config changes;
+    // and with no config at all the honest answer is "nothing is configured",
+    // not a page rendered against a project that does not exist.
+    const project = req.query.project || (readProjects()[0] || {}).id;
+    if (!project) {
+      return res.status(503).json({
+        error: "no projects configured - copy config/projects.example.json to config/projects.json",
+      });
+    }
     const config = store.load(project);
     const threshold = config.starThreshold || 20000;
 
@@ -89,8 +98,8 @@ router.get("/", (req, res) => {
       FROM items WHERE title = ? AND source LIKE 'github%' GROUP BY title
     `);
 
-    // Only this project's repos, not the whole pool — apollo is the largest at 56
-    // of 257 tracked. This route holds its own READ-ONLY handle, so the store is
+    // Only this project's repos, not the whole pool — the largest single
+    // project is 56 of 257 tracked. This route holds its own READ-ONLY handle, so the store is
     // constructed on it rather than reaching for the writable singleton.
     const trackedStore = new TrackedStore(db);
     const tracked = trackedStore.getMany(config.audit.map((a) => a.repo));
