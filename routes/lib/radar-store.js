@@ -534,4 +534,18 @@ class RadarStore {
   }
 }
 
-module.exports = { RadarStore, VERDICTS, STATUSES, EVIDENCE_RE, REPORT_RE };
+// The adoption-field validators are exported so a READER can ask the same
+// question the writer asks. A row hand-edited into the JSON never passes
+// through upsertRow, so without this the ledger cannot tell a field that
+// would be refused today from one that was written properly.
+module.exports = {
+  RadarStore,
+  VERDICTS,
+  STATUSES,
+  EVIDENCE_RE,
+  REPORT_RE,
+  PAIR_RE,
+  benchField,
+  telemetryField,
+  beforeAfterField,
+};
