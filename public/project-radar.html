@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -24,7 +26,6 @@
       a { color: var(--color-primary-hover); text-decoration: none; }
       a:hover { text-decoration: underline; }
       .wrap { max-width: 1080px; margin: 0 auto; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
 
       /* Header */
       .radar-head {
@@ -147,8 +148,7 @@
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-active="discovery"></div>
       <div class="radar-head">
         <div class="eyebrow">Discovery</div>
         <h1>Project Radar</h1>
@@ -251,6 +251,10 @@
         const params = new URLSearchParams(window.location.search);
         params.set("project", id);
         window.history.replaceState({}, "", `${window.location.pathname}?${params}`);
+        // Same reason as radar.html: the project changes without a navigation,
+        // so the nav's lens bar has to follow or it links you into the project
+        // you just left.
+        SiteNav.mount({ active: "discovery", project: id });
         try {
           const res = await fetch(`/api/recommendations?project=${encodeURIComponent(id)}&limit=20`);
           if (!res.ok) throw new Error("API " + res.status);

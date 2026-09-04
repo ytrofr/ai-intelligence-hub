@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -133,15 +135,13 @@
       footer { margin-top: var(--spacing-xl); color: var(--color-text-dim); font-size: var(--font-xs); }
       .from-project { display:inline-block; margin-left:.6rem; font-size:.78rem;
                       opacity:.75; font-style:italic; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
       .adoption-sentence { color: var(--color-text-muted); font-size: var(--font-sm); max-width: 82ch;
                            border-left: 3px solid var(--color-warning); padding-left: 0.8rem; }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-view="stack"></div>
       <div class="head">
         <div class="eyebrow">Stack Ledger</div>
         <h1>What we use, for which project, and why</h1>
@@ -260,9 +260,28 @@
             `would be refused if written today. These closures are marked, never reopened - reopening one ` +
             `deletes its evidence and its lesson, and this file has no history to restore them from.`;
         }
+
+        // The strip and the sentence above are LEDGER-WIDE - they come from
+        // countLedger over all 332 rows, and the project lens filters only the
+        // table. Saying so is cheaper than recomputing them per project, and far
+        // cheaper than letting a reader take them for apollo's numbers.
+        if (PROJECT) {
+          const cap = document.createElement("p");
+          cap.className = "hint";
+          cap.textContent = `These numbers are across all projects. Only the table below is filtered to ${PROJECT}.`;
+          document.getElementById("counts").insertAdjacentElement("afterend", cap);
+        }
       }
 
+      // The project lens, arriving as ?project=apollo from the nav. It used to be
+      // a PREFILL of the search box, which substring-matches nine fields - so
+      // "apollo" also matched a row whose REASON merely mentioned apollo, and the
+      // count said "N of M" for a set the project does not own. This is the real
+      // membership test, on the same `projects` array the table renders.
+      const PROJECT = new URLSearchParams(location.search).get("project") || "";
+
       function matches(r, q, f) {
+        if (PROJECT && !r.projects.includes(PROJECT)) return false;
         if (f === "unexplained" && r.explained) return false;
         if (f === "explained" && !r.explained) return false;
         if (f === "multi" && r.projects.length < 2) return false;
@@ -347,19 +366,16 @@
           render();
         });
       });
-      // Arriving from the inventory's project lens: ?project=apollo pre-fills the
-      // filter so the deep-link lands on that project's repos rather than on all
-      // 291. The box is left editable and visibly populated - a filter applied
-      // invisibly is worse than none, because the row count silently lies.
-      (function applyProjectFromUrl() {
-        const wanted = new URLSearchParams(location.search).get("project");
-        if (!wanted) return;
-        const box = document.getElementById("q");
-        box.value = wanted;
+      // Say which project is holding the table down, and offer the way out.
+      // A filter applied invisibly is worse than none, because the row count
+      // then lies quietly.
+      (function announceProject() {
+        if (!PROJECT) return;
         const note = document.createElement("span");
         note.className = "from-project";
-        note.textContent = `filtered to ${wanted} — clear the box for all repos`;
-        box.insertAdjacentElement("afterend", note);
+        note.innerHTML =
+          `showing only <b>${esc(PROJECT)}</b> - <a href="/stack.html">all repos</a>`;
+        document.getElementById("q").insertAdjacentElement("afterend", note);
       })();
 
       document.getElementById("q").addEventListener("input", render);

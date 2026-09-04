@@ -13,10 +13,17 @@
     <link rel="stylesheet" href="/css/variables.css" />
     <link rel="stylesheet" href="/css/components.css" />
     <link rel="stylesheet" href="/css/layout.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <script src="http://localhost:9876/inject.js?project=ai-intelligence-hub" defer onerror="this.remove()"></script>
   </head>
   <body>
     <div class="container">
+      <!-- The one site nav. Seven flat links used to sit in the header below;
+           five of them were lenses on a single project and now live one level
+           down, reached by choosing the project first. -->
+      <div id="site-nav" data-nav-active="items"></div>
+
       <!-- Header -->
       <header class="header">
         <h1 class="header-title">
@@ -26,13 +33,6 @@
         <div class="header-actions">
           <div id="section-toggle"></div>
           <div id="view-toggle"></div>
-          <a href="/inventory.html" class="btn btn-secondary">What We Have</a>
-          <a href="/projects.html" class="btn btn-secondary">Projects</a>
-          <a href="/stack.html" class="btn btn-secondary">Stack Ledger</a>
-          <a href="/project-radar.html" class="btn btn-secondary">Project Radar</a>
-          <a href="/radar.html?project=apollo" class="btn btn-secondary">Adoption Radar</a>
-          <a href="/adoption-matrix.html" class="btn btn-secondary">Adoption Matrix</a>
-          <a href="/ground-truth.html" class="btn btn-secondary">Ground Truth</a>
           <button id="fetch-btn" class="btn btn-primary">
             <span id="refresh-icon"></span>
             Fetch Now

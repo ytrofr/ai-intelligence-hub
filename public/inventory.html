@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Stack Inventory</title>
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       /* Theme comes from /css/variables.css - the same tokens every other hub
          page uses. This page was the only light one in a dark app. */
@@ -43,13 +45,11 @@
       .note { margin-top:2.5rem; padding:.85rem 1rem; border:1px dashed var(--color-border);
               border-radius:8px; color:var(--color-text-muted); font-size:.85rem; max-width:74ch; }
       code { font:13px ui-monospace,SFMono-Regular,Menlo,monospace; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-active="projects"></div>
       <div class="eyebrow">Stack Inventory</div>
       <h1>What we have</h1>
       <p class="lede">

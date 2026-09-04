@@ -66,29 +66,52 @@ function readLedgerRows() {
   }
 }
 
-function load() {
-  const projects = readProjects();
+/**
+ * @param {string} [project] narrow to one project id, from ?project=
+ *
+ * The narrowing happens on the INPUT, not on the output: `countGroundTruth`
+ * derives every count from the tree it is handed, so filtering the projects
+ * list here gives a page whose headline and whose rows describe the same
+ * population. Filtering the built payload instead would have left the counts
+ * cross-project while the rows showed one project - a denominator that lies.
+ *
+ * The ledger rows are narrowed the same way, because `counts.funnel` and
+ * `counts.parked_paid` are computed from them and would otherwise stay
+ * ledger-wide on a page that says it is showing one project.
+ */
+function load(project) {
+  const all = readProjects();
+  const projects = project ? all.filter((p) => p.id === project) : all;
   // Fail closed on the real config BEFORE it is rendered — a slot naming an
   // undeclared feature, or a project with slots but no features[], must not
   // reach the page silently.
   validateFeatures(projects);
+  const ledgerRows = project
+    ? readLedgerRows().filter((r) => Array.isArray(r.projects) && r.projects.includes(project))
+    : readLedgerRows();
   const built = buildGroundTruth({
     projects,
     items: readItems(),
     nearMisses: readNearMisses(),
-    ledgerRows: readLedgerRows(),
+    ledgerRows,
     // "needs-you" is the honest default: anything the cheap-run gate refuses
     // needs the operator to accept terms or rule on a card. The gate itself
     // fails closed, so an unknown lands here rather than in "runnable".
     classify: (item) => (hf.isCheapRun(item) ? "runnable" : "needs-you"),
     refusal: (item) => hf.cheapRunRefusal(item),
   });
-  return { ...built, generated_at: new Date().toISOString() };
+  return { ...built, filtered_to: project || null, generated_at: new Date().toISOString() };
 }
 
-router.get("/", (_req, res) => {
+router.get("/", (req, res) => {
   try {
-    res.json(load());
+    const project = req.query.project ? String(req.query.project) : "";
+    // An unknown id is a 404, never an empty tree - "this project has no
+    // instruments" and "there is no such project" are different answers.
+    if (project && !readProjects().some((p) => p.id === project)) {
+      return res.status(404).json({ error: `no such project: ${project}` });
+    }
+    res.json(load(project));
   } catch (err) {
     console.error("Ground-truth error:", err.message);
     res.status(500).json({ error: err.message });
@@ -96,3 +119,4 @@ router.get("/", (_req, res) => {
 });
 
 module.exports = router;
+module.exports.load = load;

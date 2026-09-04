@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -43,6 +45,9 @@
       /* Counters. Every failure mode of this page is silent - a slot that stops
          matching, a near-miss log that stops being written - so the numbers are
          the only tell, and they are derived from the rows below them. */
+      .lens { font-family: var(--font-mono); font-size: var(--font-sm); color: var(--color-text-muted);
+              margin-bottom: var(--spacing-sm); }
+      .lens b { color: var(--color-text); }
       .counts { display: flex; flex-wrap: wrap; gap: var(--spacing-md); margin: var(--spacing-lg) 0; }
       .count {
         background: var(--color-surface);
@@ -152,13 +157,11 @@
       .parked h2 { font-size: 1.05rem; font-weight: 600; padding-bottom: 0.35rem; border-bottom: 1px solid var(--color-border); }
       .parkedlist { list-style: none; margin-top: 0.5rem; }
       .parkedlist li { font-size: var(--font-sm); padding: 0.3rem 0; border-bottom: 1px solid var(--color-border); }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
     </style>
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-view="truth"></div>
       <div class="head">
         <div class="eyebrow">Ground Truth</div>
         <h1>What checks our instruments, and what did it last say?</h1>
@@ -184,13 +187,37 @@
 
     <script src="/js/ground-truth-render.js"></script>
     <script>
-      fetch("/api/ground-truth")
-        .then((r) => r.json())
-        .then((data) => window.GroundTruthRender.render(data))
-        .catch((err) => {
-          document.getElementById("projects").textContent =
-            "Could not load /api/ground-truth: " + err.message;
-        });
+      // The project lens arrives as ?project=apollo from the nav and is passed
+      // STRAIGHT THROUGH to the API, which narrows the tree before it counts
+      // it. Filtering here instead would leave the headline counting nine
+      // projects above a page showing one.
+      (function () {
+        const project = new URLSearchParams(location.search).get("project") || "";
+        const url = project ? `/api/ground-truth?project=${encodeURIComponent(project)}` : "/api/ground-truth";
+        fetch(url)
+          .then((r) => {
+            if (!r.ok) throw new Error(`${url} returned ${r.status}`);
+            return r.json();
+          })
+          .then((data) => {
+            window.GroundTruthRender.render(data);
+            // Every number above is now this project's. Say so on the page, not
+            // only in the nav - a strip reading "5 instruments" with nothing
+            // beside it reads as the whole fleet, which is 21.
+            if (data.filtered_to) {
+              const note = document.createElement("p");
+              note.className = "lens";
+              note.innerHTML =
+                `Showing only <b>${data.filtered_to}</b> - every count above is this project's. ` +
+                `<a href="/ground-truth.html">All projects</a>`;
+              document.getElementById("counts").insertAdjacentElement("beforebegin", note);
+            }
+          })
+          .catch((err) => {
+            document.getElementById("projects").textContent =
+              "Could not load " + url + ": " + err.message;
+          });
+      })();
     </script>
   </body>
 </html>

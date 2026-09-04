@@ -12,6 +12,8 @@
     />
     <link rel="stylesheet" href="/css/variables.css" />
     <link rel="stylesheet" href="/css/favourability.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -34,8 +36,6 @@
       }
       .head h1 { font-size: 1.6rem; font-weight: 700; margin: 0.15rem 0 0.3rem; }
       .head p { color: var(--color-text-muted); max-width: 78ch; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
-      .navrow { display: flex; gap: var(--spacing-lg); flex-wrap: wrap; margin-bottom: var(--spacing-lg); }
 
       h2 { font-size: 1.25rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
       h3 { font-size: 1rem; margin: var(--spacing-xl) 0 var(--spacing-xs); }
@@ -79,6 +79,11 @@
       table.t td.gap, table.t td.next { color: var(--color-text-muted); }
       table.rec th { width: 9rem; text-transform: none; letter-spacing: 0; color: var(--color-text-dim); }
       .muted { color: var(--color-text-dim); }
+      /* The across-all-projects row: the only door left to the unfiltered
+         views, now that the nav reaches them through a project. */
+      ul.allproj { list-style: none; margin: 0 0 var(--spacing-md); }
+      ul.allproj li { padding: 0.25rem 0; }
+      ul.allproj .muted { font-size: var(--font-sm); }
 
       .score { text-align: right; font-family: var(--font-mono); }
       .sn { font-weight: 600; }
@@ -128,12 +133,7 @@
   </head>
   <body>
     <div class="wrap">
-      <div class="navrow">
-        <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-        <a class="backlink" href="/adoption-matrix.html">Adoption Matrix</a>
-        <a class="backlink" href="/stack.html">Stack Ledger</a>
-        <a class="backlink" href="/ground-truth.html">Ground Truth</a>
-      </div>
+      <div id="site-nav" data-nav-active="projects"></div>
 
       <div class="head">
         <span class="eyebrow">Projects</span>
@@ -160,10 +160,25 @@
       const stage = document.getElementById("stage");
       const prov = document.getElementById("prov");
 
+      // The hash IS the project, so the nav's lens bar is re-mounted on every
+      // route change: at #/apollo the bar appears with apollo's five views and a way
+      // back, and at #/ it disappears, because a lens over no project is the
+      // cross-project view and has nothing to go back to.
+      function projectFromHash(hash) {
+        const seg = String(hash || "").replace(/^#\/?/, "").split("/")[0];
+        return seg ? decodeURIComponent(seg) : "";
+      }
+
       function draw() {
         if (!MODEL) return;
         stage.innerHTML = route(MODEL, location.hash);
         prov.innerHTML = renderFooter(MODEL, GENERATED_AT);
+        // Only a project the payload actually knows lights the lens bar - a
+        // typo in the hash renders "no such view" in the stage, and a nav bar
+        // confidently naming that typo would contradict it.
+        const pid = projectFromHash(location.hash);
+        const known = (MODEL.projects || []).some((p) => p.id === pid) ? pid : "";
+        SiteNav.mount({ active: "projects", project: known, view: "needs" });
         window.scrollTo(0, 0);
       }
 

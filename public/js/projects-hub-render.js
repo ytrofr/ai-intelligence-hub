@@ -132,7 +132,32 @@ function renderL0(model) {
     thing no other page here can show you, because they are all keyed on the candidate, and
     a need with no candidate has no row.</p>
     <div class="pgrid">${cards}</div>
+    ${renderAllProjectsRow()}
     ${renderShared(model.shared)}`;
+}
+
+/**
+ * The cross-project views, which used to be five flat items in the top nav.
+ *
+ * They are lenses on a project, so the nav now reaches them by way of a project
+ * - which leaves the ACROSS-projects reading of each one with nowhere to be.
+ * This row is that nowhere: it is the only place the unscoped Adoption Matrix,
+ * Stack Ledger, Adoption Radar and Ground Truth are still one click away, and
+ * it says out loud that they are the whole-fleet reading, not this page's.
+ */
+function renderAllProjectsRow() {
+  const links = [
+    ["/adoption-matrix.html", "Adoption Matrix", "the top candidates, ranked across every project"],
+    ["/stack.html", "Stack Ledger", "every repo and dataset we use, all 332 rows"],
+    ["/ground-truth.html", "Ground Truth", "every instrument and what it last said"],
+    ["/inventory.html", "What we have", "live dependency counts per project"],
+  ]
+    .map(([h, label, why]) => `<li><a href="${h}">${esc(label)}</a> <span class="muted">${esc(why)}</span></li>`)
+    .join("");
+  return `<h3>Across all projects <span class="n">- the same views, unfiltered</span></h3>
+    <p class="lede">Pick a project above to see any of these narrowed to it; these are the
+    whole-fleet readings.</p>
+    <ul class="allproj">${links}</ul>`;
 }
 
 /**
@@ -409,6 +434,7 @@ if (typeof module !== "undefined" && module.exports) {
     route,
     renderShared,
     renderL0,
+    renderAllProjectsRow,
     renderL1,
     renderL2,
     renderL3,

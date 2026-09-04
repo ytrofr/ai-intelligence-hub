@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -40,7 +42,6 @@
       }
       .radar-head h1 { font-size: var(--font-2xl); margin: var(--spacing-xs) 0; }
       .radar-head p { color: var(--color-text-muted); font-size: var(--font-sm); max-width: 70ch; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
 
       /* Summary stat strip */
       .stat-strip {
@@ -155,8 +156,7 @@
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-view="radar"></div>
       <div class="project-bar">
         <label for="project-select" class="eyebrow">Project</label>
         <select id="project-select"></select>
@@ -377,6 +377,10 @@
       function load(project) {
         CURRENT_PROJECT = project;
         history.replaceState(null, "", `?project=${encodeURIComponent(project)}`);
+        // This page changes project WITHOUT navigating, so the nav's lens bar
+        // has to be re-mounted or it keeps naming the project you left - and it
+        // would still be linking the other four lenses to that old one.
+        SiteNav.mount({ active: "projects", project, view: "radar" });
         document.getElementById("root").innerHTML = `<div class="loading">Loading ${esc(project)} radar…</div>`;
         fetch(`/api/radar?project=${encodeURIComponent(project)}`)
           .then((r) => { if (!r.ok) throw new Error("API " + r.status); return r.json(); })

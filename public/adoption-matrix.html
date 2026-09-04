@@ -11,6 +11,8 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/site-nav.css" />
+    <script src="/js/site-nav.js"></script>
     <link rel="stylesheet" href="/css/favourability.css" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -113,7 +115,6 @@
       footer { margin-top: var(--spacing-xl); color: var(--color-text-dim); font-size: var(--font-xs); }
       footer code { font-family: var(--font-mono); }
       .from-project { display: inline-block; margin-left: 0.6rem; font-size: 0.78rem; opacity: 0.75; font-style: italic; }
-      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
       .denominator { color: var(--color-text-muted); font-size: var(--font-sm); max-width: 78ch;
                      border-left: 3px solid var(--color-border-hover); padding-left: 0.8rem; }
       .drawer { border: 1px solid var(--color-border); border-radius: 8px; padding: 0.6rem 0.9rem; }
@@ -131,8 +132,7 @@
   </head>
   <body>
     <div class="wrap">
-      <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
-      <a class="backlink" href="/projects.html">Projects</a>
+      <div id="site-nav" data-nav-view="matrix"></div>
       <div class="head">
         <div class="eyebrow">Adoption Matrix</div>
         <h1>What we should adopt next</h1>
