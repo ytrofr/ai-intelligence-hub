@@ -14,6 +14,11 @@ const path = require("path");
 const BaseModule = require("./base-module");
 const { fetchJson } = require("./http");
 const { formatMatchReason } = require("./match-reason");
+// The slot gate (H4, 2026-09-03): matchSlots/slotMissReason/isCheapRun/
+// cheapRunRefusal moved OUT of this file and INTO slot-gate.js, so
+// github-discovery.js can grade a repo against a `package`/`service` slot the
+// same way an HF item is graded against a `ground-truth`/`model` one.
+const slotGate = require("./slot-gate");
 
 const PROJECTS_TTL_MS = 5 * 60 * 1000;
 let _sharedProjects = { at: 0, cfg: null };
@@ -40,52 +45,10 @@ const PIPELINE_TOPICS = {
   "translation": ["hebrew-nlp"],
 };
 
-/**
- * HuggingFace publishes a dataset's size as a ROW-COUNT bucket; our slots declare
- * a DISK budget in megabytes. Converting between them is an assumption, so it is
- * written down rather than buried: a row of text/JSONL in these corpora runs on
- * the order of 1 KB, so 1 MB is about 1,000 rows.
- *
- * A slot admits a bucket whose LOWER bound is under its budget. Deliberately the
- * lower bound and not the upper: a refusal costs one row in the near-miss log,
- * while a false accept is how `HuggingFaceFW/fineweb` - ten to a hundred BILLION
- * rows - appeared under the design-fidelity instrument on this page's first live
- * render. An unrecognised or absent bucket is refused, like every other unknown
- * in this file.
- */
-const SIZE_BUCKET_FLOOR = {
-  "n<1k": 0,
-  "1k<n<10k": 1e3,
-  "10k<n<100k": 1e4,
-  "100k<n<1m": 1e5,
-  "1m<n<10m": 1e6,
-  "10m<n<100m": 1e7,
-  "100m<n<1b": 1e8,
-  "1b<n<10b": 1e9,
-  "10b<n<100b": 1e10,
-  "100b<n<1t": 1e11,
-  "n>1t": 1e12,
-};
-const ROWS_PER_MB = 1000;
-const DEFAULT_SLOT_CAP_MB = 500;
+// The size table (`SIZE_BUCKET_FLOOR`/`ROWS_PER_MB`/`DEFAULT_SLOT_CAP_MB`) and
+// the cheap-run tables (`PERMISSIVE_LICENSES`/`CHEAP_RUN_SIZES`) moved to
+// slot-gate.js, with the gate chain and SLOT_MISS_DEPTH ranking (H4 extraction, 2026-09-03).
 
-/**
- * The slot gate chain in DEPTH order - later means the slot got further before
- * refusing. `slotMissReason` reads this back to report the CLOSEST slot's verdict
- * rather than the first one tried. Adding a gate means adding it here too, in the
- * position it occupies in `_slotVerdict`.
- */
-const SLOT_MISS_DEPTH = [
-  "no-slot-of-this-kind",
-  "slot-declares-no-tasks",
-  "task-not-graded",
-  "wrong-language",
-  "slot-declares-no-licences",
-  "licence-unknown",
-  "licence-not-allowed",
-  "too-big-for-this-slot",
-  "wrong-subject",
-];
 
 /** Quantization/format mirrors - re-uploads of someone else's weights. */
 const MIRROR_RE = /-(GGUF|AWQ|GPTQ|MLX|EXL2|INT4|INT8|FP8|BF16|W4A16|onnx)\b/i;
@@ -109,30 +72,9 @@ const DATASET_TOPICS = {
   translation: ["hebrew-nlp"],
 };
 
-/**
- * Licences under which we may actually USE the data commercially. The jina
- * reranker was rejected on cc-by-nc alone and SWE-bench_Verified declares
- * nothing at all despite 327k downloads - so an ABSENT licence must fail
- * closed. Enumerating what is SAFE (rather than what is forbidden) is what
- * makes an unrecognised or missing licence a refusal instead of a pass.
- */
-const PERMISSIVE_LICENSES = new Set([
-  "apache-2.0", "mit", "bsd", "bsd-3-clause", "bsd-2-clause",
-  "cc-by-4.0", "cc-by-3.0", "cc0-1.0", "odc-by", "odbl", "openrail",
-]);
-
-/**
- * The row-count buckets a cheap run may have. Past 100K we are looking at
- * TRAINING data, and we do not train.
- *
- * This is an ALLOWLIST on purpose. It used to be a regex naming the buckets to
- * refuse, and a denylist over a vendor's vocabulary fails OPEN on everything it
- * has not heard of - which here meant `n>1T`, the largest bucket HuggingFace
- * has, read as small because the pattern was anchored and that one starts with
- * "n". `100K<n<1M` slipped through the same way: above the cap, never named.
- * Enumerating what is SAFE makes an unseen bucket a refusal by construction.
- */
-const CHEAP_RUN_SIZES = new Set(["n<1k", "1k<n<10k", "10k<n<100k"]);
+// The permissive-licence set and the cheap-run size allowlist now live in
+// slot-gate.js (`PERMISSIVE_LICENSES`, `CHEAP_RUN_SIZES`) - `cheapRunRefusal`/
+// `isCheapRun` below delegate there.
 
 class HuggingFaceModule extends BaseModule {
   buildUrls() {
@@ -239,168 +181,17 @@ class HuggingFaceModule extends BaseModule {
   }
 
   /**
-   * Which of OUR INSTRUMENTS can this reference actually grade?
-   *
-   * `matchProjects` answers "is this about something the project does" - a topic
-   * overlap, which is why the feed can fill with plausible rows that grade nothing.
-   * A SLOT is one instrument plus the shape of data that can grade it, so this
-   * answers a much narrower question and returns far fewer rows on purpose.
-   *
-   * FAILS CLOSED on every unknown. An absent licence tag, a missing language, or a
-   * slot declaring no task categories all match NOTHING - because the cost of a
-   * false match is the operator downloading something that cannot grade anything,
-   * while the cost of a false miss is one row in the near-miss log, which is
-   * exactly the corpus for the next slot.
-   */
-  /**
-   * The raw facts a slot gate reads, lifted once per item. Kept separate from the
-   * gates themselves so `matchSlots` and `slotMissReason` cannot drift apart -
-   * two implementations of one gate is how a matcher and its explanation start
-   * disagreeing, and the explanation is the half nobody re-tests.
-   */
-  _slotFacts(raw, kind) {
-    const tags = (raw.tags || []).map(String);
-    const valuesOf = (prefix) =>
-      tags.filter((t) => t.startsWith(prefix)).map((t) => t.slice(prefix.length).toLowerCase());
-
-    const tasks = kind === "dataset"
-      ? valuesOf("task_categories:")
-      : [raw.pipeline_tag].filter(Boolean).map((t) => String(t).toLowerCase());
-    // HF writes a language either as `language:he` or as a bare `he` tag, and both
-    // appear in the wild on the same day. Read both rather than pick one and be
-    // silently wrong for half the corpus.
-    const langs = [...valuesOf("language:"), ...tags.filter((t) => /^[a-z]{2,3}$/.test(t))];
-    const licenceTag = tags.find((t) => t.toLowerCase().startsWith("license:"));
-    const licence = licenceTag ? licenceTag.slice("license:".length).toLowerCase() : null;
-    const bucket = valuesOf("size_categories:")[0] || null;
-    // What the subject gate is allowed to read: fields the PUBLISHER DECLARED -
-    // the id, the pretty name, the tags. Deliberately NOT the card body.
-    //
-    // The first version included `description`, which on a full payload is the
-    // whole README, and `nyu-visionx/VSI-590K` - a spatial-reasoning VQA set -
-    // was admitted to the screenshot-grading slot because its card carries the
-    // link bar "website | paper | github | models". A subject claim resting on a
-    // word that appears in passing is not a subject claim; free-form prose will
-    // eventually contain every term any slot declares.
-    const text = [raw.id, raw.title, (raw.cardData || {}).pretty_name, ...tags]
-      .filter(Boolean).join(" ").toLowerCase();
-    return { tasks, langs, licence, bucket, text };
-  }
-
-  /**
-   * One slot, one verdict: `null` if it can grade this reference, otherwise the
-   * name of the gate that refused. The ORDER of the gates is also their depth -
-   * a slot that fails a later gate got further - and `SLOT_MISS_DEPTH` reads that
-   * order back when several slots refuse for different reasons.
-   */
-  _slotVerdict(slot, facts) {
-    const wantTasks = slot.task_categories || [];
-    // A slot with no declared task categories is a recorded ABSENCE (we keep it so
-    // the gap stays visible). An empty declaration must read as "matches nothing" -
-    // reading it as "matches everything" is the classic fail-open.
-    if (!wantTasks.length) return "slot-declares-no-tasks";
-    const want = wantTasks.map((w) => String(w).toLowerCase());
-    if (!facts.tasks.some((t) => want.includes(t))) return "task-not-graded";
-
-    if (slot.language && !facts.langs.includes(String(slot.language).toLowerCase())) {
-      return "wrong-language";
-    }
-
-    const allowed = (slot.licence_ok || []).map((l) => String(l).toLowerCase());
-    if (!allowed.length) return "slot-declares-no-licences";
-    if (!facts.licence) return "licence-unknown";      // silence is not permission
-    if (!allowed.includes(facts.licence)) return "licence-not-allowed";
-
-    // The size budget. Every slot declared one from the start and NOTHING read
-    // it - a lever armed in config with no call site reads as a guarantee and
-    // enforces nothing. This is that call site.
-    const capMb = slot.size_cap_mb === undefined ? DEFAULT_SLOT_CAP_MB : Number(slot.size_cap_mb);
-    if (Number.isFinite(capMb) && capMb > 0) {
-      const floor = SIZE_BUCKET_FLOOR[String(facts.bucket || "").toLowerCase()];
-      if (floor === undefined) return "too-big-for-this-slot";   // unknown or absent: fail closed
-      if (floor >= capMb * ROWS_PER_MB) return "too-big-for-this-slot";
-    }
-
-    // SUBJECT. Everything above proves a reference has the right SHAPE; none of
-    // it proves it is ABOUT the thing this instrument does. HuggingFace's
-    // `task_categories` is a shape signal only - `image-to-text` covers OCR,
-    // captioning and VQA as well as screenshot->code, and `text-generation`
-    // covers almost everything - so a slot that stops here offers the operator
-    // Arabic book scans as an answer key for a screenshot grader and calls it
-    // "grades apollo/design-fidelity". Measured 2026-09-03: 22 of 23 candidates.
-    //
-    // A slot with no declared subject is NOT narrowed here - that would empty
-    // the page on the slots I could not describe. It is marked UNVETTED instead,
-    // and the page says so rather than presenting a shortlist as an answer.
-    const subject = slot.subject_any || [];
-    if (subject.length && !subject.some((w) => facts.text.includes(String(w).toLowerCase()))) {
-      return "wrong-subject";
-    }
-    return null;
-  }
-
-  /**
-   * Which of OUR INSTRUMENTS can this reference actually grade?
-   *
-   * `matchProjects` answers "is this about something the project does" - a topic
-   * overlap, which is why the feed can fill with plausible rows that grade nothing.
-   * A SLOT is one instrument plus the shape of data that can grade it, so this
-   * answers a much narrower question and returns far fewer rows on purpose.
-   *
-   * FAILS CLOSED on every unknown. An absent licence tag, a missing language, or a
-   * slot declaring no task categories all match NOTHING - because the cost of a
-   * false match is the operator downloading something that cannot grade anything,
-   * while the cost of a false miss is one row in the near-miss log, which is
-   * exactly the corpus for the next slot.
+   * Which of OUR INSTRUMENTS can this reference actually grade - narrower and
+   * far fewer rows than `matchProjects`'s topic overlap. Delegates to
+   * slot-gate.js; see its docstring for the fail-closed rationale.
    */
   matchSlots(raw, kind = "dataset") {
-    const facts = this._slotFacts(raw, kind);
-    const out = [];
-    for (const project of this.loadProjects().projects || []) {
-      for (const slot of project.slots || []) {
-        if ((slot.kind || "dataset") !== kind) continue;
-        if (this._slotVerdict(slot, facts) !== null) continue;
-        out.push({
-          project: project.id,
-          slot: slot.id,
-          instrument: slot.instrument || "",
-          why: `grades ${project.id}/${slot.id}${slot.language ? ` (${slot.language})` : ""}`,
-        });
-      }
-    }
-    return out;
+    return slotGate.matchSlots(slotGate.slotFactsFromHf(raw, kind), this.loadProjects().projects || []);
   }
 
-  /**
-   * Why did nothing grade this? The DEEPEST gate any slot of this kind reached.
-   *
-   * Reporting the first slot's verdict would be true and useless: "task-not-graded"
-   * is what every unrelated slot says. The actionable fact is how far the closest
-   * slot got - a reference that cleared task and language and died on the licence
-   * is one licence away from being usable, and that is a different finding from
-   * one nothing could ever grade.
-   *
-   * Returns `null` when something DID match (there is no miss to explain).
-   */
+  /** Why did nothing grade this - the DEEPEST gate reached. `null` when something matched. */
   slotMissReason(raw, kind = "dataset") {
-    const facts = this._slotFacts(raw, kind);
-    let deepest = -1;
-    let seenAnySlot = false;
-    for (const project of this.loadProjects().projects || []) {
-      for (const slot of project.slots || []) {
-        if ((slot.kind || "dataset") !== kind) continue;
-        seenAnySlot = true;
-        const verdict = this._slotVerdict(slot, facts);
-        if (verdict === null) return null;
-        const depth = SLOT_MISS_DEPTH.indexOf(verdict);
-        if (depth > deepest) deepest = depth;
-      }
-    }
-    // No slot of this kind exists at all. M7: the log's first population is 15
-    // MODEL rows, and at that moment one model slot was declared - so this branch
-    // is real, and a vocabulary without it would have to invent a gate reason.
-    if (!seenAnySlot) return "no-slot-of-this-kind";
-    return deepest >= 0 ? SLOT_MISS_DEPTH[deepest] : null;
+    return slotGate.slotMissReason(slotGate.slotFactsFromHf(raw, kind), this.loadProjects().projects || []);
   }
 
   /**
@@ -536,35 +327,15 @@ class HuggingFaceModule extends BaseModule {
    * an absent one, or an unfamiliar gated value is a refusal, not a pass.
    */
   /**
-   * WHY did the cheap-run gate refuse? `null` when it did not.
-   *
-   * Callers used to re-derive this from two of the gate's clauses and guess the
-   * rest, which printed "licence is not on the permissive list" next to an
-   * apache-2.0 dataset that was actually refused for its size. One gate, one
-   * explanation - the same rule `_slotVerdict` follows one layer down.
+   * WHY did the cheap-run gate refuse? `null` when it did not. Delegates to
+   * slot-gate.js - see its docstring for the "one gate, one explanation" note.
    */
   cheapRunRefusal(item) {
-    const m = (item && item.metadata) || {};
-    if (m.kind !== "dataset") return "not a dataset";
-    if (m.gated !== false) return "gated: accept the terms on huggingface.co";
-    if (!m.license) return "licence is UNDECLARED";
-    if (!PERMISSIVE_LICENSES.has(m.license)) return `licence \`${m.license}\` is not on the permissive list`;
-    if (Array.isArray(m.license_declared) && m.license_declared.length > 1) {
-      return `declares several licences (${m.license_declared.join(", ")}) - which one governs is your call`;
-    }
-    if (!CHEAP_RUN_SIZES.has(String(m.size_category || "").toLowerCase())) {
-      return m.size_category
-        ? `${m.size_category} rows is above the 100K cheap-run cap`
-        : "declares no size, so the cap cannot be checked";
-    }
-    return null;
+    return slotGate.cheapRunRefusal(item);
   }
 
   isCheapRun(item) {
-    // Defined as "the gate found nothing to refuse", so the verdict and the
-    // reason can never disagree - two implementations of one gate is how a
-    // matcher and its explanation drift apart.
-    return this.cheapRunRefusal(item) === null;
+    return slotGate.isCheapRun(item);
   }
 
   spaceItem(space) {

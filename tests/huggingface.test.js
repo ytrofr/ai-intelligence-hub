@@ -747,8 +747,10 @@ test("every gate _slotVerdict can emit is rankable in SLOT_MISS_DEPTH", () => {
   // and if it were the only verdict slotMissReason would return null - which means
   // "something matched". A new gate would then make its own misses invisible AND
   // report them as hits. This is the guard that makes adding a gate safe.
-  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "modules", "huggingface.js"), "utf8");
-  const body = src.slice(src.indexOf("_slotVerdict("), src.indexOf("matchSlots("));
+  // The gate chain lives in slot-gate.js since the H4 extraction (2026-09-03);
+  // huggingface.js only delegates, so its source carries no `return "<gate>"`.
+  const src = require("fs").readFileSync(require("path").join(__dirname, "..", "modules", "slot-gate.js"), "utf8");
+  const body = src.slice(src.indexOf("function hfSlotVerdict("), src.indexOf("function matchSlots("));
   const emitted = [...body.matchAll(/return "([a-z-]+)"/g)].map((x) => x[1]);
   const depthSrc = src.slice(src.indexOf("const SLOT_MISS_DEPTH"));
   const ranked = depthSrc.slice(depthSrc.indexOf("["), depthSrc.indexOf("];") + 1);

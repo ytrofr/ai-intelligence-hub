@@ -11,6 +11,7 @@ const path = require("path");
 // treats an absolute-home path in a published diff as always wrong.
 const HUB = path.join(__dirname, "..");
 const HuggingFaceModule = require(path.join(HUB, "modules/huggingface.js"));
+const slotGate = require(path.join(HUB, "modules/slot-gate.js"));
 
 const m = new HuggingFaceModule({ id: "huggingface", name: "HuggingFace", type: "huggingface", url: "https://huggingface.co/api/models", config: {} });
 const cfg = m.loadProjects();
@@ -137,12 +138,16 @@ cell("missing licence is reported as licence-unknown, not licence-not-allowed",
   () => m.slotMissReason({ id:"x", tags: tagsMinus("license:") }, "dataset"), (r) => r === "licence-unknown");
 // M2: same shape one gate earlier. The real gap slot, read through the real gate.
 const gapSlot = slots.find((s) => s.id === "skill-evals");
-cell("a slot declaring no tasks says so by name",
-  () => m._slotVerdict(gapSlot, m._slotFacts(T(), "dataset")), (r) => r === "slot-declares-no-tasks");
+// 2026-09-03: the live skill-evals slot is now kind `skill-eval`, which no feed
+// can fill, so its verdict is the shallowest gate (`wrong-source`) by design.
+cell("a skill-eval slot refuses every feed as wrong-source",
+  () => slotGate.slotVerdict(gapSlot, slotGate.slotFactsFromHf(T(), "dataset")), (r) => r === "wrong-source");
+cell("a ground-truth slot declaring no tasks says so by name",
+  () => slotGate.slotVerdict({ ...gapSlot, kind: "dataset" }, slotGate.slotFactsFromHf(T(), "dataset")), (r) => r === "slot-declares-no-tasks");
 
 console.log("D4b VOCABULARY COMPLETENESS - every gate _slotVerdict can emit is rankable");
-const src = require("fs").readFileSync(path.join(HUB,"modules/huggingface.js"),"utf8");
-const body = src.slice(src.indexOf("_slotVerdict("), src.indexOf("matchSlots("));
+const src = require("fs").readFileSync(path.join(HUB,"modules/slot-gate.js"),"utf8");
+const body = src.slice(src.indexOf("function hfSlotVerdict("), src.indexOf("function matchSlots("));
 const emitted = [...body.matchAll(/return "([a-z-]+)"/g)].map(x=>x[1]);
 const depth = JSON.parse("[" + src.slice(src.indexOf("const SLOT_MISS_DEPTH"), src.indexOf("];", src.indexOf("const SLOT_MISS_DEPTH"))).split("[")[1].replace(/\s+/g," ").replace(/,\s*$/,"") + "]");
 console.log(`  gates emitted by _slotVerdict: ${emitted.length} -> ${emitted.join(", ")}`);

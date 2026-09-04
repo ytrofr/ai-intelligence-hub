@@ -6,6 +6,10 @@
 const BaseModule = require('./base-module');
 const fs = require('fs');
 const path = require('path');
+// The slot gate (H4, 2026-09-03): a repo can grade a `package`/`service`
+// instrument slot the same way an HF dataset grades a `ground-truth` one.
+// See modules/slot-gate.js.
+const slotGate = require('./slot-gate');
 
 // Generic deps appear in 80%+ of projects — low signal, must NOT boost relevance
 const GENERIC_DEPS = new Set([
@@ -664,10 +668,43 @@ class GitHubDiscoveryModule extends BaseModule {
 
   // -- Normalization ---------------------------------------------------------
 
+  /**
+   * Record a repo that matched a PROJECT and no INSTRUMENT. Same shape as
+   * `HuggingFaceModule#_recordNearMiss` and the same store - a `package`/
+   * `service` gap is exactly as much the corpus for the next slot as a
+   * dataset one, and `modules/ground-truth.js` reads both without caring
+   * which feed wrote them.
+   */
+  _recordSlotNearMiss({ itemId, facts, matched, slots, title, url }) {
+    if (!this.nearMissStore || slots.length || !matched.length) return;
+    const projects = this.loadProjects().projects || [];
+    const reason = slotGate.slotMissReason(facts, projects);
+    if (!reason) return;
+    const seen_at = new Date().toISOString();
+    for (const project of matched) {
+      try {
+        this.nearMissStore.record({ item_id: itemId, project: project.id, kind: 'repo', reason, title, url, seen_at });
+      } catch (_) {
+        // never load-bearing
+      }
+    }
+  }
+
   normalizeRepo(repoData, analysis, relevance, queryInfo) {
     const daysSinceCreation = Math.max(1, (Date.now() - new Date(repoData.created_at).getTime()) / 86400000);
+    const id = `${repoData.owner.login}-${repoData.name}`;
+    // Which of OUR INSTRUMENTS can this repo actually grade? A `package`/
+    // `service` slot is filled by a repo the same way a `ground-truth`/
+    // `model` slot is filled by an HF dataset/model - see modules/slot-gate.js.
+    const projects = this.loadProjects().projects || [];
+    const facts = slotGate.slotFactsFromGithub(repoData);
+    const slots = slotGate.matchSlots(facts, projects);
+    this._recordSlotNearMiss({
+      itemId: id, facts, matched: relevance.matchedProjects, slots,
+      title: repoData.full_name, url: repoData.html_url,
+    });
     return this.normalize({
-      id: `${repoData.owner.login}-${repoData.name}`,
+      id,
       title: repoData.full_name,
       url: repoData.html_url,
       description: repoData.description || analysis.readmeSummary || '',
@@ -692,6 +729,11 @@ class GitHubDiscoveryModule extends BaseModule {
         created_at: repoData.created_at, // for rising-star detection in weekly digest
         fork: !!repoData.fork,
         archived: !!repoData.archived,
+        // Which INSTRUMENT this repo can grade, not merely which project it is
+        // about (`matched_projects` above is a topic/dependency overlap). Empty
+        // is the common and correct case; a repo matching a project but no slot
+        // is the near-miss this method just recorded, not a defect.
+        matched_slots: slots,
       },
     });
   }
