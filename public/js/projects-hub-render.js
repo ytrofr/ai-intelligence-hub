@@ -214,7 +214,16 @@ function renderL2(model, projId, slotId) {
           }</p>`
         : ""
     }
-    ${s.gap ? `<p class="gapline">${chip("bad", "gap")} ${esc(s.gap)}</p>` : ""}`;
+    ${s.gap ? `<p class="gapline">${chip("bad", "gap")} ${esc(s.gap)}</p>` : ""}
+    ${
+      // The slot has not declared what it is ABOUT, so its candidates are the
+      // right SHAPE of data and not proven answer keys. The text comes from the
+      // payload - spelling it here would fork the caveat away from the constant
+      // that owns it, and a guard exists to catch exactly that.
+      s.unvetted_caveat
+        ? `<p class="unvetted">${chip("warn", "subject not declared")} ${esc(s.unvetted_caveat)}</p>`
+        : ""
+    }`;
 
   if (!s.scored.length) {
     const proposed = s.candidates.length

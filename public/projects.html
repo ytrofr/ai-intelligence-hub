@@ -11,6 +11,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/css/variables.css" />
+    <link rel="stylesheet" href="/css/favourability.css" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
       body {
@@ -94,16 +95,12 @@
         color: var(--fav, var(--color-text-muted)); white-space: nowrap;
       }
       .chip .g { font-size: 0.9em; }
-      .b-good { --fav: #22c55e; }
-      .b-warn { --fav: #f0b429; }
-      .b-bad  { --fav: #ef4444; }
-      .b-none { --fav: #718096; }
 
       .empty, .closed {
         background: var(--color-surface); border: 1px solid var(--color-border); border-left: 3px solid var(--color-warning);
         border-radius: 8px; padding: var(--spacing-md) var(--spacing-lg); color: var(--color-text-muted); max-width: 82ch;
       }
-      .run, .gapline, .inst, .chips { margin-bottom: var(--spacing-sm); color: var(--color-text-muted); max-width: 86ch; }
+      .run, .gapline, .inst, .chips, .unvetted { margin-bottom: var(--spacing-sm); color: var(--color-text-muted); max-width: 86ch; }
       .caveat { color: var(--color-text-dim); font-size: var(--font-sm); }
 
       form.close {

@@ -61,13 +61,33 @@ test("every chip carries a glyph AND a word, so colour alone never conveys it", 
 });
 
 test("the palette avoids the red/green pair the operator cannot distinguish", () => {
-  const css = fs.readFileSync(path.join(__dirname, "../public/adoption-matrix.html"), "utf8");
+  const css = fs.readFileSync(path.join(__dirname, "../public/css/favourability.css"), "utf8");
   const fav = [...css.matchAll(/--fav:\s*(#[0-9a-f]{6})/gi)].map((m) => m[1].toLowerCase());
   assert.ok(fav.length >= 4, `expected a favourability ramp, found ${fav.length} stops`);
   // #22c55e / #ef4444 are the project's generic success/error tokens: correct
   // everywhere else, wrong here, because this ramp is the whole signal.
   assert.ok(!fav.includes("#22c55e"), "green must not be a favourability stop");
   assert.ok(!fav.includes("#ef4444"), "red must not be a favourability stop");
+});
+
+test("NO page defines its own --fav stops - one ramp, or the guard above is blind", () => {
+  // The ramp used to be inlined in adoption-matrix.html and this test read it
+  // BY FILENAME. That guard could not see a second page inventing its own
+  // palette, and projects.html did exactly that: #22c55e and #ef4444, the one
+  // pair the operator cannot tell apart, on a page whose chips ARE the verdict.
+  const dir = path.join(__dirname, "..", "public");
+  const offenders = [];
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith(".html")) continue;
+    const body = fs.readFileSync(path.join(dir, f), "utf8");
+    if (/--fav:\s*#/.test(body)) offenders.push(f);
+  }
+  assert.deepEqual(offenders, [], "these pages fork the ramp instead of linking /css/favourability.css");
+});
+
+test("CONTROL: the shared ramp file really does define stops - the scan can fire", () => {
+  const css = fs.readFileSync(path.join(__dirname, "../public/css/favourability.css"), "utf8");
+  assert.ok(/--fav:\s*#/.test(css), "if this file had no stops, the offender scan above would pass vacuously");
 });
 
 // --- licence, fail-closed --------------------------------------------------

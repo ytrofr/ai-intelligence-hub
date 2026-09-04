@@ -1,0 +1,21 @@
+/**
+ * The favourability ramp — ONE file, read by every surface that shows a verdict.
+ *
+ * These stops are deliberately NOT the project's generic success/error tokens.
+ * #22c55e and #ef4444 are correct everywhere else and wrong here, because on
+ * these pages the ramp IS the signal and the operator cannot distinguish that
+ * pair. A test asserts neither ever appears as a stop.
+ *
+ * Colour never travels alone either: every chip using these carries a glyph AND
+ * a word, so hue is the third channel rather than the only one.
+ *
+ * Extracted verbatim from adoption-matrix.html, where it was inlined and where
+ * a test read it BY FILENAME - a guard that would have gone green against a
+ * page that no longer had the ramp, and that could not see a second page
+ * inventing its own. One ramp, one file, one test.
+ */
+.b-good { --fav: #2dd4bf; }
+.b-mid  { --fav: #94a3b8; }
+.b-warn { --fav: #f0b429; }
+.b-poor, .b-bad { --fav: #f97316; }
+.b-none { --fav: var(--color-text-dim); }

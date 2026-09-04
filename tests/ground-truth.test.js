@@ -177,7 +177,16 @@ test("the unvetted caveat has ONE source - the page and the digest never write t
 
   const fs = require("fs"), path = require("path");
   const phrase = "the right SHAPE of data";
-  const copies = ["public/ground-truth.html", "modules/weekly-digest.js"].filter((f) =>
+  // Every surface that RENDERS the caveat, not a list frozen when it was written -
+  // a new page spelling it out would otherwise fork the wording away from the
+  // constant, and this guard would stay green for a reason unrelated to the risk.
+  const copies = [
+    "public/ground-truth.html",
+    "modules/weekly-digest.js",
+    "public/js/ground-truth-render.js",
+    "public/js/projects-hub-render.js",
+    "public/projects.html",
+  ].filter((f) =>
     fs.readFileSync(path.join(__dirname, "..", f), "utf8").includes(phrase));
   assert.deepEqual(copies, [], "a renderer is spelling the caveat out instead of reading it");
 });
