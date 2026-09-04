@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Projects — AI Intelligence Hub</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/css/variables.css" />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        background: var(--color-bg);
+        color: var(--color-text);
+        font-family: var(--font-sans);
+        font-size: var(--font-base);
+        line-height: 1.55;
+        padding: var(--spacing-xl) var(--spacing-lg) 4rem;
+      }
+      a { color: var(--color-primary-hover); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+      .wrap { max-width: 1240px; margin: 0 auto; }
+      code { font-family: var(--font-mono); font-size: 0.92em; color: var(--color-text-muted); }
+
+      .head { border-left: 4px solid var(--color-primary); padding-left: var(--spacing-lg); margin-bottom: var(--spacing-lg); }
+      .head .eyebrow {
+        font-family: var(--font-mono); font-size: var(--font-xs); letter-spacing: 0.14em;
+        text-transform: uppercase; color: var(--color-primary-hover);
+      }
+      .head h1 { font-size: 1.6rem; font-weight: 700; margin: 0.15rem 0 0.3rem; }
+      .head p { color: var(--color-text-muted); max-width: 78ch; }
+      .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
+      .navrow { display: flex; gap: var(--spacing-lg); flex-wrap: wrap; margin-bottom: var(--spacing-lg); }
+
+      h2 { font-size: 1.25rem; margin: var(--spacing-lg) 0 var(--spacing-sm); }
+      h3 { font-size: 1rem; margin: var(--spacing-xl) 0 var(--spacing-xs); }
+      h3 .n { font-family: var(--font-mono); color: var(--color-text-dim); font-weight: 400; }
+      .lede { color: var(--color-text-muted); max-width: 82ch; margin-bottom: var(--spacing-md); }
+
+      /* Breadcrumbs ARE the back button: the route carries its own ancestry, so
+         every level is one click up and every view has its own URL. */
+      .crumbs { font-family: var(--font-mono); font-size: var(--font-sm); margin-bottom: var(--spacing-md); }
+      .crumbs .sep { color: var(--color-text-dim); margin: 0 0.4rem; }
+
+      .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: var(--spacing-md); }
+      .pcard {
+        display: block; background: var(--color-surface); border: 1px solid var(--color-border);
+        border-radius: 10px; padding: var(--spacing-md) var(--spacing-lg); color: inherit;
+      }
+      .pcard:hover { border-color: var(--color-border-hover); background: var(--color-surface-hover); text-decoration: none; }
+      .pcard-h b { font-family: var(--font-mono); font-size: var(--font-sm); color: var(--color-primary-hover); display: block; }
+      .pcard-h span { font-size: var(--font-sm); color: var(--color-text-muted); display: block; margin-bottom: var(--spacing-sm); }
+
+      .stats { display: flex; flex-wrap: wrap; gap: var(--spacing-md); }
+      .stats.wide { margin: var(--spacing-md) 0; }
+      .stat b { font-family: var(--font-mono); font-size: 1.15rem; display: block; }
+      .stat span { font-size: var(--font-xs); color: var(--color-text-dim); text-transform: uppercase; letter-spacing: 0.06em; }
+      .stat.b-bad b { color: var(--color-error); }
+      .stat.b-warn b { color: var(--color-warning); }
+      .stat.b-good b { color: var(--color-success); }
+      .stat.b-none b { color: var(--color-text-dim); }
+      .stat.b-mid b { color: var(--color-warning); }
+      .stat.b-poor b { color: var(--color-text-dim); }
+
+      table.t { width: 100%; border-collapse: collapse; margin-bottom: var(--spacing-md); font-size: var(--font-sm); }
+      table.t th {
+        text-align: left; font-size: var(--font-xs); text-transform: uppercase; letter-spacing: 0.08em;
+        color: var(--color-text-dim); border-bottom: 1px solid var(--color-border); padding: 0.4rem 0.6rem;
+      }
+      table.t td { padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--color-border); vertical-align: top; }
+      table.t tr.clickable { cursor: pointer; }
+      table.t tr.clickable:hover td { background: var(--color-surface-hover); }
+      table.t td.k { font-family: var(--font-mono); color: var(--color-text); }
+      table.t td.gap, table.t td.next { color: var(--color-text-muted); }
+      table.rec th { width: 9rem; text-transform: none; letter-spacing: 0; color: var(--color-text-dim); }
+      .muted { color: var(--color-text-dim); }
+
+      .score { text-align: right; font-family: var(--font-mono); }
+      .sn { font-weight: 600; }
+      .sn.b-good { color: var(--color-success); }
+      .sn.b-mid { color: var(--color-warning); }
+      .sn.b-poor { color: var(--color-text-muted); }
+      .sn.b-none { color: var(--color-text-dim); }
+
+      /* The favourability ramp. Every chip carries a glyph AND a word, so hue is
+         never the only channel - the operator cannot rely on it. */
+      .chip {
+        display: inline-flex; align-items: baseline; gap: 0.35rem; font-size: var(--font-xs);
+        padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid var(--fav, var(--color-border));
+        color: var(--fav, var(--color-text-muted)); white-space: nowrap;
+      }
+      .chip .g { font-size: 0.9em; }
+      .b-good { --fav: #22c55e; }
+      .b-warn { --fav: #f0b429; }
+      .b-bad  { --fav: #ef4444; }
+      .b-none { --fav: #718096; }
+
+      .empty, .closed {
+        background: var(--color-surface); border: 1px solid var(--color-border); border-left: 3px solid var(--color-warning);
+        border-radius: 8px; padding: var(--spacing-md) var(--spacing-lg); color: var(--color-text-muted); max-width: 82ch;
+      }
+      .run, .gapline, .inst, .chips { margin-bottom: var(--spacing-sm); color: var(--color-text-muted); max-width: 86ch; }
+      .caveat { color: var(--color-text-dim); font-size: var(--font-sm); }
+
+      form.close {
+        margin-top: var(--spacing-xl); background: var(--color-surface); border: 1px solid var(--color-border);
+        border-radius: 10px; padding: var(--spacing-lg); max-width: 46rem;
+      }
+      form.close label { display: block; margin-bottom: var(--spacing-sm); font-size: var(--font-sm); color: var(--color-text-muted); }
+      form.close input, form.close select {
+        display: block; width: 100%; margin-top: 0.2rem; padding: 0.45rem 0.6rem; border-radius: 6px;
+        background: var(--color-bg); border: 1px solid var(--color-border); color: var(--color-text); font-family: var(--font-sans);
+      }
+      form.close button {
+        margin-top: var(--spacing-sm); padding: 0.45rem 1.1rem; border-radius: 6px; cursor: pointer;
+        background: var(--color-primary); border: none; color: #fff; font-weight: 600;
+      }
+      .formmsg { margin-top: var(--spacing-sm); font-size: var(--font-sm); }
+      .formmsg.bad { color: var(--color-error); }
+      .formmsg.good { color: var(--color-success); }
+
+      footer.prov {
+        margin-top: 3rem; padding-top: var(--spacing-md); border-top: 1px solid var(--color-border);
+        font-family: var(--font-mono); font-size: var(--font-xs); color: var(--color-text-dim);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="navrow">
+        <a class="backlink" href="/">&larr; AI Intelligence Hub</a>
+        <a class="backlink" href="/adoption-matrix.html">Adoption Matrix</a>
+        <a class="backlink" href="/stack.html">Stack Ledger</a>
+        <a class="backlink" href="/ground-truth.html">Ground Truth</a>
+      </div>
+
+      <div class="head">
+        <span class="eyebrow">Projects</span>
+        <h1>What each project needs, and what we have for it</h1>
+        <p>
+          Four levels, one page, one fetch: projects &rarr; slots &rarr; candidates &rarr; the record.
+          Every level has its own URL, and going back is dropping the last part of it. This is the only
+          surface here that can show a <em>need nobody answered</em> &mdash; the matrix, the ledger and
+          the radar are all keyed on the candidate, so a need with no candidate has no row on any of them.
+        </p>
+      </div>
+
+      <main id="stage"><p class="lede">Loading&hellip;</p></main>
+      <footer class="prov" id="prov"></footer>
+    </div>
+
+    <script src="/js/projects-hub-render.js"></script>
+    <script>
+      // The whole tree arrives in one fetch, so drilling in never waits on the
+      // network and no level can disagree with the level above it.
+      let MODEL = null;
+      let GENERATED_AT = null;
+
+      const stage = document.getElementById("stage");
+      const prov = document.getElementById("prov");
+
+      function draw() {
+        if (!MODEL) return;
+        stage.innerHTML = route(MODEL, location.hash);
+        prov.innerHTML = renderFooter(MODEL, GENERATED_AT);
+        window.scrollTo(0, 0);
+      }
+
+      // Rows are clickable but carry their target as data, never as inline JS -
+      // a repo name is third-party text and must never reach an attribute that
+      // gets executed.
+      stage.addEventListener("click", (e) => {
+        const tr = e.target.closest("tr.clickable");
+        if (tr && tr.dataset.href) location.hash = tr.dataset.href;
+      });
+
+      // The close action posts to the EXISTING /api/radar/status, so the
+      // evidence gate is unchanged: it validates before it writes, and a
+      // refusal leaves the row byte-identical. The gate's own message names the
+      // missing field, so it is shown verbatim rather than summarised.
+      stage.addEventListener("submit", async (e) => {
+        const form = e.target.closest("form.close");
+        if (!form) return;
+        e.preventDefault();
+        const msg = form.querySelector(".formmsg");
+        const body = {
+          project: form.dataset.project,
+          repo: form.dataset.repo,
+          status: form.status.value,
+          evidence: form.evidence.value.trim(),
+          lesson: form.lesson.value.trim(),
+        };
+        msg.className = "formmsg";
+        msg.textContent = "Posting to the gate…";
+        try {
+          const res = await fetch("/api/radar/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            msg.className = "formmsg bad";
+            msg.textContent = "REFUSED: " + (data.error || res.status) + " — the row is unchanged.";
+            return;
+          }
+          msg.className = "formmsg good";
+          msg.textContent = "Closed. Reloading the tree…";
+          await load();
+          draw();
+        } catch (err) {
+          msg.className = "formmsg bad";
+          msg.textContent = "Could not reach the gate: " + err.message + " — nothing was written.";
+        }
+      });
+
+      async function load() {
+        const res = await fetch("/api/projects-hub");
+        if (!res.ok) throw new Error("/api/projects-hub returned " + res.status);
+        const data = await res.json();
+        MODEL = { projects: data.projects, population: data.population };
+        GENERATED_AT = data.generated_at;
+      }
+
+      window.addEventListener("hashchange", draw);
+
+      // An honest failure state: the page says what it could not reach, and
+      // never renders a plausible-looking empty tree instead.
+      load()
+        .then(draw)
+        .catch((err) => {
+          stage.innerHTML =
+            '<p class="empty"><span class="chip b-bad"><span class="g">&#10007;</span>no data</span> ' +
+            "Could not load the hub: " +
+            String(err.message).replace(/[<>&]/g, "") +
+            ". Nothing is shown rather than an empty tree that would read as “nothing to adopt”.</p>";
+          prov.textContent = "no live data";
+        });
+    </script>
+  </body>
+</html>
