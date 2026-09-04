@@ -187,10 +187,31 @@ const UI = {
     );
   },
 
-  // Helper: Get project color for discovery badges
+  /**
+   * A stable badge colour for a project, DERIVED from its id rather than
+   * looked up in a table.
+   *
+   * The table this replaces named five projects and silently returned grey for
+   * every other one - so a portfolio of nine rendered four of them identically,
+   * and the page gave no sign that it had run out of colours. Deriving means a
+   * project added tomorrow gets a colour without anyone editing this file.
+   *
+   * The palette deliberately contains no red/green pair: the person reading
+   * these badges cannot tell those two apart, so a generator free to pick any
+   * hue would eventually make two projects indistinguishable to them. Eight
+   * curated hues, chosen to stay apart on that axis.
+   *
+   * With more projects than hues two badges will share a colour. That is
+   * acceptable HERE and only here: the badge prints the project id as its
+   * label, so colour is decoration beside a written name rather than the
+   * channel carrying the meaning.
+   */
   getProjectColor(projectId) {
-    const colors = { apollo: '#1f6feb', atlas: '#2ea043', remotion: '#f78166', hub: '#8b5cf6', guide: '#d97706' };
-    return colors[projectId] || '#6e7681';
+    const PALETTE = ['#1f6feb', '#8b5cf6', '#2dd4bf', '#d97706', '#f97316', '#db2777', '#0891b2', '#94a3b8'];
+    if (!projectId) return '#6e7681';
+    let h = 0;
+    for (let i = 0; i < projectId.length; i++) h = (h * 31 + projectId.charCodeAt(i)) >>> 0;
+    return PALETTE[h % PALETTE.length];
   },
 
   // Show toast notification

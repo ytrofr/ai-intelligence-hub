@@ -1,0 +1,13 @@
+{
+  "_comment": "Companion to example.json. Same schema EXCEPT `topics` is an array of plain strings rather than {id,label,blurb,keywords} objects. Both shapes are legal and both are in use; the route normalizes the string form. This file exists so that the normalizer's regression test can run on a clone with no private config - see tests/radar-topics-shape.test.js.",
+  "project": "example-string-topics",
+  "title": "Example - String Topics",
+  "subtitle": "The older topics shape, kept as a fixture for the normalizer.",
+  "updated": "2026-09-04",
+  "starThreshold": 20000,
+  "verdicts": {},
+  "topics": ["agent-framework", "web-app"],
+  "audit": [
+    { "repo": "example-org/example-tool", "status": "proposed", "why": "an example row" }
+  ]
+}

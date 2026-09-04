@@ -53,7 +53,7 @@ const FIXTURE = {
           row({ repo: "SALT-NLP/Design2Code", kind: "dataset", slot: "apollo/design-fidelity", total: 92 }),
           row({ repo: "NoviScl/Design2Code", slot: "apollo/design-fidelity", total: 44 }),
           row({ repo: "loose/end", slot: null, total: 60 }),
-          row({ repo: "cross/project", slot: "remotion/scene-generation", total: 72 }),
+          row({ repo: "cross/project", slot: "vega/scene-generation", total: 72 }),
           row({ repo: "ghost/slot", slot: "apollo/no-such-slot", total: 12 }),
         ],
       },

@@ -620,7 +620,8 @@ test("the size refusal is nameable, so the near-miss log can say what happened",
 test("CONTROL: the design instrument no longer accepts a plain text corpus", () => {
   // Reads the REAL config, not a fixture: the defect was in the data, and a
   // fixture would have passed while the page kept showing fineweb.
-  const real = new HuggingFaceModule(cfg).loadProjects().projects || [];
+  const real = liveProjectsOrSkip("design instrument");
+  if (!real) return;
   const design = real.flatMap((p) => p.slots || []).find((s) => s.id === "design-fidelity");
   assert.ok(design, "design-fidelity slot missing from config/projects.json");
   assert.equal(
@@ -677,10 +678,32 @@ test("CONTROL: a dataset that DOES pass has no refusal to report", () => {
 // book scans, which is exactly how the fineweb defect survived its own test run.
 // ---------------------------------------------------------------------------
 
+/**
+ * These cells assert on the LIVE config, not on a fixture, and deliberately so:
+ * the defects they guard were in the DATA - a slot declaring a task category
+ * that qualifies every training corpus on the hub to grade a screenshot. A
+ * fixture would have stayed green while the page kept showing the wrong answer
+ * key.
+ *
+ * That makes them unrunnable on a checkout with no config of its own, which is
+ * every clone and every CI run. They must SKIP there, and say so. A silent pass
+ * would be the worse outcome by far: it is the same shape as the defect - an
+ * instrument reporting clean when it never looked.
+ */
+function liveProjectsOrSkip(label) {
+  const f = require("path").join(__dirname, "..", "config", "projects.json");
+  if (!require("fs").existsSync(f)) {
+    console.log(`SKIPPED (${label}): no config/projects.json - this cell asserts on live data, not on a fixture`);
+    return null;
+  }
+  return new HuggingFaceModule(cfg).loadProjects().projects || [];
+}
+
 const realMod = () => new HuggingFaceModule(cfg);
 const ds = (id, tags) => ({ id, tags });
 
 test("a book-scan OCR corpus is no longer offered as an answer key for a screenshot grader", () => {
+  if (!liveProjectsOrSkip("a book-scan OCR corpus is no longe")) return;
   const hits = realMod().matchSlots(
     ds("ieasybooks-org/waqfeya-library",
        ["task_categories:image-to-text", "license:mit", "size_categories:10k<n<100k"]),
@@ -690,6 +713,7 @@ test("a book-scan OCR corpus is no longer offered as an answer key for a screens
 });
 
 test("grade-school maths is no longer offered as an answer key for tool-calling", () => {
+  if (!liveProjectsOrSkip("grade-school maths is no longer of")) return;
   const hits = realMod().matchSlots(
     ds("openai/gsm8k", ["task_categories:text-generation", "license:mit", "size_categories:1k<n<10k"]),
     "dataset"
@@ -698,6 +722,7 @@ test("grade-school maths is no longer offered as an answer key for tool-calling"
 });
 
 test("CONTROL: every answer key we actually use still matches its own slot", () => {
+  if (!liveProjectsOrSkip("CONTROL: every answer key we actua")) return;
   // The vocabulary half of the fix is a hand-written list, and a hand-written list
   // is proven complete only by the cases where it MUST fire. This control caught
   // `halluc` vs `HaluEval` - the corpus spells it with one l - and nothing else
@@ -760,6 +785,7 @@ test("every gate _slotVerdict can emit is rankable in SLOT_MISS_DEPTH", () => {
 });
 
 test("a term appearing in the card PROSE is not a subject claim", () => {
+  if (!liveProjectsOrSkip("a term appearing in the card PROSE")) return;
   // nyu-visionx/VSI-590K, a spatial-reasoning VQA set, was admitted to the
   // screenshot-grading slot because its README carries the link bar
   // "website | paper | github | models" and the gate was reading the card body.

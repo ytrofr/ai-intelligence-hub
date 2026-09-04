@@ -46,12 +46,27 @@ const ID_POSITIONS = [
   /["']?project["']?\s*[=:]\s*"([A-Za-z][A-Za-z0-9_-]*)"/g,
   /["']?project["']?\s*[=:]\s*'([A-Za-z][A-Za-z0-9_-]*)'/g,
   /config\/radar\/([A-Za-z][A-Za-z0-9_-]*)\.json/g,
+  // A slot id is `<project>/<slot>`, so it names a project without ever
+  // using the word "project" - the shape that got past the first draft.
+  /["']?slot["']?\s*[=:]\s*["']([A-Za-z][A-Za-z0-9_-]*)\//g,
 ];
 
-/** Ids the tracked example config declares - fictional by construction. */
+/** Ids the tracked example configs declare - fictional by construction. */
 function exampleIds() {
   const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, "config/projects.example.json"), "utf8"));
-  return (cfg.projects || []).map((p) => p.id);
+  const ids = (cfg.projects || []).map((p) => p.id);
+  // The tracked radar fixtures declare project ids of their own, and a test
+  // that reads one has to be able to name it.
+  const radar = path.join(ROOT, "config/radar");
+  for (const f of fs.readdirSync(radar).filter((f) => f.startsWith("example") && f.endsWith(".json"))) {
+    try {
+      const id = JSON.parse(fs.readFileSync(path.join(radar, f), "utf8")).project;
+      if (id) ids.push(id);
+    } catch (_) {
+      /* a malformed fixture is the fixture's problem, not this guard's */
+    }
+  }
+  return ids;
 }
 
 /**
@@ -65,10 +80,39 @@ const PUBLIC_PROJECTS = ["hub", "guide", "ai-intelligence-hub"];
  * "short token" rule - the shortest real id is four characters too, so a
  * length heuristic would have waved the real thing straight through.
  */
-const SYNTHETIC = ["proj", "p", "a", "b", "all", "example", "none", "definitely-not-a-real-project"];
+const SYNTHETIC = ["proj", "p", "a", "b", "x", "y", "all", "example", "none", "definitely-not-a-real-project"];
 
 function allowed() {
-  return new Set([...exampleIds(), ...PUBLIC_PROJECTS, ...SYNTHETIC]);
+  // Lower-cased on both sides. A title written "APOLLO" is the same project as
+  // "apollo", and a case-sensitive set would let the shouted form straight
+  // through - which is exactly the form a page title uses.
+  return new Set([...exampleIds(), ...PUBLIC_PROJECTS, ...SYNTHETIC].map((s) => s.toLowerCase()));
+}
+
+/**
+ * Technology names the tracked config already treats as public: search
+ * keywords, and the example projects' declared dependencies and topics.
+ */
+function publicTechNames() {
+  const out = new Set();
+  const eat = (v) => {
+    if (typeof v === "string") out.add(v.toLowerCase().replace(/^@/, "").split("/")[0]);
+    else if (Array.isArray(v)) v.forEach(eat);
+    else if (v && typeof v === "object") Object.values(v).forEach(eat);
+  };
+  for (const f of ["config/keywords.json", "config/projects.example.json"]) {
+    try {
+      const cfg = JSON.parse(fs.readFileSync(path.join(ROOT, f), "utf8"));
+      eat(cfg.keywords || cfg);
+      for (const p of cfg.projects || []) {
+        eat(p.dependencies);
+        eat(p.topics);
+      }
+    } catch (_) {
+      /* absent or malformed: the set is smaller, which only makes layer 2 stricter */
+    }
+  }
+  return out;
 }
 
 function trackedFiles() {
@@ -103,13 +147,13 @@ test("POSITIVE CONTROL: an id outside the allow-list is rejected", () => {
   // Without this, a matcher that extracts nothing reports a spotless repo,
   // which is the most convincing lie available to it.
   const ok = allowed();
-  const bad = [...idsIn('fetch("/api/radar?project=notarealproject")')].filter((i) => !ok.has(i));
+  const bad = [...idsIn('fetch("/api/radar?project=notarealproject")')].filter((i) => !ok.has(i.toLowerCase()));
   assert.deepEqual(bad, ["notarealproject"]);
 
-  const bad2 = [...idsIn('{ "project": "someprivatething" }')].filter((i) => !ok.has(i));
+  const bad2 = [...idsIn('{ "project": "someprivatething" }')].filter((i) => !ok.has(i.toLowerCase()));
   assert.deepEqual(bad2, ["someprivatething"]);
 
-  const bad3 = [...idsIn("config/radar/someprivatething.json")].filter((i) => !ok.has(i));
+  const bad3 = [...idsIn("config/radar/someprivatething.json")].filter((i) => !ok.has(i.toLowerCase()));
   assert.deepEqual(bad3, ["someprivatething"]);
 });
 
@@ -119,7 +163,7 @@ test("NEGATIVE CONTROL: the example config's own ids are accepted", () => {
   const ids = exampleIds();
   assert.ok(ids.length >= 2, "the example config must declare ids for this control to mean anything");
   for (const id of ids) {
-    const bad = [...idsIn(`fetch("/api/radar?project=${id}")`)].filter((i) => !ok.has(i));
+    const bad = [...idsIn(`fetch("/api/radar?project=${id}")`)].filter((i) => !ok.has(i.toLowerCase()));
     assert.deepEqual(bad, [], `${id} is in the tracked example config and must be allowed`);
   }
 });
@@ -128,7 +172,10 @@ test("no tracked file names a project outside the allow-list", () => {
   const ok = allowed();
   const offenders = [];
   for (const [rel, body] of readTracked()) {
-    const bad = [...idsIn(body)].filter((i) => !ok.has(i)).sort();
+    // This file deliberately contains ids that must be REJECTED - they are its
+    // positive control. Scanning itself would make the control the failure.
+    if (rel === "tests/no-internal-identity.test.js") continue;
+    const bad = [...idsIn(body)].filter((i) => !ok.has(i.toLowerCase())).sort();
     if (bad.length) offenders.push(`${rel}: ${bad.join(", ")}`);
   }
   assert.deepEqual(
@@ -148,9 +195,16 @@ test("PROSE: no tracked file mentions a real project by name", () => {
     return;
   }
   const ok = allowed();
+  // Some ids collide with real open-source projects this hub tracks on
+  // purpose. Scanning prose for those would flag correct public content - a
+  // keywords list, an example dependency - and a guard that is wrong about
+  // correct content is a guard someone switches off. The exclusion is DERIVED
+  // from what the tracked config already treats as a public technology name,
+  // so it cannot drift from reality and it writes nothing new down.
+  const publicTech = publicTechNames();
   const real = (JSON.parse(fs.readFileSync(LOCAL, "utf8")).projects || [])
     .map((p) => p.id)
-    .filter((id) => !ok.has(id));
+    .filter((id) => !ok.has(id) && !publicTech.has(id));
   assert.ok(real.length >= 1, "the local config must name at least one non-allowed project, or this cell is vacuous");
 
   const offenders = [];

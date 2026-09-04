@@ -56,7 +56,7 @@ function bestScore(rows) {
  *
  * A naive `row.slot.startsWith(project + "/")` loses both edge classes, and
  * both are real today: 9 of 42 candidates carry NO slot, and one apollo row is
- * scored against `remotion/scene-generation`. Dropping either would make the
+ * scored against `vega/scene-generation`. Dropping either would make the
  * tree quietly smaller than the matrix, which is the one failure a tidier page
  * hides best.
  */

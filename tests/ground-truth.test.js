@@ -30,7 +30,7 @@ const PROJECTS = [
               licence_ok: [], ran: [], gap: "HuggingFace cannot supply this" }],
   },
   // A project with NO slots at all. It must still be listed.
-  { id: "remotion", name: "Remotion", slots: [] },
+  { id: "vega", name: "Vega", slots: [] },
 ];
 
 const item = (over = {}) => ({
@@ -50,10 +50,10 @@ const build = (over = {}) =>
 
 test("CONTROL: a project with NO slots is still listed - an absence is a row, not a missing row", () => {
   const { projects } = build();
-  const remotion = projects.find((p) => p.id === "remotion");
-  assert.ok(remotion, "a project with no instruments vanished; the page now looks finished");
-  assert.deepEqual(remotion.slots, []);
-  assert.equal(remotion.counts.slots, 0);
+  const vega = projects.find((p) => p.id === "vega");
+  assert.ok(vega, "a project with no instruments vanished; the page now looks finished");
+  assert.deepEqual(vega.slots, []);
+  assert.equal(vega.counts.slots, 0);
 });
 
 test("a candidate lands under the slot its matched_slots NAMES, not under every slot of the project", () => {

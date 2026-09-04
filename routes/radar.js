@@ -129,7 +129,7 @@ router.get("/", (req, res) => {
 
     // H6: a project's `topics` config is normally an array of {id, label,
     // blurb, keywords} objects, but a bare array of strings is also a shape
-    // some configs use (config/radar/remotion.json: ["video-engine", ...]).
+    // some configs use (config/radar/example-string-topics.json).
     // Every read below expected the object shape and threw on the string one
     // — normalize once here so a topic is always the same shape downstream,
     // never touching the JSON file itself.

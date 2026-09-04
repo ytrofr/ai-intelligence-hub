@@ -219,6 +219,66 @@
       "topics_as_specific": [
         "multi-tenant"
       ]
+    },
+    {
+      "id": "orion",
+      "name": "Orion - Example Chat Agent",
+      "languages": [
+        "python"
+      ],
+      "dependencies": [
+        "fastapi",
+        "anthropic",
+        "httpx",
+        "sqlalchemy"
+      ],
+      "searchQueries": [
+        "multi channel chat agent",
+        "python whatsapp bot"
+      ],
+      "topics": [
+        "agent-framework",
+        "messaging"
+      ]
+    },
+    {
+      "id": "vega",
+      "name": "Vega - Example Video Pipeline",
+      "languages": [
+        "typescript"
+      ],
+      "dependencies": [
+        "react",
+        "ffmpeg-static",
+        "zod"
+      ],
+      "searchQueries": [
+        "programmatic video react",
+        "video generation pipeline"
+      ],
+      "topics": [
+        "video-engineering",
+        "generative-ui"
+      ]
+    },
+    {
+      "id": "lyra",
+      "name": "Lyra - Example Tooling Stack",
+      "languages": [
+        "shell",
+        "python"
+      ],
+      "dependencies": [
+        "ripgrep",
+        "jq"
+      ],
+      "searchQueries": [
+        "developer tooling cli",
+        "agent harness"
+      ],
+      "topics": [
+        "developer-tools"
+      ]
     }
   ],
   "curatedLists": [

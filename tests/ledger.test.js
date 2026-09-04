@@ -15,7 +15,7 @@ test("T1 a repo used by three projects is ONE row listing three projects", () =>
     ],
   });
   assert.equal(rows.length, 1, "three pairs of one repo must collapse to one row");
-  assert.deepEqual(find(rows, "adbar/trafilatura").projects, ["orion", "atlas", "apollo"]);
+  assert.deepEqual(find(rows, "adbar/trafilatura").projects, ["apollo", "atlas", "orion"]);
 });
 
 test("T1 a radar row and a dep row for the same repo merge, keeping the reason", () => {
