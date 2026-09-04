@@ -42,24 +42,112 @@
  * copies of one claim drift - the same reason `matchSlots` and `slotMissReason`
  * share one gate chain and `isCheapRun` is defined as `cheapRunRefusal(...) === null`.
  */
+// funnel() is pure — it takes rows already passed in and does no IO of its
+// own — so requiring it here does not cost this module the "no config, no
+// database" property its own doc comment promises above.
+const { funnel } = require("./ledger");
+
 const UNVETTED_CAVEAT =
   "this slot has not said what it is about - the rows below are the right SHAPE of data, not vetted answer keys";
+
+// H5: a slot's `kind` is data, not code — `dataset` is the legacy spelling
+// for what this page calls `ground-truth` (an answer-key corpus), and an
+// absent kind means the same thing. Everything else must be one of the four
+// live shapes; an unrecognized kind fails CLOSED rather than rendering a
+// slot nobody can classify.
+const KIND_ALIASES = { dataset: "ground-truth", "": "ground-truth" };
+const VALID_KINDS = new Set(["ground-truth", "model", "package", "service", "skill-eval"]);
+
+function normalizeKind(raw, where) {
+  const key = raw || "";
+  const kind = KIND_ALIASES[key] || key;
+  if (!VALID_KINDS.has(kind)) {
+    throw new Error(`ground-truth: ${where} has an unrecognized slot kind "${raw}"`);
+  }
+  return kind;
+}
+
+/**
+ * Fail closed on the config BEFORE it is rendered: every project that has
+ * slots must declare `features[]`, and every slot must name one of them.
+ * This is a separate, explicit gate (not called from inside buildGroundTruth)
+ * so the pure builder stays usable with minimal fixtures in tests — the real
+ * config/projects.json is validated by its callers (the route, the digest)
+ * before they build from it.
+ */
+function validateFeatures(projects = []) {
+  for (const project of projects) {
+    const slots = project.slots || [];
+    if (!slots.length) continue;
+    const features = project.features || [];
+    if (!features.length) {
+      throw new Error(`ground-truth: project "${project.id}" has slots but no features[] declared`);
+    }
+    const ids = new Set(features.map((f) => f && f.id));
+    for (const slot of slots) {
+      if (!slot.feature) {
+        throw new Error(`ground-truth: ${project.id}/${slot.id} declares no feature`);
+      }
+      if (!ids.has(slot.feature)) {
+        throw new Error(
+          `ground-truth: ${project.id}/${slot.id} names unknown feature "${slot.feature}"`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * A ledger row (modules/ledger.js buildLedger output) rendered as a slot
+ * candidate. Ledger rows use their OWN kind vocabulary (repo|dataset|model —
+ * "is this a repo we depend on, an answer-key dataset, or a model"), which is
+ * a different question from the slot's own `kind` and must not be conflated
+ * with it.
+ */
+function ledgerCandidate(row) {
+  return {
+    id: `ledger:${row.kind || "repo"}:${row.repo}`,
+    title: row.repo,
+    repo: row.repo,
+    url: row.repo && row.repo.includes("/") ? `https://github.com/${row.repo}` : "",
+    status: null,
+    why: null,
+    license: null,
+    license_declared: null,
+    gated: null,
+    size_category: null,
+    downloads: 0,
+    source: "ledger",
+    kind: row.kind || "repo",
+    cost_tier: row.cost_tier || null,
+    hardware_fit: row.hardware_fit || null,
+    hardware_mib: Number.isInteger(row.hardware_mib) ? row.hardware_mib : null,
+    state: row.state || null,
+    score_total: row.score_total === undefined ? null : row.score_total,
+    basis: (row.score && row.score.basis) || null,
+  };
+}
 
 /**
  * One slot, as the page and the digest both read it. Extracted from
  * `buildGroundTruth`, which had grown past the 50-line cap in §10 of the plan;
  * the per-slot shape is the seam, and nothing about the row changed.
  */
-function slotRow(slot, candidates) {
+function slotRow(slot, candidates, featuresById = new Map(), where = slot.id) {
   const runs = slot.ran || [];
   // The LAST run, by the order they were recorded. `null` when there are
   // none — an absence, not a zero.
   const last = runs.length ? runs[runs.length - 1] : null;
+  const feature = slot.feature
+    ? featuresById.get(slot.feature) || { id: slot.feature, label: slot.feature }
+    : null;
   return {
     id: slot.id,
     instrument: slot.instrument || "",
     needs: slot.needs || "",
-    kind: slot.kind || "dataset",
+    kind: normalizeKind(slot.kind, where),
+    feature,
+    note: slot.note || null,
     language: slot.language || null,
     // A declared gap is a FINDING — "HF cannot supply this" is knowledge, and
     // it is the reason this slot is allowed to have no candidates.
@@ -96,11 +184,13 @@ function slotRow(slot, candidates) {
   };
 }
 
-function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify = () => "needs-you", refusal = () => null } = {}) {
-  // Index candidates by "project/slot" — the pair a matched_slots entry names.
-  // A project-level topic match is NOT a slot match and must never become one:
-  // that conflation is the whole reason the feed filled with plausible rows that
-  // grade nothing.
+/**
+ * An item-sourced candidate. Index candidates by "project/slot" — the pair a
+ * matched_slots entry names. A project-level topic match is NOT a slot match
+ * and must never become one: that conflation is the whole reason the feed
+ * filled with plausible rows that grade nothing.
+ */
+function indexItemCandidates(items, classify, refusal) {
   const byPair = new Map();
   for (const item of items) {
     const meta = (item && item.metadata) || {};
@@ -111,6 +201,7 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
       byPair.get(key).push({
         id: item.id,
         title: item.title || item.id,
+        repo: item.title || item.id,
         url: item.url || "",
         status: classify(item),
         // WHY it is not runnable, asked of the gate rather than re-derived. A
@@ -122,10 +213,61 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
         gated: meta.gated === undefined ? null : meta.gated,
         size_category: meta.size_category || null,
         downloads: meta.downloads || 0,
+        source: "items",
+        kind: meta.kind || null,
+        // H5: HF items carry none of this — the ledger is the only source for
+        // it. Absent rather than a fabricated value.
+        cost_tier: null,
+        hardware_fit: null,
+        hardware_mib: null,
+        state: null,
+        score_total: null,
+        basis: null,
       });
     }
   }
+  return byPair;
+}
 
+/**
+ * Ledger rows, indexed the same way — by the "project/slot" the row itself
+ * names. A row that names no slot (or a slot on another project) never
+ * becomes a candidate anywhere; it may still be a paid-later PARK.
+ *
+ * A repo scored by TWO projects is one ledger row (modules/ledger.js keys on
+ * the repo), and its top-level `slot` is single-valued — first-authored-wins
+ * across whichever project's radar entry merged first. Reading `row.slot`
+ * alone would show that ONE project's slot and silently drop every other
+ * project's own binding for the same repo, however differently they named
+ * it. `row.per_project[project].slot` is where the others survive, so every
+ * project's own slot is indexed here — using THAT project's own cost/fit/
+ * score/state, never the winning project's.
+ */
+function indexLedgerCandidates(ledgerRows) {
+  const ledgerByPair = new Map();
+  // Repo+kind+slot, so the row's own top-level slot and its echo inside
+  // per_project (the SAME project's data, reached two ways) add one
+  // candidate, not two.
+  const seen = new Set();
+  const add = (slot, candidate) => {
+    if (!slot) return;
+    const dedupeKey = `${slot}::${candidate.repo}::${candidate.kind}`;
+    if (seen.has(dedupeKey)) return;
+    seen.add(dedupeKey);
+    if (!ledgerByPair.has(slot)) ledgerByPair.set(slot, []);
+    ledgerByPair.get(slot).push(candidate);
+  };
+  for (const row of ledgerRows) {
+    if (!row) continue;
+    if (row.slot) add(row.slot, ledgerCandidate(row));
+    for (const fields of Object.values(row.per_project || {})) {
+      if (fields && fields.slot) add(fields.slot, ledgerCandidate({ ...row, ...fields }));
+    }
+  }
+  return ledgerByPair;
+}
+
+function indexNearMisses(nearMisses) {
   const missesByProject = new Map();
   for (const m of nearMisses) {
     if (!m || !m.project) continue;
@@ -139,10 +281,45 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
       seen_at: m.seen_at || null,
     });
   }
+  return missesByProject;
+}
 
-  const out = projects.map((project) => {
-    const slots = (project.slots || []).map((slot) =>
-      slotRow(slot, byPair.get(`${project.id}/${slot.id}`) || []));
+/**
+ * The paid-later PARK list has two sources that never overlap: a ledger row
+ * (a repo/dataset/model, which always has a GitHub-shaped slug) and a slot's
+ * own `paid_later[]` strings (a paid SERVICE with no such slug at all — an
+ * analytics tool, a hosted eval platform). Ledger first, so its authored
+ * `why` reads before the terser per-slot service strings.
+ */
+function collectParkedPaid(projects, ledgerRows) {
+  const slotParkedPaid = [];
+  for (const project of projects) {
+    for (const slot of project.slots || []) {
+      for (const text of slot.paid_later || []) {
+        slotParkedPaid.push({ source: "slot", project: project.id, slot: slot.id, text });
+      }
+    }
+  }
+  const ledgerParkedPaid = ledgerRows
+    .filter((r) => r && r.cost_tier === "paid-later")
+    .map((r) => ({
+      source: "ledger",
+      repo: r.repo,
+      kind: r.kind || "repo",
+      projects: r.projects || [],
+      why: r.why || "",
+    }));
+  return [...ledgerParkedPaid, ...slotParkedPaid];
+}
+
+function buildProjectTree(projects, byPair, ledgerByPair, missesByProject) {
+  return projects.map((project) => {
+    const featuresById = new Map((project.features || []).map((f) => [f && f.id, f]));
+    const slots = (project.slots || []).map((slot) => {
+      const key = `${project.id}/${slot.id}`;
+      const candidates = [...(byPair.get(key) || []), ...(ledgerByPair.get(key) || [])];
+      return slotRow(slot, candidates, featuresById, key);
+    });
     const near_misses = missesByProject.get(project.id) || [];
     return {
       id: project.id,
@@ -158,8 +335,32 @@ function buildGroundTruth({ projects = [], items = [], nearMisses = [], classify
       },
     };
   });
+}
 
-  return { projects: out, counts: countGroundTruth(out) };
+function buildGroundTruth({
+  projects = [],
+  items = [],
+  nearMisses = [],
+  // H5: rows from modules/ledger.js buildLedger(). A row feeds a slot's
+  // candidates when its own `slot` field names "project/slot"; every row
+  // parked at cost_tier "paid-later" also feeds counts.parked_paid, whether
+  // or not it names a slot at all.
+  ledgerRows = [],
+  classify = () => "needs-you",
+  refusal = () => null,
+  now = new Date(),
+} = {}) {
+  const byPair = indexItemCandidates(items, classify, refusal);
+  const ledgerByPair = indexLedgerCandidates(ledgerRows);
+  const missesByProject = indexNearMisses(nearMisses);
+
+  const out = buildProjectTree(projects, byPair, ledgerByPair, missesByProject);
+
+  const counts = countGroundTruth(out);
+  counts.parked_paid = collectParkedPaid(projects, ledgerRows);
+  counts.funnel = funnel(ledgerRows, { weeks: 8, now });
+
+  return { projects: out, counts };
 }
 
 /** Derived from the rendered tree, so a headline cannot outrun its own table. */
@@ -182,7 +383,20 @@ function countGroundTruth(projects = []) {
     runnable: slots.reduce((n, s) => n + s.counts.runnable, 0),
     needs_you: slots.reduce((n, s) => n + s.counts.needs_you, 0),
     near_misses: projects.reduce((n, p) => n + p.near_misses.length, 0),
+    // Per normalized kind, so five ground-truth slots and one skill-eval slot
+    // do not read as "six of the same instrument".
+    by_kind: slots.reduce((acc, s) => {
+      acc[s.kind] = (acc[s.kind] || 0) + 1;
+      return acc;
+    }, {}),
   };
 }
 
-module.exports = { buildGroundTruth, countGroundTruth, UNVETTED_CAVEAT };
+module.exports = {
+  buildGroundTruth,
+  countGroundTruth,
+  validateFeatures,
+  UNVETTED_CAVEAT,
+  KIND_ALIASES,
+  VALID_KINDS,
+};

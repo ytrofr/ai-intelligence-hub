@@ -22,7 +22,9 @@ const router = express.Router();
 const fs = require("fs");
 const path = require("path");
 const db = require("../database/db");
-const { buildGroundTruth } = require("../modules/ground-truth");
+const { buildGroundTruth, validateFeatures } = require("../modules/ground-truth");
+const { buildLedger } = require("../modules/ledger");
+const { readAllRadarRows, readDepRepos } = require("./ledger");
 const HuggingFaceModule = require("../modules/huggingface");
 
 const PROJECTS_FILE = path.join(__dirname, "..", "config", "projects.json");
@@ -67,11 +69,28 @@ function readNearMisses() {
   }
 }
 
+/** Same repo-keyed ledger the /api/ledger route serves, built the same way. */
+function readLedgerRows() {
+  try {
+    const { depRepos } = readDepRepos();
+    return buildLedger({ radarRows: readAllRadarRows(), depRepos }).rows;
+  } catch (err) {
+    console.warn(`[ground-truth] ledger unreadable: ${err.message}`);
+    return [];
+  }
+}
+
 function load() {
+  const projects = readProjects();
+  // Fail closed on the real config BEFORE it is rendered — a slot naming an
+  // undeclared feature, or a project with slots but no features[], must not
+  // reach the page silently.
+  validateFeatures(projects);
   const built = buildGroundTruth({
-    projects: readProjects(),
+    projects,
     items: readItems(),
     nearMisses: readNearMisses(),
+    ledgerRows: readLedgerRows(),
     // "needs-you" is the honest default: anything the cheap-run gate refuses
     // needs the operator to accept terms or rule on a card. The gate itself
     // fails closed, so an unknown lands here rather than in "runnable".

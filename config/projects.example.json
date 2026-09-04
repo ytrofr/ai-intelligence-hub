@@ -53,6 +53,20 @@
               "evidence": "a report path or a PR - never a bare assertion"
             }
           ]
+        },
+        {
+          "id": "example-package-instrument",
+          "instrument": "path/to/the/dependency/health/checker.py",
+          "needs": "one plain sentence: which GitHub repo, imported as a dependency, can grade this instrument",
+          "kind": "package",
+          "licence_ok": [
+            "apache-2.0",
+            "mit"
+          ],
+          "subject_any": [
+            "agent development kit",
+            "adk"
+          ]
         }
       ]
     },

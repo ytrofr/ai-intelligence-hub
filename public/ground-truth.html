@@ -119,6 +119,39 @@
       .misses li { list-style: none; font-size: var(--font-xs); font-family: var(--font-mono); padding: 0.15rem 0; }
       .empty { color: var(--color-text-dim); font-size: var(--font-sm); padding: 0.6rem 0; }
       footer { margin-top: 3rem; color: var(--color-text-dim); font-size: var(--font-xs); }
+
+      /* H5: kind badge, feature grouping, cost/fit markers, the parked-paid
+         list and the funnel strip - all rendered by ground-truth-render.js. */
+      h3.feature {
+        font-size: var(--font-sm); font-weight: 600; color: var(--color-text-muted);
+        margin: var(--spacing-md) 0 0.35rem; padding-top: 0.4rem;
+      }
+      .kindbadge {
+        display: inline-block; font-family: var(--font-mono); font-size: var(--font-xs);
+        border: 1px solid var(--color-border); border-radius: 4px; padding: 0.02rem 0.35rem;
+        margin-inline-end: 0.35rem; color: var(--color-text-muted);
+      }
+      .pill.ledger { border-color: var(--color-text-dim); color: var(--color-text-muted); }
+      /* Shape, never colour alone. */
+      .mk { font-family: var(--font-mono); font-size: var(--font-xs); }
+      .mk.ok { color: var(--color-success, var(--color-primary-hover)); }
+      .mk.warn { color: var(--color-warning); }
+      .mk.bad { color: var(--color-warning); font-weight: 600; }
+
+      .funnelstrip {
+        display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: baseline;
+        font-family: var(--font-mono); font-size: var(--font-xs);
+        color: var(--color-text-muted); margin-bottom: var(--spacing-md);
+      }
+      .funnelstrip .k { text-transform: none; letter-spacing: 0; color: var(--color-text-dim); }
+      .funnelstage {
+        border: 1px solid var(--color-border); border-radius: 999px; padding: 0.05rem 0.5rem;
+      }
+
+      .parked { margin-top: var(--spacing-xl); }
+      .parked h2 { font-size: 1.05rem; font-weight: 600; padding-bottom: 0.35rem; border-bottom: 1px solid var(--color-border); }
+      .parkedlist { list-style: none; margin-top: 0.5rem; }
+      .parkedlist li { font-size: var(--font-sm); padding: 0.3rem 0; border-bottom: 1px solid var(--color-border); }
     </style>
   </head>
   <body>
@@ -135,7 +168,9 @@
       </div>
 
       <div class="counts" id="counts"></div>
+      <div id="funnel"></div>
       <div id="projects"></div>
+      <div id="parked-wrap"></div>
 
       <footer>
         <span id="generated"></span> &middot;
@@ -144,161 +179,14 @@
       </footer>
     </div>
 
+    <script src="/js/ground-truth-render.js"></script>
     <script>
-      const el = (tag, cls, text) => {
-        const n = document.createElement(tag);
-        if (cls) n.className = cls;
-        if (text !== undefined) n.textContent = text;
-        return n;
-      };
-
-      const count = (n, k, warn) => {
-        const d = el("div", warn ? "count gap" : "count");
-        d.append(el("span", "n", String(n)), el("span", "k", k));
-        return d;
-      };
-
-      function renderSlotRow(slot) {
-        const tr = el("tr");
-
-        // Shape first: ran / never / declared gap. Readable without colour.
-        const ranAtAll = slot.runs > 0;
-        const markCls = ranAtAll ? "mark ran" : slot.gap ? "mark gapmark" : "mark never";
-        const markTxt = ranAtAll ? "●" : slot.gap ? "—" : "◇";
-        const tdMark = el("td");
-        tdMark.append(el("span", markCls, markTxt));
-        tr.append(tdMark);
-
-        tr.append(el("td", null, slot.id));
-        tr.append(el("td", "mono", slot.instrument || "—"));
-
-        const tdRan = el("td");
-        if (slot.last_ran) {
-          tdRan.append(el("span", "number", slot.last_ran.number || "ran"));
-          const ref = [slot.last_ran.reference, slot.last_ran.n ? `n=${slot.last_ran.n}` : null,
-                       slot.last_ran.at]
-            .filter(Boolean)
-            .join(" · ");
-          if (ref) tdRan.append(el("span", "caveat", ref));
-          // The caveat travels with the number, always. It is what stops the
-          // number being quoted as something it does not support.
-          if (slot.last_ran.caveat) tdRan.append(el("span", "caveat", slot.last_ran.caveat));
-        } else if (slot.gap) {
-          tdRan.append(el("span", "gaptext", slot.gap));
-        } else {
-          tdRan.append(el("span", "never", "never run"));
-        }
-        tr.append(tdRan);
-
-        const tdC = el("td");
-        if (!slot.candidates.length) {
-          tdC.append(el("span", "dim", "—"));
-        } else {
-          // A candidate under a slot that never said what it is ABOUT cleared a
-          // SHAPE gate only, and HuggingFace's task category is a shape signal:
-          // `image-to-text` covers OCR and captioning as well as screenshot->code.
-          // Measured 2026-09-03, before the subject gate: 22 of 23 candidates
-          // could not grade the instrument they were filed under. Saying so is
-          // the difference between a shortlist and an answer.
-          if (!slot.subject_declared) {
-            tdC.append(el("span", "unvetted", slot.unvetted_caveat));
-          }
-          for (const c of slot.candidates.slice(0, 6)) {
-            const line = el("span", "cand");
-            const a = el("a", null, c.title);
-            a.href = c.url;
-            a.target = "_blank";
-            a.rel = "noopener";
-            line.append(
-              el("span", c.status === "runnable" ? "pill runnable" : "pill needs",
-                 c.status === "runnable" ? "runs" : "asks you"),
-              document.createTextNode(" "),
-              a
-            );
-            // The reason comes from the gate itself, never re-derived here.
-            if (c.why) line.append(el("span", "caveat", c.why));
-            tdC.append(line);
-          }
-          if (slot.candidates.length > 6) {
-            tdC.append(el("span", "dim", `+${slot.candidates.length - 6} more`));
-          }
-        }
-        tr.append(tdC);
-        return tr;
-      }
-
-      function renderProject(p) {
-        const sec = el("section", "proj");
-        const h = el("h2");
-        h.append(document.createTextNode(p.name), el("span", "id", p.id));
-        sec.append(h);
-
-        if (!p.slots.length) {
-          // A project with no instruments declared is itself the finding.
-          sec.append(el("p", "empty", "No instrument declared for this project yet."));
-        } else {
-          const wrap = el("div", "tablewrap");
-          const table = el("table");
-          const cg = el("colgroup");
-          for (const c of ["c-mark", "c-slot", "c-inst", "c-ran", "c-cand"]) cg.append(el("col", c));
-          table.append(cg);
-          const thead = el("thead");
-          const htr = el("tr");
-          for (const t of ["", "Slot", "Instrument", "Last run", "Candidates"]) htr.append(el("th", null, t));
-          thead.append(htr);
-          table.append(thead);
-          const tb = el("tbody");
-          for (const s of p.slots) tb.append(renderSlotRow(s));
-          table.append(tb);
-          wrap.append(table);
-          sec.append(wrap);
-        }
-
-        if (p.near_misses.length) {
-          const m = el("div", "misses");
-          m.append(el("h3", null, `Near misses (${p.near_misses.length})`));
-          m.append(el("p", "why",
-            "Matched this project but no instrument. Not a defect - this is the corpus for the next slot, and the reason names the gate that refused it."));
-          const ul = el("ul");
-          for (const n of p.near_misses.slice(0, 10)) {
-            const li = el("li");
-            const a = el("a", null, n.title);
-            a.href = n.url;
-            a.target = "_blank";
-            a.rel = "noopener";
-            li.append(a, document.createTextNode(` — ${n.reason} (${n.kind})`));
-            ul.append(li);
-          }
-          m.append(ul);
-          sec.append(m);
-        }
-        return sec;
-      }
-
       fetch("/api/ground-truth")
         .then((r) => r.json())
-        .then((data) => {
-          const c = data.counts || {};
-          const counts = document.getElementById("counts");
-          counts.append(
-            count(c.slots || 0, "instruments"),
-            count(c.slots_with_a_run || 0, "have a number"),
-            count(c.slots_never_run || 0, "never checked", (c.slots_never_run || 0) > 0),
-            count(c.slots_recording_a_gap || 0, "recorded gap"),
-            count(c.candidates_unvetted || 0, "shape-only, unvetted", (c.candidates_unvetted || 0) > 0),
-            count(c.runnable || 0, "runs without asking"),
-            count(c.needs_you || 0, "asks you first", (c.needs_you || 0) > 0),
-            count(c.near_misses || 0, "near misses")
-          );
-          const box = document.getElementById("projects");
-          for (const p of data.projects || []) box.append(renderProject(p));
-          document.getElementById("generated").textContent =
-            "generated " + (data.generated_at || "").replace("T", " ").slice(0, 19) + " UTC";
-        })
+        .then((data) => window.GroundTruthRender.render(data))
         .catch((err) => {
-          document.getElementById("projects").append(
-            el("p", "empty", "Could not load /api/ground-truth: " + err.message)
-          );
+          document.getElementById("projects").textContent =
+            "Could not load /api/ground-truth: " + err.message;
         });
     </script>
   </body>
