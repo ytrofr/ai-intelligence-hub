@@ -118,19 +118,29 @@ router.get("/", (req, res) => {
     const sortRepos = (a, b) =>
       (VERDICT_RANK[a.verdict] ?? 9) - (VERDICT_RANK[b.verdict] ?? 9) || (b.stars || 0) - (a.stars || 0);
 
-    const topics = (config.topics || []).map((topic) => {
+    // H6: a project's `topics` config is normally an array of {id, label,
+    // blurb, keywords} objects, but a bare array of strings is also a shape
+    // some configs use (config/radar/remotion.json: ["video-engine", ...]).
+    // Every read below expected the object shape and threw on the string one
+    // — normalize once here so a topic is always the same shape downstream,
+    // never touching the JSON file itself.
+    const topicDefs = (config.topics || []).map((t) =>
+      typeof t === "string" ? { id: t, label: t, blurb: "", keywords: [] } : { blurb: "", keywords: [], ...t },
+    );
+
+    const topics = topicDefs.map((topic) => {
       const repos = auditedRepos.filter((r) => r.topic === topic.id).sort(sortRepos);
       return { id: topic.id, label: topic.label, blurb: topic.blurb, count: repos.length,
         top: repos.filter((r) => r.tier === "top"), sub: repos.filter((r) => r.tier === "sub") };
     });
-    const knownTopics = new Set((config.topics || []).map((t) => t.id));
+    const knownTopics = new Set(topicDefs.map((t) => t.id));
     const uncategorized = auditedRepos.filter((r) => !knownTopics.has(r.topic)).sort(sortRepos);
     if (uncategorized.length) topics.push({ id: "general", label: "General", blurb: "", count: uncategorized.length,
       top: uncategorized.filter((r) => r.tier === "top"), sub: uncategorized.filter((r) => r.tier === "sub") });
 
     // Uncurated high-star repos matching any topic keyword — review queue
     const curatedTitles = new Set(config.audit.map((a) => a.repo));
-    const keywords = (config.topics || []).flatMap((t) => t.keywords.map((k) => ({ topic: t.id, kw: k.toLowerCase() })));
+    const keywords = topicDefs.flatMap((t) => t.keywords.map((k) => ({ topic: t.id, kw: k.toLowerCase() })));
     const highStar = db.prepare(`
         SELECT title, MAX(stars) AS stars, MIN(url) AS url, MAX(description) AS description
         FROM items WHERE stars >= ? AND source LIKE 'github%' GROUP BY title ORDER BY stars DESC

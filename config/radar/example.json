@@ -27,6 +27,31 @@
       "project": "example",
       "added_at": "2026-08-16T00:00:00.000Z",
       "updated_at": "2026-08-16T00:00:00.000Z"
+    },
+    {
+      "repo": "owner/eval-dataset",
+      "topic": "agents",
+      "verdict": "WATCH",
+      "status": "accepted",
+      "why": "H3 example row — every optional adoption field filled in. kind marks this as a dataset (not a dependency), so it never gets treated as one in the ledger.",
+      "project": "example",
+      "kind": "dataset",
+      "cost_tier": "free",
+      "hardware_fit": "fits-cpu",
+      "hardware_mib": 512,
+      "slot": "example/screenshot-eval",
+      "features": ["ocr", "captioning"],
+      "score": {
+        "effort": 2,
+        "effect": 4,
+        "time": 2,
+        "impact": 4,
+        "risk": 2,
+        "basis": "estimated",
+        "note": "Small corpus, no run yet — revisit once we have a measured pass."
+      },
+      "added_at": "2026-08-16T00:00:00.000Z",
+      "updated_at": "2026-08-16T00:00:00.000Z"
     }
   ]
 }

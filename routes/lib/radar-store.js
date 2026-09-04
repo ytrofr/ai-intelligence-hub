@@ -3,6 +3,20 @@
  * Row: { repo, topic, verdict: ADOPT|WATCH|SKIP, status: proposed|accepted|done|rejected,
  *        why, project, added_at, updated_at }
  * Hand-curated (Phase B dossiers fill it); writes are atomic (tmp + rename).
+ *
+ * Optional adoption fields (H3, all fail-closed, all absent-by-default so a
+ * legacy row never gains a key it never had):
+ *   kind          repo|dataset|model — an answer-key dataset and a dependency
+ *                 repo can share a slug, so this cannot be inferred (see ledger.js)
+ *   cost_tier     free|free-tier|paid-later
+ *   hardware_fit  fits-gpu|fits-cpu|too-big-here|unmeasured
+ *   hardware_mib  non-negative integer, paired with hardware_fit
+ *   slot          "project/slot-name" — which ground-truth slot this feeds
+ *   features      array of non-empty strings, deduped, order preserved
+ *   score         { effort, effect, time, impact, risk: 1-5, basis: estimated|
+ *                 measured, note }. ALL of it or none — a partial score is
+ *                 refused rather than stored as zeros. basis "measured" needs
+ *                 non-empty evidence (this call's or the row's own).
  */
 
 const fs = require("fs");
@@ -40,6 +54,94 @@ const EYEBALLED_RE = /^(adopt|reject|not-yet)\s+(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)$/i
 // a `reject` verdict is not a bookkeeping slip; it is the operator's answer being
 // overridden by the session that asked the question.
 const VERDICT_FOR = { done: "adopt", rejected: "reject" };
+
+// H3 adoption fields — see the module doc comment above for what each means.
+const KINDS = ["repo", "dataset", "model"];
+const COST_TIERS = ["free", "free-tier", "paid-later"];
+const HARDWARE_FITS = ["fits-gpu", "fits-cpu", "too-big-here", "unmeasured"];
+const SCORE_BASES = ["estimated", "measured"];
+const SCORE_DIMS = ["effort", "effect", "time", "impact", "risk"];
+const SLOT_RE = /^[a-z0-9-]+\/[a-z0-9-]+$/;
+
+const isInt1to5 = (v) => Number.isInteger(v) && v >= 1 && v <= 5;
+
+const enumField = (value, allowed, name) => {
+  if (value === undefined) return undefined;
+  if (!allowed.includes(value)) throw new Error(`${name} must be one of ${allowed.join("|")} — got "${value}"`);
+  return value;
+};
+
+const hardwareMibField = (value) => {
+  if (value === undefined) return undefined;
+  if (!Number.isInteger(value) || value < 0) throw new Error(`hardware_mib must be a non-negative integer — got ${value}`);
+  return value;
+};
+
+const slotField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !SLOT_RE.test(value)) {
+    throw new Error(`slot must be "project/slot-name" (lowercase, digits, hyphens) — got "${value}"`);
+  }
+  return value;
+};
+
+const featuresField = (value) => {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) throw new Error("features must be an array of non-empty strings");
+  const seen = new Set();
+  const out = [];
+  for (const f of value) {
+    if (typeof f !== "string" || !f.trim()) throw new Error("features must be non-empty strings");
+    if (!seen.has(f)) {
+      seen.add(f);
+      out.push(f);
+    }
+  }
+  return out;
+};
+
+// A partial score is refused rather than stored as zeros — see the module doc.
+// `evidenceText` is what the row will carry once this write lands (this call's
+// evidence, falling back to the row's own) — the only thing "measured" may rest on.
+const scoreField = (value, evidenceText) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error("score must be an object with effort, effect, time, impact, risk, basis, note");
+  }
+  const out = {};
+  for (const dim of SCORE_DIMS) {
+    if (!isInt1to5(value[dim])) throw new Error(`score.${dim} must be an integer 1-5 — got ${JSON.stringify(value[dim])}`);
+    out[dim] = value[dim];
+  }
+  out.basis = enumField(value.basis, SCORE_BASES, "score.basis");
+  if (out.basis === undefined) throw new Error(`score.basis must be one of ${SCORE_BASES.join("|")}`);
+  const note = typeof value.note === "string" ? value.note.trim() : "";
+  if (!note) throw new Error("score.note is required — the reasoning behind the numbers, never blank");
+  out.note = note;
+  if (out.basis === "measured" && !evidenceText) {
+    throw new Error('score.basis "measured" needs evidence — set evidence on this row first (this call\'s or already on the row)');
+  }
+  return out;
+};
+
+/**
+ * Validate the H3 optional fields on an upsertRow input. Returns only the keys
+ * that were present and valid; an absent key comes back `undefined` so the
+ * caller's `??` merge leaves the row untouched. Throws on the first invalid
+ * value — nothing is written before this runs.
+ */
+function adoptionFields(input, existingEvidence) {
+  const evidenceText = (typeof input.evidence === "string" ? input.evidence.trim() : "") || existingEvidence || "";
+  return {
+    kind: enumField(input.kind, KINDS, "kind"),
+    cost_tier: enumField(input.cost_tier, COST_TIERS, "cost_tier"),
+    hardware_fit: enumField(input.hardware_fit, HARDWARE_FITS, "hardware_fit"),
+    hardware_mib: hardwareMibField(input.hardware_mib),
+    slot: slotField(input.slot),
+    features: featuresField(input.features),
+    score: scoreField(input.score, evidenceText),
+  };
+}
 
 class RadarStore {
   constructor(dir) {
@@ -236,6 +338,9 @@ class RadarStore {
     const cfg = this.load(project);
     const now = new Date().toISOString();
     let row = cfg.audit.find((r) => r.repo === input.repo);
+    // Validated BEFORE anything is written — a refusal must leave the row (or a
+    // not-yet-created row) exactly as it was, same discipline as setStatus.
+    const f = adoptionFields(input, row && row.evidence);
     if (row) {
       Object.assign(row, {
         topic: input.topic ?? row.topic,
@@ -244,12 +349,21 @@ class RadarStore {
         outcome: input.outcome ?? row.outcome,
         evidence: input.evidence ?? row.evidence,
         lesson: input.lesson ?? row.lesson,
+        kind: f.kind ?? row.kind,
+        cost_tier: f.cost_tier ?? row.cost_tier,
+        hardware_fit: f.hardware_fit ?? row.hardware_fit,
+        hardware_mib: f.hardware_mib ?? row.hardware_mib,
+        slot: f.slot ?? row.slot,
+        features: f.features ?? row.features,
+        score: f.score ?? row.score,
         updated_at: now,
       });
     } else {
       row = {
         repo: input.repo, topic: input.topic || "general", verdict: input.verdict, status: "proposed",
         why: input.why || "", outcome: input.outcome || "", evidence: input.evidence || "", lesson: input.lesson || "",
+        kind: f.kind, cost_tier: f.cost_tier, hardware_fit: f.hardware_fit, hardware_mib: f.hardware_mib,
+        slot: f.slot, features: f.features, score: f.score,
         project, added_at: now, updated_at: now,
       };
       cfg.audit.push(row);
