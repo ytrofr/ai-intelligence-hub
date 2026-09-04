@@ -9,6 +9,12 @@
  *   kind          repo|dataset|model — an answer-key dataset and a dependency
  *                 repo can share a slug, so this cannot be inferred (see ledger.js)
  *   cost_tier     free|free-tier|paid-later
+ *   licence       the licence as READ from the artifact (SPDX id, or a short
+ *                 phrase when SPDX cannot express it: "Apache-2.0 + src/pro
+ *                 carve-out"). Free text on purpose - GitHub answers
+ *                 NOASSERTION for every source-available licence, and
+ *                 flattening those to one enum is what let a row read
+ *                 "cost: free" above a licence that forbids the use.
  *   hardware_fit  fits-gpu|fits-cpu|too-big-here|unmeasured
  *   hardware_mib  non-negative integer, paired with hardware_fit
  *   slot          "project/slot-name" — which ground-truth slot this feeds
@@ -77,6 +83,18 @@ const hardwareMibField = (value) => {
   return value;
 };
 
+/** Read from the artifact, never inferred - so it is free text, bounded and
+ * trimmed. An empty string is refused: "we did not look" must stay
+ * distinguishable from "it has no licence", which is itself a finding. */
+const LICENCE_MAX = 120;
+const licenceField = (value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== "string" || !value.trim()) throw new Error("licence must be a non-empty string - omit the field if it was never read");
+  const out = value.trim();
+  if (out.length > LICENCE_MAX) throw new Error(`licence must be at most ${LICENCE_MAX} chars - got ${out.length}`);
+  return out;
+};
+
 const slotField = (value) => {
   if (value === undefined) return undefined;
   if (typeof value !== "string" || !SLOT_RE.test(value)) {
@@ -135,6 +153,7 @@ function adoptionFields(input, existingEvidence) {
   return {
     kind: enumField(input.kind, KINDS, "kind"),
     cost_tier: enumField(input.cost_tier, COST_TIERS, "cost_tier"),
+    licence: licenceField(input.licence),
     hardware_fit: enumField(input.hardware_fit, HARDWARE_FITS, "hardware_fit"),
     hardware_mib: hardwareMibField(input.hardware_mib),
     slot: slotField(input.slot),
@@ -351,6 +370,7 @@ class RadarStore {
         lesson: input.lesson ?? row.lesson,
         kind: f.kind ?? row.kind,
         cost_tier: f.cost_tier ?? row.cost_tier,
+        licence: f.licence ?? row.licence,
         hardware_fit: f.hardware_fit ?? row.hardware_fit,
         hardware_mib: f.hardware_mib ?? row.hardware_mib,
         slot: f.slot ?? row.slot,
@@ -362,7 +382,8 @@ class RadarStore {
       row = {
         repo: input.repo, topic: input.topic || "general", verdict: input.verdict, status: "proposed",
         why: input.why || "", outcome: input.outcome || "", evidence: input.evidence || "", lesson: input.lesson || "",
-        kind: f.kind, cost_tier: f.cost_tier, hardware_fit: f.hardware_fit, hardware_mib: f.hardware_mib,
+        kind: f.kind, cost_tier: f.cost_tier, licence: f.licence,
+        hardware_fit: f.hardware_fit, hardware_mib: f.hardware_mib,
         slot: f.slot, features: f.features, score: f.score,
         project, added_at: now, updated_at: now,
       };

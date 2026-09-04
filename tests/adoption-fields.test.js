@@ -65,6 +65,40 @@ test("upsertRow REFUSES an invalid cost_tier", () => {
   assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", cost_tier: "expensive" }), /cost_tier/i);
 });
 
+// --- licence ---------------------------------------------------------------
+
+test("upsertRow accepts a licence read from the artifact (positive control)", () => {
+  const s = tmpStore();
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: "Apache-2.0" });
+  assert.equal(row.licence, "Apache-2.0");
+});
+
+test("licence keeps a phrase SPDX cannot express - the carve-out IS the finding", () => {
+  const s = tmpStore();
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: "  Apache-2.0 + src/pro carve-out  " });
+  assert.equal(row.licence, "Apache-2.0 + src/pro carve-out", "trimmed, not reshaped");
+});
+
+test("upsertRow REFUSES an empty licence - never-read must stay distinct from no-licence", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: "   " }), /licence/i);
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: 42 }), /licence/i);
+});
+
+test("upsertRow REFUSES an over-long licence", () => {
+  const s = tmpStore();
+  assert.throws(() => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: "x".repeat(121) }), /licence/i);
+});
+
+test("omitting licence leaves an existing one alone, and never invents one", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", licence: "MIT" });
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT" });
+  assert.equal(row.licence, "MIT");
+  const fresh = s.upsertRow("apollo", { repo: "c/d", verdict: "WATCH" });
+  assert.equal(fresh.licence, undefined, "a row nobody read a licence for must not gain the key");
+});
+
 // --- hardware_fit / hardware_mib ------------------------------------------
 
 test("upsertRow accepts hardware_fit + hardware_mib (positive control)", () => {

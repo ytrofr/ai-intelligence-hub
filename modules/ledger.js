@@ -30,7 +30,7 @@
  * a blank, because it is indistinguishable from a real one and gets quoted back
  * as fact.
  *
- * H3 adoption fields (kind, cost_tier, hardware_fit, hardware_mib, slot,
+ * H3 adoption fields (kind, cost_tier, licence, hardware_fit, hardware_mib, slot,
  * features, score — see routes/lib/radar-store.js for what each means) carry
  * through from radarRows the same way `why` does: first authored value wins,
  * never overwritten by a later row for the same repo. Two derived fields ride
@@ -48,7 +48,7 @@
  * adoption matrix, the ground-truth board) has no way to tell. `per_project`
  * is where the loser's own fields survive: every radar row that carries any
  * H3 field is ALSO recorded, verbatim, under `row.per_project[r.project]` —
- * `{ slot, features, score, cost_tier, hardware_fit, hardware_mib, status,
+ * `{ slot, features, score, cost_tier, licence, hardware_fit, hardware_mib, status,
  * evidence, pair, state, score_total }` — so a reader building a candidate
  * for a SPECIFIC project can read that project's own view instead of
  * whichever project happened to be authored (or alphabetized) first.
@@ -115,6 +115,7 @@ function hasAnyH3Field(r) {
     (Array.isArray(r.features) && r.features.length > 0) ||
     !!(r.score && typeof r.score === "object") ||
     hasText(r.cost_tier) ||
+    hasText(r.licence) ||
     hasText(r.hardware_fit) ||
     Number.isInteger(r.hardware_mib)
   );
@@ -135,6 +136,7 @@ function buildPerProjectEntry(r) {
     features: Array.isArray(r.features) ? r.features : [],
     score,
     cost_tier: text(r.cost_tier),
+    licence: text(r.licence),
     hardware_fit: text(r.hardware_fit),
     hardware_mib: Number.isInteger(r.hardware_mib) ? r.hardware_mib : null,
     status,
@@ -193,6 +195,7 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
         pair: "",
         eyeballed: "",
         cost_tier: "",
+        licence: "",
         hardware_fit: "",
         hardware_mib: null,
         slot: "",
@@ -237,6 +240,7 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     // repeated here: it is already fixed by the map key (keyFor includes it), so
     // every row sharing this key was authored with the same kind by construction.
     if (hasText(r.cost_tier) && !hasText(row.cost_tier)) row.cost_tier = text(r.cost_tier);
+    if (hasText(r.licence) && !hasText(row.licence)) row.licence = text(r.licence);
     if (hasText(r.hardware_fit) && !hasText(row.hardware_fit)) row.hardware_fit = text(r.hardware_fit);
     if (Number.isInteger(r.hardware_mib) && row.hardware_mib === null) row.hardware_mib = r.hardware_mib;
     if (hasText(r.slot) && !hasText(row.slot)) row.slot = text(r.slot);

@@ -19,6 +19,7 @@
  */
 
 const { scoreTotal } = require("./ledger");
+const { PERMISSIVE_LICENSES } = require("./slot-gate");
 
 const SCORE_DIMS = ["effort", "effect", "time", "impact", "risk"];
 const PAID_LATER = "paid-later";
@@ -105,6 +106,7 @@ function projectFields(ledgerRow, projectId) {
     features: ledgerRow.features,
     score: ledgerRow.score,
     cost_tier: ledgerRow.cost_tier,
+    licence: ledgerRow.licence,
     hardware_fit: ledgerRow.hardware_fit,
     hardware_mib: ledgerRow.hardware_mib,
     status: ledgerRow.status,
@@ -113,6 +115,20 @@ function projectFields(ledgerRow, projectId) {
     state: ledgerRow.state,
     score_total: ledgerRow.score_total,
   };
+}
+
+/**
+ * Three states, never two. `permissive` is the ALLOWLIST hit (slot-gate.js owns
+ * the list, so the matrix and the cheap-run gate can never disagree about what
+ * is safe); `restricted` is a licence we DID read and could not clear -
+ * source-available, a per-directory carve-out, a non-commercial clause;
+ * `unknown` is one nobody has read yet. Only the first is favourable, and an
+ * unrecognised string lands on `restricted` rather than passing by default.
+ */
+function licenceClass(licence) {
+  const t = typeof licence === "string" ? licence.trim().toLowerCase() : "";
+  if (!t) return "unknown";
+  return PERMISSIVE_LICENSES.has(t) ? "permissive" : "restricted";
 }
 
 /** One ledger row, attributed to one project, as a matrix candidate row. */
@@ -132,6 +148,8 @@ function buildRow(ledgerRow, projectId, project, counters) {
     features: resolveFeatures(fields && fields.features, project, counters),
     slot: (fields && fields.slot) || "",
     cost_tier: (fields && fields.cost_tier) || "",
+    licence: (fields && fields.licence) || "",
+    licence_class: licenceClass(fields && fields.licence),
     hardware_fit: (fields && fields.hardware_fit) || "",
     hardware_mib: fields && Number.isInteger(fields.hardware_mib) ? fields.hardware_mib : null,
     state,
@@ -243,6 +261,10 @@ function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
       unscored: allUnscored.length,
       measured: allScored.filter((r) => r.basis === "measured").length,
       estimated: allScored.filter((r) => r.basis === "estimated").length,
+      // Licence is measured per CANDIDATE row, not per repo: the same repo can
+      // be a candidate for two projects and each has to clear it separately.
+      licence_read: candidates.filter((r) => r.licence_class !== "unknown").length,
+      licence_restricted: candidates.filter((r) => r.licence_class === "restricted").length,
       undeclared_features: counters.undeclared,
       by_project: byProject,
     },
@@ -253,4 +275,4 @@ function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
   };
 }
 
-module.exports = { buildMatrix, isMatrixEligible };
+module.exports = { buildMatrix, isMatrixEligible, licenceClass };
