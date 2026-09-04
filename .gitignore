@@ -52,3 +52,4 @@ CLAUDE.md
 dist/
 dist-preview/
 web/node_modules/
+*.tsbuildinfo
