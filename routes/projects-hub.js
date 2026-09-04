@@ -81,7 +81,7 @@ function load(project) {
   // view. A denominator that moves with the filter is not a denominator.
   const matrix = buildMatrix({ ledgerRows, projects, project: null });
 
-  const hub = buildHub({ groundTruth, matrix, ledgerCounts, now: Date.now() });
+  const hub = buildHub({ groundTruth, matrix, ledgerCounts, ledgerRows, now: Date.now() });
 
   if (project) {
     const one = hub.projects.find((p) => p.id === project);

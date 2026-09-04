@@ -261,3 +261,48 @@ test("partitionRows and slotState are exported so the page cannot re-implement t
   assert.equal(slotState([], [{}]), "unscored");
   assert.equal(slotState([{}], []), "scored");
 });
+
+// --- cross-project adoptions ----------------------------------------------
+
+const { sharedAdoptions } = require("../modules/projects-hub");
+
+test("a repo TWO projects adopted is shared; one adopter is not", () => {
+  const rows = [
+    { repo: "a/two", per_project: { apollo: { state: "done" }, cc: { state: "accepted" } } },
+    { repo: "b/one", per_project: { apollo: { state: "done" }, cc: { state: "proposed" } } },
+  ];
+  assert.deepEqual(sharedAdoptions(rows).map((r) => r.repo), ["a/two"]);
+});
+
+test("`in-use` is NOT an adoption - a resolved manifest package was nobody's decision", () => {
+  const rows = [{ repo: "x/dep", per_project: { apollo: { state: "in-use" }, cc: { state: "in-use" } } }];
+  assert.deepEqual(sharedAdoptions(rows), [], "two dependants are not two adopters");
+});
+
+test("ACCEPTING TWIN: the same repo with two real adoptions IS shared", () => {
+  const rows = [{ repo: "x/dep", per_project: { apollo: { state: "done-unseen" }, cc: { state: "trial" } } }];
+  assert.equal(sharedAdoptions(rows).length, 1);
+});
+
+test("it reads each project's OWN state, never the merged row's", () => {
+  // first-authored-wins means row.state belongs to whichever project wrote
+  // first; counting on it would credit `cc` with apollo's adoption.
+  const rows = [{ repo: "m/erged", state: "done", per_project: { apollo: { state: "done" }, cc: { state: "rejected" } } }];
+  assert.deepEqual(sharedAdoptions(rows), [], "the merged state must not create a phantom adopter");
+});
+
+test("adopters are sorted, and the list is ordered by how many share it", () => {
+  const rows = [
+    { repo: "b/two", per_project: { z: { state: "done" }, a: { state: "done" } } },
+    { repo: "a/three", per_project: { c: { state: "done" }, a: { state: "done" }, b: { state: "done" } } },
+  ];
+  const out = sharedAdoptions(rows);
+  assert.deepEqual(out.map((r) => r.repo), ["a/three", "b/two"], "most-shared first");
+  assert.deepEqual(out[0].projects, ["a", "b", "c"], "adopters sorted, so the row is stable");
+});
+
+test("CONTROL: no rows, and a row with no per_project, both yield nothing and do not throw", () => {
+  assert.deepEqual(sharedAdoptions([]), []);
+  assert.deepEqual(sharedAdoptions(), []);
+  assert.deepEqual(sharedAdoptions([{ repo: "x/y" }]), []);
+});

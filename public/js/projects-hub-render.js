@@ -131,7 +131,37 @@ function renderL0(model) {
     <em>scored</em>; the extra ones hold candidates nobody has rated. Either number is the
     thing no other page here can show you, because they are all keyed on the candidate, and
     a need with no candidate has no row.</p>
-    <div class="pgrid">${cards}</div>`;
+    <div class="pgrid">${cards}</div>
+    ${renderShared(model.shared)}`;
+}
+
+/**
+ * What two projects have BOTH taken on.
+ *
+ * The operator's ask, in their words: a ledger "so we dont see too many
+ * information and jump straight to understanding" - and the reason this list
+ * matters is that without it one project rediscovers what another already
+ * solved. Zero is a real answer and gets a sentence, not a hidden section.
+ */
+function renderShared(shared) {
+  const list = Array.isArray(shared) ? shared : [];
+  if (!list.length) {
+    return `<h3>Adopted by more than one project <span class="n">0</span></h3>
+      <p class="lede">Nothing here is shared yet. That is a finding, not an empty list -
+      it means every adoption so far has been made by exactly one project.</p>`;
+  }
+  const rows = list
+    .map(
+      (r) => `<tr><td class="k">${esc(r.repo)}</td>
+        <td>${r.projects.map((p) => `<a href="${href(p)}">${esc(p)}</a>`).join(", ")}</td>
+        <td class="muted">${esc(r.why || "")}</td></tr>`,
+    )
+    .join("");
+  return `<h3>Adopted by more than one project <span class="n">${list.length}</span></h3>
+    <p class="lede">Counted from each project's OWN decision, never from the merged row -
+    the merge is first-authored-wins, so reading its state would credit a project with
+    somebody else's adoption.</p>
+    <table class="t"><tbody>${rows}</tbody></table>`;
 }
 
 // ------------------------------------------------------------------ L1 -----
@@ -377,6 +407,7 @@ function renderFooter(model, generatedAt) {
 if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     route,
+    renderShared,
     renderL0,
     renderL1,
     renderL2,

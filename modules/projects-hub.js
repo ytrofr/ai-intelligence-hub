@@ -162,13 +162,50 @@ function buildProject(project, rows, now) {
 }
 
 /**
+ * States that mean a project actually took the thing on, as opposed to merely
+ * having proposed or rejected it. `in-use` is deliberately absent: a package
+ * resolved out of a manifest was never a decision anybody made.
+ */
+const ADOPTED_STATES = new Set([
+  "accepted",
+  "accepted-without-evidence",
+  "trial",
+  "done",
+  "done-unverified",
+  "done-unseen",
+]);
+
+/**
+ * Repos more than one project has ADOPTED.
+ *
+ * This is the operator's original ask - "so one project stops rediscovering
+ * what another already solved" - and it is the one thing inventory.html showed
+ * that no other surface does. It is computed from each project's OWN authored
+ * state, never from the merged row: first-authored-wins means the merged
+ * `state` belongs to whichever project happened to write first, so counting on
+ * it would credit a project with an adoption it never made.
+ */
+function sharedAdoptions(ledgerRows = []) {
+  const out = [];
+  for (const row of ledgerRows) {
+    const per = row.per_project || {};
+    const adopters = Object.keys(per).filter((pid) => ADOPTED_STATES.has(per[pid] && per[pid].state));
+    if (adopters.length >= 2) {
+      out.push({ repo: row.repo, kind: row.kind || "repo", projects: adopters.sort(), why: row.why || null });
+    }
+  }
+  return out.sort((a, b) => b.projects.length - a.projects.length || a.repo.localeCompare(b.repo));
+}
+
+/**
  * @param {object} input
  * @param {object} input.groundTruth  the /api/ground-truth payload
  * @param {object} input.matrix       the /api/adoption-matrix payload
  * @param {object} [input.ledgerCounts] the /api/ledger counts, for the population line
+ * @param {Array}  [input.ledgerRows]   the merged ledger rows, for cross-project adoptions
  * @param {number} [input.now]        epoch ms, passed in and never read here
  */
-function buildHub({ groundTruth, matrix, ledgerCounts, now = Date.now() } = {}) {
+function buildHub({ groundTruth, matrix, ledgerCounts, ledgerRows, now = Date.now() } = {}) {
   const gtProjects = (groundTruth && groundTruth.projects) || [];
   const rowsByProject = new Map(
     ((matrix && matrix.projects) || []).map((p) => [p.id, Array.isArray(p.rows) ? p.rows : []]),
@@ -205,7 +242,7 @@ function buildHub({ groundTruth, matrix, ledgerCounts, now = Date.now() } = {}) 
     evals: (matrix && matrix.population && matrix.population.evals) || null,
   };
 
-  return { projects, population };
+  return { projects, population, shared: sharedAdoptions(ledgerRows) };
 }
 
-module.exports = { buildHub, ageDays, bestScore, partitionRows, slotState };
+module.exports = { buildHub, ageDays, bestScore, partitionRows, slotState, sharedAdoptions, ADOPTED_STATES };

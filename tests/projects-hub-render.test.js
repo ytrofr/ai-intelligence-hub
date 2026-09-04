@@ -309,3 +309,30 @@ test("a count of one reads singular - 'needs unanswered' vs 'need unanswered'", 
   has(html, "<b>1</b><span>need unanswered", "one need is a need, not needs");
   has(html, "<b>0</b><span>needs unanswered", "zero takes the plural");
 });
+
+// --- shared adoptions render ----------------------------------------------
+
+test("zero shared adoptions is a SENTENCE, not a hidden section", () => {
+  const html = R.renderShared([]);
+  has(html, "Adopted by more than one project");
+  has(html, "0");
+  has(html, "That is a finding, not an empty list");
+});
+
+test("ACCEPTING TWIN: real shared rows render, each project a link into its own view", () => {
+  const html = R.renderShared([{ repo: "anthropics/claude-code", projects: ["lyra", "apollo"], why: "the CLI" }]);
+  has(html, "anthropics/claude-code");
+  has(html, 'href="#/lyra"');
+  has(html, 'href="#/apollo"');
+  has(html, "the CLI");
+});
+
+test("the shared section says its count came from per-project decisions", () => {
+  has(R.renderShared([{ repo: "a/b", projects: ["x", "y"] }]), "first-authored-wins");
+});
+
+test("L0 carries the shared section, so the hub covers what inventory.html showed", () => {
+  const m = model();
+  m.shared = [{ repo: "a/b", projects: ["apollo", "empty-proj"] }];
+  has(R.renderL0(m), "Adopted by more than one project");
+});
