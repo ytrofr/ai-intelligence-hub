@@ -1,0 +1,28 @@
+# The repo's first CI.
+#
+# A local hook is not cloned, so it guards only the machine it was written on.
+# For a PUBLIC repo the only gate that actually holds is one that runs on
+# GitHub's side of the fence - which is why the de-identification guard
+# (tests/no-internal-identity.test.js) is worth nothing until this file exists.
+#
+# It runs on a checkout with NO config/projects.json - that file is gitignored
+# and has never been pushed. So a green run here is also the proof that the
+# suite is hermetic: any test that only passes because the real config happened
+# to be sitting on the developer's disk fails here, loudly, in public.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
