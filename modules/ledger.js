@@ -105,11 +105,34 @@ function scoreTotal(score) {
  * "accepted-without-evidence" — a decision made but never backed or shown to
  * the operator. Shared by the top-level row AND every per-project entry, so
  * the two can never compute this differently.
+ *
+ * `done` gets the same treatment for the rows that closed before the adoption
+ * gate existed. The store now refuses a NEW `done` without bench + telemetry +
+ * before_after and an eyeballed stamp, but reopening an old one would DELETE
+ * its evidence and lesson — the highest-value content in the ledger, on a
+ * gitignored file with no history to restore from. So they keep their status
+ * and are MARKED, in two classes:
+ *
+ *   done-unverified  the operator looked, and the triple that would let anyone
+ *                    else check it was never recorded
+ *   done-unseen      nobody looked at all
+ *
+ * Merging the two would flatten "closed on your own verdict before the rule
+ * existed" into "closed with nobody looking", and those are different
+ * admissions to make about a past decision.
  */
-function deriveState(status, evidenceText, pairText) {
-  return status === "accepted" && !hasText(evidenceText) && !hasText(pairText)
-    ? "accepted-without-evidence"
-    : status;
+function deriveState(status, evidenceText, pairText, row) {
+  if (status === "accepted" && !hasText(evidenceText) && !hasText(pairText)) {
+    return "accepted-without-evidence";
+  }
+  if (status === "done") {
+    const r = row || {};
+    // All three, or none of the claim. Two of three is still "we cannot show
+    // it any more", which is the only thing this marker asserts.
+    if (r.bench && r.telemetry && r.before_after) return "done";
+    return hasText(r.eyeballed) ? "done-unverified" : "done-unseen";
+  }
+  return status;
 }
 
 /** Does this radar row carry ANY H3 adoption field at all? */
@@ -159,7 +182,7 @@ function buildPerProjectEntry(r) {
     status,
     evidence: text(r.evidence),
     pair: text(r.pair),
-    state: deriveState(status, r.evidence, r.pair),
+    state: deriveState(status, r.evidence, r.pair, r),
     score_total: score ? scoreTotal(score) : "unscored",
   };
 }
@@ -309,7 +332,7 @@ function buildLedger({ radarRows = [], depRepos = [] } = {}) {
     // operator (no pair) is a distinct state from a plain "accepted" — see the
     // module doc. Operator law 2026-08-17 already gates CLOSING a row this way;
     // this surfaces the same gap one status earlier, before it can even close.
-    state: deriveState(row.status, row.evidence, row.pair),
+    state: deriveState(row.status, row.evidence, row.pair, row),
     score_total: hasCompleteScore(row.score) ? scoreTotal(row.score) : "unscored",
   }));
   rows.sort(
@@ -350,6 +373,11 @@ function countLedger(rows = []) {
     done: rows.filter((r) => r.status === "done").length,
     doneWithAdoptionEvidence: rows.filter((r) => r.status === "done" && r.bench && r.telemetry && r.before_after)
       .length,
+    // The two grandfather classes, counted separately on purpose. Together
+    // with doneWithAdoptionEvidence they partition `done` exactly, so a row in
+    // none of them would be a bug rather than a rounding difference.
+    doneUnverified: rows.filter((r) => r.state === "done-unverified").length,
+    doneUnseen: rows.filter((r) => r.state === "done-unseen").length,
     // Per-kind, so three dataset rows landing at once do not read as three new
     // dependencies on the board.
     byKind: rows.reduce((acc, r) => {

@@ -24,7 +24,7 @@ const express = require("express");
 const router = express.Router();
 const fs = require("fs");
 const path = require("path");
-const { RadarStore } = require("./lib/radar-store");
+const { RadarStore, benchField, telemetryField, beforeAfterField } = require("./lib/radar-store");
 const { buildLedger } = require("../modules/ledger");
 
 const RADAR_DIR = path.join(__dirname, "..", "config", "radar");
@@ -67,9 +67,41 @@ function readDepRepos() {
   }
 }
 
+/**
+ * How many adoption fields on disk would be REFUSED if they were written
+ * today. The store validates before every write, so a field can only get into
+ * this state by being hand-edited straight into the JSON - and then it sits
+ * there looking like evidence while the gate it was meant to satisfy would
+ * reject it.
+ *
+ * Counted here rather than in modules/ledger.js because the validators belong
+ * to the store, and a domain module must not reach up into routes/ to ask.
+ * Today this reads 1: openclaw's telemetry.url is a source path, not a URL.
+ */
+function countMalformedAdoptionFields(radarRows) {
+  let bad = 0;
+  for (const r of radarRows) {
+    for (const [value, validate] of [
+      [r.bench, benchField],
+      [r.telemetry, telemetryField],
+      [r.before_after, beforeAfterField],
+    ]) {
+      if (value === undefined || value === null) continue;
+      try {
+        validate(value);
+      } catch {
+        bad += 1;
+      }
+    }
+  }
+  return bad;
+}
+
 function load() {
   const { depRepos, generatedAt } = readDepRepos();
-  const { rows, counts } = buildLedger({ radarRows: readAllRadarRows(), depRepos });
+  const radarRows = readAllRadarRows();
+  const { rows, counts } = buildLedger({ radarRows, depRepos });
+  counts.malformedAdoptionFields = countMalformedAdoptionFields(radarRows);
   return { rows, counts, generated_at: new Date().toISOString(), deps_generated_at: generatedAt };
 }
 

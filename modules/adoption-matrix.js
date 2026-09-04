@@ -67,13 +67,30 @@ const NOT_A_DECISION = new Set(["", "in-use"]);
 // "We took it", as opposed to "we are still thinking about it". `proposed` is
 // deliberately absent — proposing something and never scoring it is the normal
 // state of a backlog, not a gap in the record.
-const ADOPTED_STATES = new Set(["accepted", "accepted-without-evidence", "trial", "done"]);
+const ADOPTED_STATES = new Set([
+  "accepted",
+  "accepted-without-evidence",
+  "trial",
+  "done",
+  // The grandfather markers are still adoptions - they are adoptions nobody
+  // can check. Leaving them out would quietly shrink the count the moment the
+  // markers shipped, which is the opposite of what they are for.
+  "done-unverified",
+  "done-unseen",
+]);
 
 const NEXT_ACTION = {
   proposed: "score & pair",
   "accepted-without-evidence": "run it or drop it",
   trial: "read the number",
   done: "adopt card",
+  // Grandfathered closures have no honest next action. The triple that would
+  // let anyone re-check them was never recorded and cannot be reconstructed,
+  // and reopening the row would delete the lesson somebody wrote. The MARKER
+  // is the message; inventing a task here would imply a path that does not
+  // exist.
+  "done-unverified": "-",
+  "done-unseen": "-",
   rejected: "-",
 };
 

@@ -128,7 +128,16 @@ test("proposed / trial / done / rejected map to their own next_action", () => {
     radarRows: [
       { repo: "a/proposed", project: "apollo", status: "proposed", why: "x", score: scored() },
       { repo: "a/trial", project: "apollo", status: "trial", why: "x", score: scored() },
-      { repo: "a/done", project: "apollo", status: "done", why: "x", evidence: "e", score: scored() },
+      // Fully evidenced, so it stays plain `done` rather than deriving a
+      // grandfather marker - the three done STATES have three next actions.
+      {
+        repo: "a/done", project: "apollo", status: "done", why: "x", evidence: "e", score: scored(),
+        bench: { run: "~/r.json", date: "2026-09-04", result: "n" },
+        telemetry: { project: "apollo", counters: ["c"], url: "http://localhost:8770/x" },
+        before_after: { before: "1", after: "2", window: "7d", date: "2026-09-04" },
+      },
+      { repo: "a/done-seen", project: "apollo", status: "done", why: "x", evidence: "e", score: scored(), eyeballed: "adopt 2026-08-01" },
+      { repo: "a/done-unseen", project: "apollo", status: "done", why: "x", evidence: "e", score: scored() },
       { repo: "a/rejected", project: "apollo", status: "rejected", why: "x", score: scored() },
     ],
   });
@@ -138,6 +147,12 @@ test("proposed / trial / done / rejected map to their own next_action", () => {
   assert.equal(byRepo["a/trial"], "read the number");
   assert.equal(byRepo["a/done"], "adopt card");
   assert.equal(byRepo["a/rejected"], "-");
+  // A grandfathered closure has no honest next action - the triple cannot be
+  // reconstructed and reopening the row would delete its lesson. "-" says so;
+  // a task here would imply a path that does not exist.
+  assert.equal(byRepo["a/done-seen"], "-", "done-unverified has no next action");
+  assert.equal(byRepo["a/done-unseen"], "-", "done-unseen has no next action either");
+  assert.notEqual(byRepo["a/done"], byRepo["a/done-seen"], "an evidenced adoption and a grandfathered one must not read alike");
 });
 
 // --- project filter ----------------------------------------------------------

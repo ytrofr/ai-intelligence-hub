@@ -575,3 +575,91 @@ test("funnel does not count rows whose status is not one of the five funnel stat
   );
   assert.equal(total, 0);
 });
+
+// --- the rows that closed before the gate existed --------------------------
+//
+// The store now refuses a NEW `done` without bench + telemetry + before_after
+// plus a pair and an eyeballed stamp. Rows that reached `done` before that gate
+// existed keep their status - reopening one DELETES its evidence and lesson,
+// which is the highest-value content in the ledger and has no git history to
+// restore from. So they are MARKED instead, and in two classes, because
+// "you closed it on your own look, before we asked for the triple" and
+// "nobody ever looked at this" are different admissions.
+
+const { buildLedger: BL } = require("../modules/ledger");
+
+test("done with the full triple stays plain `done`", () => {
+  const { rows } = BL({
+    radarRows: [{
+      repo: "a/full", project: "apollo", status: "done", why: "x",
+      evidence: "abc1234", lesson: "l", pair: "http://localhost:8776/#z",
+      eyeballed: "adopt 2026-09-04",
+      bench: { run: "~/r.json", date: "2026-09-04", result: "n" },
+      telemetry: { project: "apollo", counters: ["c"], url: "http://localhost:8770/x" },
+      before_after: { before: "1", after: "2", window: "7d", date: "2026-09-04" },
+    }],
+  });
+  assert.equal(rows[0].state, "done", "a fully-evidenced adoption is not grandfathered");
+});
+
+test("done the operator SAW but without the triple derives done-unverified", () => {
+  const { rows } = BL({
+    radarRows: [{
+      repo: "a/seen", project: "apollo", status: "done", why: "x",
+      evidence: "abc1234", lesson: "l", pair: "http://localhost:8776/#z",
+      eyeballed: "adopt 2026-08-01",
+    }],
+  });
+  assert.equal(rows[0].state, "done-unverified");
+});
+
+test("done nobody ever eyeballed derives done-unseen, DISTINCTLY", () => {
+  const { rows } = BL({
+    radarRows: [{ repo: "a/unseen", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l" }],
+  });
+  assert.equal(rows[0].state, "done-unseen");
+  assert.notEqual(rows[0].state, "done-unverified", "merging the two flattens 'you looked' into 'nobody looked'");
+});
+
+test("CONTROL: the two grandfather markers really are different strings", () => {
+  // A deriveState that returned one constant would satisfy both cells above
+  // if they were written separately and never compared.
+  const seen = BL({ radarRows: [{ repo: "a/s", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l", eyeballed: "adopt 2026-08-01" }] }).rows[0].state;
+  const unseen = BL({ radarRows: [{ repo: "a/u", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l" }] }).rows[0].state;
+  assert.notEqual(seen, unseen);
+  assert.match(seen, /^done-/);
+  assert.match(unseen, /^done-/);
+});
+
+test("a partial triple is still unverified - two of three is not the claim", () => {
+  const { rows } = BL({
+    radarRows: [{
+      repo: "a/partial", project: "apollo", status: "done", why: "x",
+      evidence: "abc1234", lesson: "l", eyeballed: "adopt 2026-08-01",
+      bench: { run: "~/r.json", date: "2026-09-04", result: "n" },
+      telemetry: { project: "apollo", counters: ["c"], url: "http://localhost:8770/x" },
+    }],
+  });
+  assert.equal(rows[0].state, "done-unverified", "before_after is missing, so the adoption cannot be shown");
+});
+
+test("the markers are counted, so the gap cannot go quiet on the page", () => {
+  const { counts } = BL({
+    radarRows: [
+      { repo: "a/seen", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l", eyeballed: "adopt 2026-08-01" },
+      { repo: "a/unseen", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l" },
+      { repo: "a/unseen2", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l" },
+    ],
+  });
+  assert.equal(counts.done, 3);
+  assert.equal(counts.doneUnverified, 1);
+  assert.equal(counts.doneUnseen, 2);
+  assert.equal(counts.doneWithAdoptionEvidence, 0);
+  assert.equal(counts.doneUnverified + counts.doneUnseen + counts.doneWithAdoptionEvidence, counts.done,
+    "every done row is in exactly one of the three - a row in none of them is invisible");
+});
+
+test("accepted-without-evidence still derives as it did - the done branch did not swallow it", () => {
+  const { rows } = BL({ radarRows: [{ repo: "a/acc", project: "apollo", status: "accepted", why: "x" }] });
+  assert.equal(rows[0].state, "accepted-without-evidence");
+});
