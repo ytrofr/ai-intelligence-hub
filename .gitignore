@@ -46,3 +46,8 @@ digest.log
 # than internal context live in docs/, scrubbed.
 CLAUDE.md
 .claude/
+
+# Front-end build output. Express serves this directory; it is produced by
+# `npm --prefix web run build` and never edited by hand.
+dist/
+web/node_modules/

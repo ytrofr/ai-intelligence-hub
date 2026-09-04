@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en" class="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Intelligence Hub</title>
+    <!--
+      ONE font link for the whole app. The pages this replaces carried three
+      different font stacks between them, which is most of why they never looked
+      like one product.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <!--
+      Browser capture. Every click, freeze, console error and long task on this
+      page is recorded to localhost:9876 and read back with `/capture hub`. It is
+      how a UI problem gets diagnosed from what actually happened rather than by
+      asking what the console said, so it must survive every rewrite of this file.
+      tests/web-shell.test.js asserts it is here.
+    -->
+    <script src="http://localhost:9876/inject.js" data-project="hub" async></script>
+  </body>
+</html>
