@@ -238,11 +238,27 @@ const evalField = (value) => {
 /** The live counters that make "did it help" a query, not a claim. `counters`
  * is a non-empty array of non-empty names — an empty array is refused rather
  * than silently meaning "no counters", which is indistinguishable from "we
- * never named them". */
+ * never named them".
+ *
+ * TWO POINTERS, and they are different facts:
+ *
+ *   url     WHERE THE COUNTERS ARE READ — something a person can open
+ *   source  WHERE THEY ARE EMITTED — `path::symbol`, a log line, a exporter
+ *
+ * They were one slot until 2026-09-04, and the one live row that filled it had
+ * put an emitter there: `app/services/egress_policy.py::counter_snapshot +
+ * log '…'`. Widening `url` to accept that would have re-classified "we named
+ * the emitter" as "we have a dashboard", which is the whole claim telemetry
+ * makes. So the datum was split instead, and the regex is untouched.
+ *
+ * At least ONE must be present — telemetry with neither names nothing. But the
+ * CLOSE GATE demands `url` specifically: an emitter nobody reads cannot answer
+ * "did it help", which is the only question `done` is asking.
+ */
 const telemetryField = (value) => {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new Error("telemetry must be an object with project, counters, url");
+    throw new Error("telemetry must be an object with project, counters, and a url and/or a source");
   }
   const project = typeof value.project === "string" ? value.project.trim() : "";
   if (!project) throw new Error("telemetry.project must be a non-empty project id");
@@ -255,9 +271,25 @@ const telemetryField = (value) => {
     counters.push(c.trim());
   }
   const url = typeof value.url === "string" ? value.url.trim() : "";
-  if (!url) throw new Error("telemetry.url must be a non-empty URL — where the counters are actually read");
-  if (!TELEMETRY_URL_RE.test(url)) throw new Error(`telemetry.url must be an http(s) URL — got "${url}"`);
-  return { project, counters, url };
+  const source = typeof value.source === "string" ? value.source.trim() : "";
+  if (!url && !source) {
+    throw new Error(
+      "telemetry needs a url (where the counters are READ) or a source (where they are EMITTED) — " +
+        "with neither it names nothing. Closing as done still requires the url.",
+    );
+  }
+  if (url && !TELEMETRY_URL_RE.test(url)) {
+    throw new Error(
+      `telemetry.url must be an http(s) URL — got "${url}". ` +
+        "A file path or a symbol is a SOURCE, not a url: put it in telemetry.source. " +
+        "Never invent an endpoint nobody serves.",
+    );
+  }
+  if (source.length > 200) throw new Error(`telemetry.source must be at most 200 chars — got ${source.length}`);
+  const out = { project, counters };
+  if (url) out.url = url;
+  if (source) out.source = source;
+  return out;
 };
 
 /** The post-adoption comparison, read from those same live counters. All four
@@ -506,7 +538,24 @@ class RadarStore {
 
         const kind = text(row.kind) || "repo";
         const TELEMETRY_HINT =
-          'the live counters that make "did it help" a query — { project, counters, url }.';
+          'the live counters that make "did it help" a query — { project, counters, url }. ' +
+          "The URL is the part that matters here: a source pointer says where the numbers are emitted, " +
+          "not where anyone reads them, and nobody can check an adoption against a symbol name.";
+        // A telemetry block carrying only a `source` is a real record and a
+        // legal field — it is just not an answer to "did it help". The gate
+        // says which half is missing rather than "missing telemetry", because
+        // the row visibly HAS telemetry and that error would read as a bug.
+        const requireReadableTelemetry = () => {
+          requireAdoption("telemetry", row.telemetry, telemetryField, TELEMETRY_HINT);
+          if (!row.telemetry.url) {
+            refuse(
+              "telemetry names where the counters are EMITTED " +
+                `("${row.telemetry.source}") and not where they are READ. ` +
+                "Point telemetry.url at something openable, or leave the row open: " +
+                "an emitter with no reader cannot show that this helped.",
+            );
+          }
+        };
         const EVAL_HINT =
           "the recurring eval this is wired into — { slot, cadence_days, runner, metric, first_run }. " +
           "For a benchmark, adopted means it RUNS on a cadence; the runs themselves live in the slot's ran[].";
@@ -525,9 +574,9 @@ class RadarStore {
             );
           }
           if (hasEval) requireAdoption("eval", row.eval, evalField, EVAL_HINT);
-          if (hasTelemetry) requireAdoption("telemetry", row.telemetry, telemetryField, TELEMETRY_HINT);
+          if (hasTelemetry) requireReadableTelemetry();
         } else {
-          requireAdoption("telemetry", row.telemetry, telemetryField, TELEMETRY_HINT);
+          requireReadableTelemetry();
         }
 
         requireAdoption(

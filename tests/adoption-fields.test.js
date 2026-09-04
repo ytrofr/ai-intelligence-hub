@@ -292,10 +292,56 @@ test("upsertRow REFUSES telemetry with a blank counter name, project or url", ()
     () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, project: "   " } }),
     /telemetry\.project/i,
   );
+  // Blank url AND no source: still refused, now by the "names nothing" rule
+  // rather than by the url rule - telemetry pointing at neither end is not a
+  // record of anything.
   assert.throws(
     () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, url: "" } }),
-    /telemetry\.url/i,
+    /needs a url .* or a source/i,
   );
+});
+
+test("telemetry may name the EMITTER instead of a dashboard - two pointers, two facts", () => {
+  const s = tmpStore();
+  const emitterOnly = {
+    project: "orion",
+    counters: ["egress_checked", "egress_blocked"],
+    source: "app/services/egress_policy.py::counter_snapshot + log 'egress_guard mode=..'",
+  };
+  const row = s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: emitterOnly });
+  assert.equal(row.telemetry.source, emitterOnly.source);
+  assert.equal(row.telemetry.url, undefined, "an absent url stays absent - never a fabricated endpoint");
+});
+
+test("a SOURCE in the url slot is refused and told where it belongs", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { ...TELEMETRY_OK, url: "app/services/egress_policy.py::counter_snapshot" } }),
+    /put it in telemetry\.source/i,
+  );
+  // ACCEPTS twin: the same string in the right slot goes through, so the
+  // refusal is about the SLOT and not about the value being unusable.
+  assert.doesNotThrow(() =>
+    s.upsertRow("apollo", { repo: "a/b", verdict: "WATCH", telemetry: { project: "apollo", counters: ["c"], source: "app/services/egress_policy.py::counter_snapshot" } }),
+  );
+});
+
+test("done REFUSES a repo row whose telemetry names only the emitter", () => {
+  const { store } = freshStore();
+  store.upsertRow("apollo", {
+    repo: "a/emit", topic: "t", verdict: "ADOPT", why: "x", kind: "repo",
+    bench: BENCH_OK2, before_after: BA_OK2,
+    telemetry: { project: "apollo", counters: ["c"], source: "app/x.py::snapshot" },
+  });
+  assert.throws(
+    () => store.setStatus("apollo", "a/emit", "done", CLOSE),
+    /where the counters are EMITTED/,
+    "an emitter with no reader cannot show that this helped",
+  );
+  // ACCEPTS twin: add a readable url and the same row closes.
+  store.upsertRow("apollo", { repo: "a/emit", topic: "t", verdict: "ADOPT", why: "x", kind: "repo",
+    telemetry: { project: "apollo", counters: ["c"], source: "app/x.py::snapshot", url: "http://localhost:8770/x" } });
+  assert.doesNotThrow(() => store.setStatus("apollo", "a/emit", "done", CLOSE));
 });
 
 test("upsertRow REFUSES a telemetry url that is not http(s)", () => {
