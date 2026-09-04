@@ -112,8 +112,7 @@ function deriveState(status, evidenceText, pairText) {
     : status;
 }
 
-/** Does this radar row carry ANY H3 adoption field at all? A row with none of
- * these is a plain decision/dependency row and gets no per-project entry. */
+/** Does this radar row carry ANY H3 adoption field at all? */
 function hasAnyH3Field(r) {
   return (
     hasText(r.slot) ||
@@ -136,7 +135,14 @@ function hasAnyH3Field(r) {
  * main loop so that loop stays readable at one field-group per line.
  */
 function buildPerProjectEntry(r) {
-  if (!hasAnyH3Field(r)) return null;
+  // A project that recorded a DECISION and nothing else still decided
+  // something, and the merge must not attribute it to whichever project
+  // happened to author the H3 fields. Before this, a bare `rejected` row got
+  // no entry, so its own author read back as "proposed" - the merged row's
+  // fallback for a project that never said anything at all.
+  // A plain dependency (status in-use, no fields) still gets no entry: that
+  // is the one case where there really is nothing of this project's own.
+  if (!hasAnyH3Field(r) && !FUNNEL_STATUSES.includes(text(r.status))) return null;
   const status = text(r.status) || "in-use";
   const score = hasCompleteScore(r.score) ? r.score : null;
   return {

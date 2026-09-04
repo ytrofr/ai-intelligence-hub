@@ -16,6 +16,15 @@
  * there is nothing to decide about it, so it never becomes a candidate. That
  * is the entire filter: it is what keeps this page a short "what to do next"
  * instead of a second copy of the 300+-row ledger.
+ *
+ * The filter is right; what used to be wrong is that it left no trace. A row
+ * it removed simply vanished, so the page said "42 candidates" with no
+ * denominator anywhere and no way to ask what the other 298 were. So nothing
+ * is dropped now — the ineligible pairs are PARTITIONED into `hidden`, split
+ * into the ones that carry a real decision and the ones that are plain
+ * dependencies nobody proposed. `population.rows + hidden.length` accounts
+ * for every (ledger row x project) pair exactly once, and there is a test
+ * that says so.
  */
 
 const { scoreTotal } = require("./ledger");
@@ -44,6 +53,22 @@ function isMatrixEligible(row) {
 // One state -> one next physical action. Anything not listed here (an
 // "accepted" row with real evidence, or an unforeseen future status) reads as
 // "-" rather than a guess — a fabricated action is worse than an honest blank.
+// "Nobody decided anything here": this project authored no radar row at all
+// (""), or the manifests found it and nobody ever proposed it ("in-use").
+//
+// Enumerated this way round ON PURPOSE. The first version listed the five
+// authored statuses instead, and silently mis-filed every row whose state is
+// DERIVED rather than written - `accepted-without-evidence` is not a status
+// anyone types, so five real decisions read as plain dependencies and vanished
+// into the largest table in the drawer. A list of what to admit fails open on
+// anything it has not met; a list of what to exclude fails toward showing it.
+const NOT_A_DECISION = new Set(["", "in-use"]);
+
+// "We took it", as opposed to "we are still thinking about it". `proposed` is
+// deliberately absent — proposing something and never scoring it is the normal
+// state of a backlog, not a gap in the record.
+const ADOPTED_STATES = new Set(["accepted", "accepted-without-evidence", "trial", "done"]);
+
 const NEXT_ACTION = {
   proposed: "score & pair",
   "accepted-without-evidence": "run it or drop it",
@@ -186,15 +211,44 @@ function byProjectThenRepo(a, b) {
  */
 function buildCandidates(ledgerRows, projectById, project, counters) {
   const candidates = [];
+  const hidden = [];
+  const adoptedUnscored = [];
   for (const row of ledgerRows) {
-    if (!isMatrixEligible(row)) continue;
+    const eligible = isMatrixEligible(row);
     for (const pid of Array.isArray(row.projects) ? row.projects : []) {
       if (project && pid !== project) continue;
       const proj = projectById.get(pid) || { id: pid, name: pid, features: [] };
-      candidates.push(buildRow(row, pid, proj, counters));
+      const built = buildRow(row, pid, proj, counters);
+
+      // Read THIS project's own record, never the merged row's. First-authored-
+      // wins puts one project's score on the shared row, so counting per row
+      // would hide the very case this list exists to surface: a repo one
+      // project scored and another adopted blind.
+      const fields = projectFields(row, pid);
+      // And AUTHORSHIP, separately. projectFields deliberately lends one
+      // project's view to another when there is nobody to disambiguate from -
+      // right for display, wrong for "who decided this": it would credit a
+      // project that merely has the package in its manifest with the decision
+      // somebody else made.
+      const authored = Array.isArray(row.radar_projects) && row.radar_projects.includes(pid);
+      const ownStatus = authored && fields ? fields.state || fields.status || "" : "";
+      if (ADOPTED_STATES.has(ownStatus) && !isCompleteScore(fields && fields.score)) {
+        adoptedUnscored.push(built);
+      }
+
+      if (eligible) {
+        candidates.push(built);
+      } else {
+        hidden.push({
+          ...built,
+          // A decision somebody authored, or a dependency nobody discussed.
+          // Two states, and a pair is exactly one of them.
+          hidden_class: NOT_A_DECISION.has(ownStatus) ? "dependency" : "decided",
+        });
+      }
     }
   }
-  return candidates;
+  return { candidates, hidden, adoptedUnscored };
 }
 
 /** Every project id that should get a table: every configured project (so an
@@ -234,7 +288,7 @@ function slotParkedPaid(projects, project) {
 function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
   const projectById = new Map(projects.map((p) => [p.id, p]));
   const counters = { undeclared: 0 };
-  const candidates = buildCandidates(ledgerRows, projectById, project, counters);
+  const { candidates, hidden, adoptedUnscored } = buildCandidates(ledgerRows, projectById, project, counters);
 
   const projectsOut = resolveProjectIds(projectById, candidates, project).map((id) => {
     const rows = candidates.filter((r) => r.project === id);
@@ -256,7 +310,24 @@ function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
 
   return {
     population: {
+      // Numerator and denominator in the same object, so a reader never has to
+      // guess which population a count came from. `rows` is candidates (a repo
+      // wanted by two projects is two of them); `ledger_rows` is the ledger.
       rows: candidates.length,
+      ledger_rows: ledgerRows.length,
+      pairs: candidates.length + hidden.length,
+      hidden: hidden.length,
+      hidden_decided: hidden.filter((r) => r.hidden_class === "decided").length,
+      hidden_dependency: hidden.filter((r) => r.hidden_class === "dependency").length,
+      // Distinct repos behind those pairs, so the page can be compared against
+      // the Stack Ledger's own row-level count instead of silently mixing the
+      // two populations. They do NOT have to match: a repo one project decided
+      // and another merely depends on contributes a dependency pair while the
+      // ledger calls the ROW explained. The page says that in words.
+      hidden_dependency_repos: new Set(
+        hidden.filter((r) => r.hidden_class === "dependency").map((r) => `${r.kind}:${r.repo}`),
+      ).size,
+      adopted_unscored: adoptedUnscored.length,
       scored: allScored.length,
       unscored: allUnscored.length,
       measured: allScored.filter((r) => r.basis === "measured").length,
@@ -272,6 +343,8 @@ function buildMatrix({ ledgerRows = [], projects = [], project = null } = {}) {
     top: allScored.slice(0, 10),
     unscored: allUnscored,
     parked_paid: parkedPaid,
+    hidden: hidden.sort(byProjectThenRepo),
+    adopted_unscored: adoptedUnscored.sort(byProjectThenRepo),
   };
 }
 

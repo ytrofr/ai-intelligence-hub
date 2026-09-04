@@ -189,6 +189,115 @@ test("a paid-later row lands in parked_paid regardless of score state", () => {
   assert.equal(matrix.parked_paid[0].repo, "a/paid");
 });
 
+// --- the hidden population: partitioned, never dropped ---------------------
+//
+// The matrix used to `continue` past every ineligible row, so the page said
+// "42 candidates" with no denominator anywhere. The filter itself is right -
+// what was wrong is that the rows it removed left no trace. These cells pin
+// the partition and the two denominators it is drawn from.
+
+test("every (row x project) pair appears exactly once across candidates and hidden", () => {
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "a/scored", project: "apollo", status: "proposed", why: "x", score: scored() },
+      { repo: "a/decided-bare", project: "apollo", status: "accepted", why: "x" },
+    ],
+    depRepos: [{ repo: "a/plain-dep", project: "apollo" }, { repo: "a/scored", project: "hermes" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  let pairs = 0;
+  for (const r of rows) pairs += (r.projects || []).length;
+  assert.equal(m.population.pairs, pairs, "population.pairs must be the real denominator");
+  assert.equal(
+    m.population.rows + m.hidden.length,
+    pairs,
+    "candidates + hidden must account for every pair - no row is dropped and none is counted twice",
+  );
+  const seen = new Set();
+  for (const r of [...m.projects.flatMap((p) => p.rows), ...m.hidden]) {
+    const key = `${r.kind}:${r.repo}@${r.project}`;
+    assert.ok(!seen.has(key), `${key} appears twice`);
+    seen.add(key);
+  }
+  assert.equal(seen.size, pairs);
+});
+
+test("population.ledger_rows counts rows IN, not candidates OUT", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/scored", project: "apollo", status: "proposed", why: "x", score: scored() }],
+    depRepos: [{ repo: "a/d1", project: "apollo" }, { repo: "a/d2", project: "apollo" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(m.population.ledger_rows, 3, "the denominator is the ledger, not the page");
+  assert.equal(m.population.rows, 1, "and the numerator is still only what has something to decide");
+  assert.notEqual(m.population.ledger_rows, m.population.rows, "a denominator equal to the numerator is not a denominator");
+});
+
+test("a hidden pair is classified as decided or dependency, never both and never neither", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/decided-bare", project: "apollo", status: "rejected", why: "x", evidence: "~/r.md", lesson: "l" }],
+    depRepos: [{ repo: "a/plain-dep", project: "apollo" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(m.hidden.length, 2);
+  assert.equal(m.population.hidden_decided, 1, "a rejected row was decided, it is not a plain dependency");
+  assert.equal(m.population.hidden_dependency, 1);
+  assert.equal(m.population.hidden_decided + m.population.hidden_dependency, m.hidden.length);
+  assert.equal(m.hidden.find((r) => r.repo === "a/decided-bare").hidden_class, "decided");
+  assert.equal(m.hidden.find((r) => r.repo === "a/plain-dep").hidden_class, "dependency");
+});
+
+test("CONTROL: an in-use dependency is NOT counted as decided, so the split can fail", () => {
+  const { rows } = buildLedger({ depRepos: [{ repo: "a/only-dep", project: "apollo" }] });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(m.population.hidden_decided, 0);
+  assert.equal(m.population.hidden_dependency, 1);
+});
+
+test("a repo scored by one project and unscored by another is counted for the project that never scored it", () => {
+  // first-authored-wins puts hermes's score on the merged row, which would
+  // hide apollo's own unscored adoption if this were counted per ROW.
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "a/shared", project: "hermes", status: "done", why: "x", score: scored(), evidence: "abc1234", lesson: "l" },
+      { repo: "a/shared", project: "apollo", status: "done", why: "x", evidence: "abc1234", lesson: "l" },
+    ],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(rows.length, 1, "the two decisions merge into one ledger row - that is the trap");
+  const ids = m.adopted_unscored.map((r) => `${r.repo}@${r.project}`);
+  assert.deepEqual(ids, ["a/shared@apollo"], "apollo adopted it and never scored it; hermes's score is not apollo's");
+});
+
+test("CONTROL: when BOTH projects scored it, nothing lands in adopted_unscored", () => {
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "a/shared", project: "hermes", status: "done", why: "x", score: scored(), evidence: "abc1234", lesson: "l" },
+      { repo: "a/shared", project: "apollo", status: "done", why: "x", score: scored(), evidence: "abc1234", lesson: "l" },
+    ],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.deepEqual(m.adopted_unscored, []);
+});
+
+test("a proposed row with no score is NOT adopted-but-unscored - proposing is not adopting", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/prop", project: "apollo", status: "proposed", why: "x", slot: "apollo/s1" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.deepEqual(m.adopted_unscored, []);
+});
+
+test("the project filter scopes the hidden pile too, or the drawer contradicts its own page", () => {
+  const { rows } = buildLedger({
+    depRepos: [{ repo: "a/d-apollo", project: "apollo" }, { repo: "a/d-hermes", project: "hermes" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS, project: "apollo" });
+  assert.equal(m.hidden.length, 1);
+  assert.equal(m.hidden[0].project, "apollo");
+  assert.equal(m.population.pairs, 1, "the denominator narrows with the filter");
+});
+
 // --- route ------------------------------------------------------------------
 
 function startApp(router) {
@@ -239,4 +348,56 @@ test("parked_paid merges slot-level paid_later[] strings beside paid-later ledge
   const out = buildMatrix({ ledgerRows: [], projects });
   assert.deepEqual(out.parked_paid.map((r) => [r.project, r.slot, r.why]), [["apollo", "apollo/competitor-intel", "SEMrush - keywords"]]);
   assert.deepEqual(buildMatrix({ ledgerRows: [], projects, project: "guide" }).parked_paid, [], "the control slot contributes nothing");
+});
+
+test("two projects disagreeing about the SAME repo are attributed separately", () => {
+  // apollo adopted it, hermes rejected it. Reading the merged row's status
+  // would give both projects whichever one won the rank, so only a per-project
+  // read can put apollo in adopted_unscored and leave hermes out.
+  const { rows } = buildLedger({
+    radarRows: [
+      { repo: "a/split", project: "apollo", status: "accepted", why: "x", evidence: "abc1234", pair: "http://localhost:8776/#z" },
+      { repo: "a/split", project: "hermes", status: "rejected", why: "x", evidence: "~/r.md", lesson: "l" },
+    ],
+  });
+  assert.equal(rows.length, 1, "one merged row - that is what makes this hard");
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.deepEqual(
+    m.adopted_unscored.map((r) => `${r.repo}@${r.project}`),
+    ["a/split@apollo"],
+    "apollo accepted it unscored; hermes rejected it and must not be counted as having adopted it",
+  );
+  const decided = m.hidden.filter((r) => r.hidden_class === "decided").map((r) => r.project).sort();
+  assert.deepEqual(decided, ["apollo", "hermes"], "both DID decide - they just decided differently");
+});
+
+test("a DERIVED state counts as a decision - accepted-without-evidence is not a dependency", () => {
+  // The bug: the classifier listed the five statuses somebody types, and
+  // `accepted-without-evidence` is derived, not typed. Five real decisions
+  // read as plain dependencies and disappeared into the biggest table.
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/derived", project: "apollo", status: "accepted", why: "x" }],
+  });
+  assert.equal(rows[0].state, "accepted-without-evidence", "the ledger derives this state - nobody writes it");
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(m.hidden.length, 1);
+  assert.equal(m.hidden[0].hidden_class, "decided");
+  assert.equal(m.population.hidden_dependency, 0, "somebody accepted it; it is not an unproposed dependency");
+});
+
+test("CONTROL: a genuine dependency is still a dependency, so the fix did not just say yes to everything", () => {
+  const { rows } = buildLedger({ depRepos: [{ repo: "a/dep", project: "apollo" }] });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  assert.equal(m.population.hidden_dependency, 1);
+  assert.equal(m.population.hidden_decided, 0);
+});
+
+test("a project that only DEPENDS on a repo another project decided is not credited with the decision", () => {
+  const { rows } = buildLedger({
+    radarRows: [{ repo: "a/shared", project: "apollo", status: "rejected", why: "x", evidence: "~/r.md", lesson: "l" }],
+    depRepos: [{ repo: "a/shared", project: "hermes" }],
+  });
+  const m = buildMatrix({ ledgerRows: rows, projects: PROJECTS });
+  const byProject = Object.fromEntries(m.hidden.map((r) => [r.project, r.hidden_class]));
+  assert.deepEqual(byProject, { apollo: "decided", hermes: "dependency" });
 });

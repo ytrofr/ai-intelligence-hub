@@ -118,6 +118,19 @@
       footer code { font-family: var(--font-mono); }
       .from-project { display: inline-block; margin-left: 0.6rem; font-size: 0.78rem; opacity: 0.75; font-style: italic; }
       .backlink { font-size: var(--font-sm); font-family: var(--font-mono); }
+      .denominator { color: var(--color-text-muted); font-size: var(--font-sm); max-width: 78ch;
+                     border-left: 3px solid var(--color-border-hover); padding-left: 0.8rem; }
+      .drawer { border: 1px solid var(--color-border); border-radius: 8px; padding: 0.6rem 0.9rem; }
+      .drawer > summary { cursor: pointer; font-size: var(--font-sm); }
+      .drawer h3 { font-size: var(--font-base); margin: 1.2rem 0 0.2rem; }
+      .drawer h3 .n { font-family: var(--font-mono); color: var(--color-text-dim); font-size: var(--font-sm); }
+      .empty-note { color: var(--color-text-dim); font-size: var(--font-sm); }
+      table.hidden-t { width: 100%; border-collapse: collapse; font-size: var(--font-xs); }
+      table.hidden-t th { text-align: left; color: var(--color-text-dim); font-weight: 600;
+                          border-bottom: 1px solid var(--color-border); padding: 0.25rem 0.5rem 0.25rem 0;
+                          text-transform: uppercase; letter-spacing: 0.04em; }
+      table.hidden-t td { border-bottom: 1px solid var(--color-border); padding: 0.28rem 0.5rem 0.28rem 0; }
+      table.hidden-t td.k { font-family: var(--font-mono); }
     </style>
   </head>
   <body>
@@ -136,6 +149,7 @@
           or have measured against; this page is only the rows there is something left to decide
           about.
         </p>
+        <p id="denominator" class="denominator"></p>
       </div>
 
       <div class="counts" id="counts"></div>
@@ -155,6 +169,10 @@
       <h2>Parked: paid-later</h2>
       <div class="section-hint">Cost tier is paid-later — not free to run, revisit if the budget changes.</div>
       <div class="tablewrap" id="parked"></div>
+
+      <h2>Not on this page</h2>
+      <div class="section-hint">The rows the filter removes, so the count above has a denominator you can open.</div>
+      <div id="hidden"></div>
 
       <footer id="foot">
         score = (effect + impact + (6 − effort) + (6 − time) + (6 − risk)) / 25 × 100 —
