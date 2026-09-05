@@ -174,3 +174,51 @@ test("moving OFF done clears the evidence rather than leaving a stale claim", ()
   assert.equal(row.evidence, undefined, "evidence for a done-ness that no longer holds is a lie");
   assert.equal(row.done_at, undefined);
 });
+
+// 2026-09-05. Filing the shadcn-ui/ui row surfaced this: POST /api/radar/status
+// with { status: "accepted", lesson: "..." } answered 200 { ok: true } and wrote
+// no lesson. The DELETION is deliberate and stays - a row moving off `done` is
+// reopened, and evidence for a closure that no longer holds is a stale claim.
+// What was wrong is that the branch cannot tell "reopening a closed row" from
+// "recording on an open row", so the second case got the first case's treatment
+// and a success code. `upsertRow` persists both fields, so the caller has a door
+// that works; the fix is to say so instead of answering a false yes.
+test("setStatus REFUSES evidence/lesson on a non-closing status and names the door that keeps them", () => {
+  const s = tmpStore();
+  assert.throws(
+    () => s.setStatus("apollo", "a/b", "accepted", { lesson: "quality/x.md" }),
+    /lesson.*closure|upsertRow|\/row/i,
+  );
+  assert.throws(
+    () => s.setStatus("apollo", "a/b", "trial", { evidence: "apollo@3f9a12c" }),
+    /evidence.*closure|upsertRow|\/row/i,
+  );
+  // The refusal must leave the row exactly as it was - same discipline the
+  // closing gate already follows.
+  assert.equal(s.load("apollo").audit[0].status, "proposed");
+});
+
+test("REGRESSION GUARD: reopening a closed row still clears them, and does NOT refuse", () => {
+  // This is the case the refusal must not break: the caller passes no evidence,
+  // the row carries one from its closure, and moving off `done` clears it. A
+  // naive guard reading the ROW rather than the CALL would 400 here and make
+  // every closed row unreopenable.
+  const s = tmpStore();
+  makeAdoptable(s, "apollo", "a/b");
+  s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
+  const row = s.setStatus("apollo", "a/b", "accepted");
+  assert.equal(row.evidence, undefined);
+  assert.equal(row.lesson, undefined);
+});
+
+test("pair and eyeballed are NOT closure-only - they survive a non-closing status", () => {
+  // Guarding the behaviour the refusal above must not swallow. The operator's
+  // verdict on a pair is an answer about the CANDIDATE, not about a closure:
+  // acting on an ADOPT verdict moves the row OFF `rejected`, and deleting the
+  // answer at the moment it is honoured is the bug that comment records.
+  const s = tmpStore();
+  const row = s.setStatus("apollo", "a/b", "accepted", { pair: PAIR_OK, eyeballed: ADOPT_OK });
+  assert.equal(row.pair, PAIR_OK);
+  assert.equal(row.eyeballed, ADOPT_OK);
+  assert.equal(s.load("apollo").audit[0].eyeballed, ADOPT_OK);
+});

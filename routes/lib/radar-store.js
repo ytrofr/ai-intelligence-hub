@@ -431,6 +431,26 @@ class RadarStore {
       eyeballed: text(fields.eyeballed) || text(row.eyeballed),
     };
 
+    // `evidence` and `lesson` describe a CLOSURE, and the non-closing branch
+    // below deletes them for a good reason: a row moving off `done` is reopened,
+    // and evidence for a closure that no longer holds is a stale claim. But that
+    // branch cannot tell a REOPEN from a caller trying to RECORD one on an open
+    // row, so it gave the second case the first case's treatment and returned
+    // success. Read the CALL, never the row: a reopen supplies nothing and must
+    // still work, which is why this tests `fields` and not `next`.
+    if (!CLOSING.has(status)) {
+      const supplied = ["evidence", "lesson"].filter((k) => text(fields[k]));
+      if (supplied.length) {
+        const s = supplied.join(" and ");
+        console.warn(`[radar] refused ${s} on ${project}/${repo} at status="${status}"`);
+        throw new Error(
+          `${s} cannot be set by a status change to "${status}": they are closure fields, ` +
+            "and this call would delete them again the moment a row reopens. " +
+            "Set them on the row itself - POST /api/radar/row (upsertRow) keeps them at any status.",
+        );
+      }
+    }
+
     if (CLOSING.has(status)) {
       const refuse = (msg) => {
         console.warn(`[radar] refused to close ${project}/${repo} as ${status}: ${msg}`);
