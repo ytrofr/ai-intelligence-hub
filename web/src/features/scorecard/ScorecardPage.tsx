@@ -5,6 +5,7 @@ import { StateChip, NoValue } from "@/components/app/StateChip";
 import { ScoreBar } from "@/components/app/ScoreBar";
 import { useApi } from "@/lib/useApi";
 import { useProject } from "@/components/app/useProject";
+import { Fig } from "@/components/app/Fig";
 import { destinationById } from "@/components/app/nav";
 import type { ScorecardPayload, ScorecardRow } from "../types";
 
@@ -27,7 +28,7 @@ function measureChip(r: ScorecardRow) {
   if (r.legacy_unbenched)
     return <StateChip level="poor" word="taken, no bench" title="accepted or in trial with no measurement on this project's data - run it or drop it" />;
   if (r.measure === "measured")
-    return <StateChip level="good" word="measured" title={`bench on ${r.project}'s own data, ${r.bench_date ?? "date unknown"}`} />;
+    return <StateChip level="good" word="measured" title={`bench on ${r.project}'s own data, ${r.bench?.date || "date unknown"}`} />;
   if (r.measure === "estimated")
     return <StateChip level="mid" word="estimated" title="scored by judgement - nothing was run on this project yet" />;
   return <StateChip level="none" word="not run" title="no bench and no score - nobody has measured this here" />;
@@ -44,14 +45,23 @@ function verdictCell(r: ScorecardRow) {
   return <NoValue title={`unparsable verdict: ${v.raw}`}>{v.raw}</NoValue>;
 }
 
+/** The ledger's derived state, on the exact values deriveState produces - never a suffix guess. */
+function stateChip(r: ScorecardRow) {
+  const title = `status ${r.status}${r.verdict ? `, radar verdict ${r.verdict}` : ""}`;
+  const level =
+    r.status === "rejected" ? "poor"
+    : r.state === "done" ? "good"
+    : r.state === "done-unseen" || r.state === "done-unverified" || r.state === "accepted-without-evidence" ? "mid"
+    : "none";
+  return <StateChip level={level} word={r.state} title={title} />;
+}
+
 function benchCell(r: ScorecardRow) {
   if (!r.bench) return <NoValue title={`not run on ${r.project}`} />;
-  const result = r.bench_result ?? "";
-  const short = result.length > 64 ? `${result.slice(0, 63)}…` : result;
   return (
-    <div className="min-w-0" title={`${r.bench.run}\n${result}`}>
-      <div className="font-mono text-[11px] text-dim">{r.bench_date ?? "date unknown"}</div>
-      <div className="truncate text-xs">{short || <NoValue title="bench recorded with no result line" />}</div>
+    <div className="min-w-0" title={`${r.bench.run}\n${r.bench.result}`}>
+      <div className="font-mono text-[11px] text-dim">{r.bench.date || "date unknown"}</div>
+      <div className="truncate">{clip(r.bench.result || null, 64)}</div>
     </div>
   );
 }
@@ -111,9 +121,7 @@ export function ScorecardPage() {
                   { key: "measure", header: "Measured?", width: "9rem", cell: measureChip },
                   { key: "bench", header: "Bench (own data)", width: "16rem", cell: benchCell },
                   { key: "score", header: "Score", width: "8rem", secondary: true, cell: (r) => <ScoreBar total={r.score_total} /> },
-                  { key: "state", header: "State", width: "10rem", cell: (r) =>
-                      <StateChip level={r.status === "rejected" ? "poor" : r.state === "done" ? "good" : r.state.endsWith("-unseen") || r.state.endsWith("-unverified") || r.state === "accepted-without-evidence" ? "mid" : "none"}
-                                 word={r.state} title={`status ${r.status}${r.verdict ? `, radar verdict ${r.verdict}` : ""}`} /> },
+                  { key: "state", header: "State", width: "10rem", cell: stateChip },
                   { key: "verdict", header: "Your verdict", width: "9rem", cell: verdictCell },
                   { key: "before_after", header: "Before / after", width: "14rem", secondary: true, cell: beforeAfterCell },
                   { key: "lesson", header: "Lesson", width: "14rem", secondary: true, cell: (r) => clip(r.lesson, 60) },
@@ -140,14 +148,5 @@ export function ScorecardPage() {
         }}
       </Async>
     </PageShell>
-  );
-}
-
-function Fig({ n, label }: { n: number; label: string }) {
-  return (
-    <div>
-      <div className="font-mono text-lg tabular-nums">{n}</div>
-      <div className="mt-0.5 text-[11px] uppercase tracking-wide text-dim">{label}</div>
-    </div>
   );
 }

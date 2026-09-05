@@ -137,8 +137,6 @@ export interface ScorecardRow {
   state: string;
   measure: "measured" | "estimated" | "not-run";
   bench: { run: string; date: string; result: string } | null;
-  bench_date: string | null;
-  bench_result: string | null;
   legacy_unbenched: boolean;
   score_total: number | "unscored";
   score_basis: string | null;

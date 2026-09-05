@@ -20,23 +20,18 @@
  * page. `score_total` is the ledger's scoreTotal for the same reason.
  */
 
-const { deriveState, scoreTotal } = require("./ledger");
-
-const SCORE_DIMS = ["effort", "effect", "time", "impact", "risk"];
-const ADOPTING = new Set(["accepted", "trial"]);
-const CLOSED = new Set(["done", "rejected"]);
+const { deriveState, scoreTotal, hasCompleteScore, CLOSED, ADOPTING } = require("./ledger");
 // Sort order inside a project, after the legacy debt: what is running first,
 // then what was taken, then the backlog, then the closed.
 const STATUS_ORDER = { trial: 0, accepted: 1, proposed: 2, done: 3, rejected: 4 };
-const EYEBALLED_RE = /^(adopt|reject|not-yet)\s+(\S+)$/i;
+// Byte-identical to routes/lib/radar-store.js EYEBALLED_RE - the store is the writer and
+// must not import a reader, so the pattern is repeated here rather than the looser `\S+`
+// the first cut had, which would have parsed a value the store can never write.
+const EYEBALLED_RE = /^(adopt|reject|not-yet)\s+(\d{4}-\d{2}-\d{2}T[\d:.]+Z?)$/i;
 
 const text = (v) => (typeof v === "string" ? v.trim() : "");
 const obj = (v) => (v && typeof v === "object" && !Array.isArray(v) ? v : null);
-const orNull = (v) => (text(v) ? text(v) : null);
-
-function isCompleteScore(score) {
-  return !!score && typeof score === "object" && SCORE_DIMS.every((d) => Number.isInteger(score[d]));
-}
+const orNull = (v) => text(v) || null;
 
 /**
  * Three states, never two. A bench IS the measurement: a score whose `basis`
@@ -59,14 +54,13 @@ function parseEyeballed(value) {
   return m ? { verb: m[1].toLowerCase(), at: m[2], raw } : { verb: null, at: null, raw };
 }
 
-/** One physical next step per row, or "-" for a closed one. */
-function nextFor(row, projectId, legacy, eyeballed) {
-  const status = text(row.status) || "proposed";
+/** One physical next step per row, or "-" for a closed one. Takes the values buildRow already derived. */
+function nextFor({ status, bench, pair, legacy, eyeballed }, projectId) {
   if (CLOSED.has(status)) return "-";
   if (legacy) return "run it or drop it";
-  if (!obj(row.bench)) return `bench it on ${projectId}`;
+  if (!bench) return `bench it on ${projectId}`;
   if (status === "proposed") return "accept or drop it";
-  if (!text(row.pair)) return "pair it";
+  if (!pair) return "pair it";
   if (!eyeballed || !eyeballed.verb || eyeballed.verb === "not-yet") return "await the verdict";
   if (eyeballed.verb === "reject") return "close it as rejected";
   return "wire telemetry, then close as done";
@@ -75,9 +69,10 @@ function nextFor(row, projectId, legacy, eyeballed) {
 function buildRow(row, projectId) {
   const status = text(row.status) || "proposed";
   const bench = obj(row.bench);
-  const score = isCompleteScore(row.score) ? row.score : null;
+  const score = hasCompleteScore(row.score) ? row.score : null;
   const legacy = ADOPTING.has(status) && !bench;
   const eyeballed = parseEyeballed(row.eyeballed);
+  const pair = orNull(row.pair);
   return {
     repo: row.repo,
     project: projectId,
@@ -88,12 +83,10 @@ function buildRow(row, projectId) {
     state: deriveState(status, row.evidence, row.pair, row),
     measure: measureOf(row),
     bench,
-    bench_date: bench ? orNull(bench.date) : null,
-    bench_result: bench ? orNull(bench.result) : null,
     legacy_unbenched: legacy,
     score_total: score ? scoreTotal(score) : "unscored",
     score_basis: score ? orNull(score.basis) : null,
-    pair: orNull(row.pair),
+    pair,
     eyeballed,
     before_after: obj(row.before_after),
     telemetry: obj(row.telemetry),
@@ -102,7 +95,7 @@ function buildRow(row, projectId) {
     outcome: orNull(row.outcome),
     why: orNull(row.why),
     updated_at: orNull(row.updated_at),
-    next: nextFor(row, projectId, legacy, eyeballed),
+    next: nextFor({ status, bench, pair, legacy, eyeballed }, projectId),
   };
 }
 
@@ -164,4 +157,4 @@ function buildScorecard({ radarRows = [], projects = [], project = null } = {}) 
   return { generated_at: new Date().toISOString(), population, projects: out };
 }
 
-module.exports = { buildScorecard, measureOf, parseEyeballed, nextFor };
+module.exports = { buildScorecard };

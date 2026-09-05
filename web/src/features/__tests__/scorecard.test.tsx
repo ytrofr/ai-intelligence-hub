@@ -37,6 +37,14 @@ describe("the measure is a SHAPE before it is a colour", () => {
     expect(block).toMatch(/level="none" word="not run"/);
   });
 
+  it("maps the State column through a named stateChip on deriveState's literal values, not a suffix guess", () => {
+    const block = src.slice(src.indexOf("function stateChip"), src.indexOf("function benchCell"));
+    expect(block).toMatch(/r\.state === "done-unseen"/);
+    expect(block).toMatch(/r\.state === "accepted-without-evidence"/);
+    expect(block).not.toMatch(/endsWith/);
+    expect(src).toMatch(/cell: stateChip/);
+  });
+
   it("never renders an absent bench, verdict or before/after as a blank cell", () => {
     expect(src).toMatch(/if \(!r\.bench\) return <NoValue/);
     expect(src).toMatch(/if \(!r\.before_after\) return <NoValue/);

@@ -131,7 +131,6 @@ test("absent fields are null or 'unscored', never '' or 0 dressed as data", () =
   assert.equal(r.lesson, null);
   assert.equal(r.evidence, null);
   assert.equal(r.score_total, "unscored");
-  assert.equal(r.bench_date, null);
 });
 
 test("the operator's verdict is parsed into verb + date, and kept verbatim", () => {

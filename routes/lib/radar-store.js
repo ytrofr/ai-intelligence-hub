@@ -172,6 +172,21 @@ const scoreField = (value, evidenceText) => {
  * never a URL or a commit: a bench is a measurement, not a build. All three
  * subfields are required together — a bench missing its result is not a bench,
  * it is a run nobody read. */
+/**
+ * "Is this adoption field usable?" as a PROBLEM STRING or null - shared by the accept
+ * gate (bench) and the close gate (bench, telemetry, before_after, eval), so "missing"
+ * and "malformed" are decided in exactly one place.
+ */
+const fieldProblem = (name, value, validator) => {
+  if (value === undefined) return `missing ${name}`;
+  try {
+    validator(value);
+    return null;
+  } catch (e) {
+    return `${name} is malformed: ${e.message}`;
+  }
+};
+
 const benchField = (value) => {
   if (value === undefined) return undefined;
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -467,14 +482,7 @@ class RadarStore {
     if (ADOPTING.has(status)) {
       // Presence is not measurement: the SHAPE is checked with the same validator
       // `done` uses, so a hand-edited `bench: {}` cannot walk through.
-      let benchProblem = row.bench === undefined ? "no bench on this project's row" : "";
-      if (!benchProblem) {
-        try {
-          benchField(row.bench);
-        } catch (e) {
-          benchProblem = `bench is malformed: ${e.message}`;
-        }
-      }
+      const benchProblem = fieldProblem("bench", row.bench, benchField);
       if (benchProblem) {
         console.warn(`[radar] refused ${project}/${repo} -> ${status}: ${benchProblem}`);
         throw new Error(
@@ -576,12 +584,8 @@ class RadarStore {
       // a waiver. Saying it plainly beats letting a reader discover it.
       if (status === "done") {
         const requireAdoption = (name, value, validator, hint) => {
-          if (value === undefined) refuse(`missing ${name}: ${hint}`);
-          try {
-            validator(value);
-          } catch (e) {
-            refuse(`${name} is malformed: ${e.message}`);
-          }
+          const problem = fieldProblem(name, value, validator);
+          if (problem) refuse(problem.startsWith("missing") ? `${problem}: ${hint}` : problem);
         };
         requireAdoption(
           "bench",

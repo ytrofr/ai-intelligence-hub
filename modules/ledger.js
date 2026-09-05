@@ -67,6 +67,10 @@ const UNRESOLVED = "unresolved";
 // manifests say we depend on it and no decision was ever recorded.
 const STATUS_RANK = { "in-use": 0, proposed: 1, accepted: 2, trial: 3, done: 4, rejected: 4 };
 const CLOSED = new Set(["done", "rejected"]);
+// "We are taking this" before it is closed. The accept gate in routes/lib/radar-store.js
+// keeps its own copy on purpose (the WRITER owns its status vocabulary and must not
+// import a READER); every reader shares this one.
+const ADOPTING = new Set(["accepted", "trial"]);
 
 // The five statuses a DECISION can be in — "in-use" is a mechanically-discovered
 // dependency that was never proposed, so it is not part of the funnel.
@@ -444,4 +448,4 @@ function funnel(rows = [], { weeks = 8, now = new Date() } = {}) {
   return { weeks: weekKeys, counts };
 }
 
-module.exports = { buildLedger, countLedger, UNRESOLVED, scoreTotal, funnel, deriveState };
+module.exports = { buildLedger, countLedger, UNRESOLVED, scoreTotal, funnel, deriveState, hasCompleteScore, CLOSED, ADOPTING };

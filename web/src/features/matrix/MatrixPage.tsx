@@ -5,6 +5,7 @@ import { StateChip, NoValue } from "@/components/app/StateChip";
 import { DimBar, ScoreBar } from "@/components/app/ScoreBar";
 import { useApi } from "@/lib/useApi";
 import { useProject } from "@/components/app/useProject";
+import { Fig } from "@/components/app/Fig";
 import { destinationById } from "@/components/app/nav";
 import type { MatrixRow } from "../types";
 
@@ -131,14 +132,5 @@ export function MatrixPage() {
         }}
       </Async>
     </PageShell>
-  );
-}
-
-function Fig({ n, label }: { n: number; label: string }) {
-  return (
-    <div>
-      <div className="font-mono text-lg tabular-nums">{n}</div>
-      <div className="mt-0.5 text-[11px] uppercase tracking-wide text-dim">{label}</div>
-    </div>
   );
 }
