@@ -59,6 +59,7 @@ app.use("/api/tracked", require("./routes/tracked"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/ledger", require("./routes/ledger"));
 app.use("/api/adoption-matrix", require("./routes/adoption-matrix"));
+app.use("/api/adoption-scorecard", require("./routes/adoption-scorecard"));
 app.use("/api/ground-truth", require("./routes/ground-truth"));
 app.use("/api/projects-hub", require("./routes/projects-hub"));
 app.use("/api/maintenance", require("./routes/maintenance"));

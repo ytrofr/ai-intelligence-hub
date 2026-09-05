@@ -444,4 +444,4 @@ function funnel(rows = [], { weeks = 8, now = new Date() } = {}) {
   return { weeks: weekKeys, counts };
 }
 
-module.exports = { buildLedger, countLedger, UNRESOLVED, scoreTotal, funnel };
+module.exports = { buildLedger, countLedger, UNRESOLVED, scoreTotal, funnel, deriveState };
