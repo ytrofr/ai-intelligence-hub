@@ -117,7 +117,10 @@ function One({ date }: { date: string }) {
             // Rendered as preformatted text on purpose: this is the operator's
             // own writing and a markdown renderer that re-flows or drops a line
             // makes it harder, not easier, to check against the source.
-            <pre className="whitespace-pre-wrap rounded-lg border bg-card p-5 font-mono text-xs leading-relaxed">
+            // break-words as well as pre-wrap: pre-wrap breaks at spaces, and a
+            // markdown line carrying a long URL or a table rule has none, so it
+            // pushed the whole page sideways on a phone - 228px over at 390.
+            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-card p-5 font-mono text-xs leading-relaxed">
               {text}
             </pre>
           );

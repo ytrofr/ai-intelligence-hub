@@ -14,6 +14,7 @@ import { GroundTruthPage } from "@/features/ground-truth/GroundTruthPage";
 import { RadarPage } from "@/features/radar/RadarPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
 import { DigestsPage } from "@/features/digests/DigestsPage";
+import { FiltersPreview } from "@/features/items/FiltersPreview";
 import { DiscoveryPage } from "@/features/discovery/DiscoveryPage";
 import { LEGACY_PATHS, LegacyRedirect } from "@/components/app/LegacyRedirect";
 import { useProject } from "@/components/app/useProject";
@@ -97,6 +98,10 @@ export function App() {
                 );
               })}
               <Route path="/digests/:date" element={<DigestsPage />} />
+              {/* The interim eyeball surface the plan calls for, until the
+                  Storybook lane exists. Not in nav.ts - it is not a
+                  destination, it is a thing to look at once. */}
+              <Route path="/lab/filters" element={<FiltersPreview />} />
               {/* The old app's addresses. Every one of them resolves. */}
               {LEGACY_PATHS.map((p) => (
                 <Route key={p} path={p} element={<LegacyRedirect />} />
