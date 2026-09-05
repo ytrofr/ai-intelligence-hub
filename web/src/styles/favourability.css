@@ -18,4 +18,32 @@
 .b-mid  { --fav: #94a3b8; }
 .b-warn { --fav: #f0b429; }
 .b-poor, .b-bad { --fav: #f97316; }
-.b-none { --fav: var(--color-text-dim); }
+/* hsl(), not var(--color-text-dim). That name is from the app this replaced and
+   does not exist here, so --fav resolved to an INVALID value and an unscored
+   chip silently inherited its parent's colour instead of reading as dim. */
+.b-none { --fav: hsl(var(--text-dim)); }
+
+/*
+ * The same five stops for the LIGHT theme, and they are not a preference.
+ *
+ * These stops were chosen on #0f1117 and they are correct there - 9.02:1,
+ * 6.55, 9.01, 5.99. On white the identical colours measure 1.86, 2.56, 1.86
+ * and 2.80: a score printed in the "good" stop is very nearly invisible. A
+ * ramp is a relationship between an ink and a surface, so changing the surface
+ * changes what the ramp has to be.
+ *
+ * The ORDER and the semantics are untouched - still teal-through-orange, still
+ * deliberately neither #22c55e nor #ef4444, still always beside a glyph and a
+ * word. Only the lightness moves, and each value is the first that clears
+ * 4.5:1 on all three light surfaces at that hue.
+ */
+:root:not(.dark) {
+  --b-good: #1a7d71;   /* 4.98 / 4.55 / 4.79 */
+  --b-mid:  #5e718d;   /* 4.97 / 4.54 / 4.78 */
+  --b-warn: #92690a;   /* 4.94 / 4.51 / 4.75 */
+  --b-poor: #bb4f05;   /* 4.96 / 4.53 / 4.77 */
+}
+:root:not(.dark) .b-good { --fav: var(--b-good); }
+:root:not(.dark) .b-mid  { --fav: var(--b-mid); }
+:root:not(.dark) .b-warn { --fav: var(--b-warn); }
+:root:not(.dark) .b-poor, :root:not(.dark) .b-bad { --fav: var(--b-poor); }

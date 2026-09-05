@@ -68,7 +68,7 @@ export function SourcePicker({
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>Sources</span>
           {selected.length > 0 && (
-            <button onClick={onClear} className="text-[11px] font-normal text-primary hover:underline">clear</button>
+            <button onClick={onClear} className="text-[11px] font-normal text-link hover:underline">clear</button>
           )}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />

@@ -94,7 +94,7 @@ function Body({ led, project, needle }: { led: LedgerPayload; project?: string; 
                 {r.projects.length === 0 ? <NoValue title="not claimed by any project" /> :
                   r.projects.map((id) => (
                     <Link key={id} to={`/p/${encodeURIComponent(id)}/stack`}
-                          className="font-mono text-[11px] text-primary hover:underline">{id}</Link>
+                          className="tap font-mono text-[11px] text-link hover:underline">{id}</Link>
                   ))}
               </span>
             ) },

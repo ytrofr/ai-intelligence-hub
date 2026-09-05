@@ -9,6 +9,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { DESTINATIONS, SECTION_LABEL, type Section } from "./nav";
+import { ThemeToggle } from "./ThemeToggle";
 import { useApi } from "@/lib/useApi";
 import { cn } from "@/lib/utils";
 import { useProject } from "./useProject";
@@ -140,6 +141,11 @@ export function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <ThemeToggle />
+          </SidebarMenuItem>
+        </SidebarMenu>
         <HealthPill />
       </SidebarFooter>
       <SidebarRail />

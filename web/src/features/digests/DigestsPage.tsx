@@ -128,7 +128,7 @@ function One({ date }: { date: string }) {
       </Async>
       <p className="text-xs text-muted-foreground">
         <a href={`/api/digest/${encodeURIComponent(date)}`} target="_blank" rel="noreferrer"
-           className="text-primary hover:underline">
+           className="text-link hover:underline">
           read the raw markdown →
         </a>{" "}
         the one view nothing here can have mangled.

@@ -125,7 +125,7 @@ function SlotCard({ slot, project }: { slot: HubSlot; project: string }) {
         </ul>
       )}
       <div className="mt-3 border-t pt-3 text-xs">
-        <Link to={`/p/${encodeURIComponent(project)}/matrix`} className="text-primary hover:underline">
+        <Link to={`/p/${encodeURIComponent(project)}/matrix`} className="tap text-link hover:underline">
           see this project's candidates ranked →
         </Link>
       </div>

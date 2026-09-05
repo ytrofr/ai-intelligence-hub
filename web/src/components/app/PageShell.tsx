@@ -59,7 +59,7 @@ export function PageShell({
           <BreadcrumbList className="flex-nowrap">
             <BreadcrumbItem className="shrink-0">
               <BreadcrumbLink asChild>
-                <Link to="/">Hub</Link>
+                <Link to="/" className="tap">Hub</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {project && (
@@ -69,7 +69,7 @@ export function PageShell({
                   <BreadcrumbLink asChild>
                     <Link
                       to={`/p/${encodeURIComponent(project)}`}
-                      className="block truncate font-mono"
+                      className="tap block truncate font-mono"
                     >
                       {project}
                     </Link>
@@ -79,7 +79,7 @@ export function PageShell({
             )}
             <BreadcrumbSeparator className="shrink-0" />
             <BreadcrumbItem className="min-w-0 shrink">
-              <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
+              <BreadcrumbPage className="tap truncate">{title}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
@@ -95,7 +95,7 @@ export function PageShell({
         )}
       </header>
 
-      <main className="flex-1 px-4 py-8 sm:px-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 px-4 py-8 sm:px-6">
         <div className={cn("mx-auto w-full", WIDTH[width])}>
           <div className="mb-8">
             <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>

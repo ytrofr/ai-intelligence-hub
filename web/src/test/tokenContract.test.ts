@@ -22,7 +22,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -179,5 +179,110 @@ describe("the favourability ramp", () => {
     // A scan of an empty or unread file passes both assertions above - and so
     // does a comment-stripper that accidentally removed everything.
     expect(rampDecls.toLowerCase()).toContain("#2dd4bf");
+  });
+});
+
+describe("the accessibility pass has somewhere to stand", () => {
+  for (const theme of [":root", ".dark"]) {
+    it(`${theme}: --link exists and is NOT --primary`, () => {
+      // They pull in opposite directions: --primary is a surface with white on
+      // it, --link is ink on a page. Collapsing them back into one token is the
+      // regression this cell exists to catch, and it reads as a tidy-up.
+      expect(value(tokens, theme, "link")).not.toBeNull();
+      expect(value(tokens, theme, "link")).not.toEqual(value(tokens, theme, "primary"));
+    });
+  }
+
+  it("the ramp carries a light-theme set as well as a dark one", () => {
+    // The same five stops measure 9.02:1 on #0f1117 and 1.86:1 on white. A ramp
+    // is a relationship between an ink and a surface, so one set cannot serve
+    // two surfaces however carefully it was chosen.
+    expect(ramp).toMatch(/:root:not\(\.dark\)/);
+    for (const stop of ["b-good", "b-mid", "b-warn", "b-poor"]) {
+      expect(ramp, `${stop} has no light value`).toMatch(new RegExp(`--${stop}:`));
+    }
+  });
+
+  it("no ramp stop is still pointing at a variable that does not exist", () => {
+    // .b-none read `var(--color-text-dim)`, a name from the app this replaced.
+    // An undefined var makes --fav INVALID, and an invalid custom property is
+    // not an error - the chip silently inherits its parent's colour.
+    // Comments stripped FIRST. The comment above .b-none names the dead
+    // variable in order to explain it, and a scanner that counts its own
+    // documentation reports the bug it was written to prove is fixed.
+    const code = ramp.replace(/\/\*[\s\S]*?\*\//g, "");
+    const names = [...code.matchAll(/var\(\s*(--[a-z-]+)/g)].map((m) => m[1]);
+    const declared = new Set([
+      ...[...tokens.matchAll(/(--[a-z-]+)\s*:/g)].map((m) => m[1]),
+      ...[...code.matchAll(/(--[a-z-]+)\s*:/g)].map((m) => m[1]),
+    ]);
+    const dangling = [...new Set(names)].filter((n) => !declared.has(n));
+    expect(dangling, "an undefined var makes --fav invalid, silently").toEqual([]);
+  });
+
+  it("motion is reduced when the reader has asked for that", () => {
+    expect(globals).toMatch(/prefers-reduced-motion:\s*reduce/);
+    // Near-zero, not `none`: Radix waits for animationend before unmounting.
+    expect(globals).not.toMatch(/animation-duration:\s*0s/);
+  });
+
+  it("the keyboard has a visible cursor", () => {
+    expect(globals).toMatch(/:focus-visible/);
+    expect(globals).toMatch(/outline:\s*2px solid hsl\(var\(--ring\)\)/);
+  });
+});
+
+describe("every colour class names a role that exists", () => {
+  /**
+   * This cell exists because of a real one-line mistake, and it is the cheapest
+   * possible guard against its whole class.
+   *
+   * A blanket `text-primary` -> `text-link` rename over the tree also rewrote
+   * `text-primary-foreground` to `text-link-foreground` inside three GENERATED
+   * shadcn components. There is no `--link-foreground`, so Tailwind emitted no
+   * class at all: every default Button, Badge and Tooltip silently lost its
+   * white ink on the indigo surface. Nothing failed. TypeScript cannot see a
+   * class name, the build does not check one, and the rendered-pixel probe only
+   * catches it if such a control happens to be on a page it visited.
+   *
+   * A colour utility naming a token that does not exist is not a style bug, it
+   * is a class that never gets generated - always silent, never an error.
+   */
+  const SRC = join(process.cwd(), "src");
+
+  const walk = (dir: string): string[] =>
+    readdirSync(dir).flatMap((e) => {
+      const p = join(dir, e);
+      return statSync(p).isDirectory() ? walk(p) : p.endsWith(".tsx") || p.endsWith(".ts") ? [p] : [];
+    });
+
+  it("no className references a *-foreground role that tokens.css does not declare", () => {
+    const declared = new Set([...tokens.matchAll(/(--[a-z-]+)\s*:/g)].map((m) => m[1]));
+    const bad: string[] = [];
+    for (const file of walk(SRC)) {
+      // Comments stripped. THIS file's own header names the broken class in
+      // order to explain it, and that is the third time in one arc that a
+      // matcher has counted its own documentation as a finding.
+      const body = readFileSync(file, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      for (const m of body.matchAll(/\b(?:text|bg|border|ring)-([a-z]+(?:-[a-z]+)*-foreground)\b/g)) {
+        if (!declared.has(`--${m[1]}`)) bad.push(`${file.replace(SRC, "src")}: ${m[0]}`);
+      }
+    }
+    expect(bad, "a colour class naming a role that does not exist emits nothing at all").toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: the scanner reads real files and would see a bad one", () => {
+    // Without this the assertion above passes on an empty walk, which is what
+    // a wrong SRC path or a changed extension would produce.
+    const files = walk(SRC);
+    expect(files.length).toBeGreaterThan(20);
+    const uses = files
+      .map((f) => readFileSync(f, "utf8"))
+      .join("")
+      .match(/\btext-[a-z]+-foreground\b/g);
+    expect(uses, "no *-foreground classes found at all - the matcher is broken").not.toBeNull();
+    expect((uses ?? []).length).toBeGreaterThan(5);
   });
 });

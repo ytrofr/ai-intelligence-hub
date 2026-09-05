@@ -46,7 +46,7 @@ export function InventoryPage() {
                   key: "project", header: "Project", width: "16rem",
                   cell: (p) => (
                     <Link to={`/p/${encodeURIComponent(p.id)}`} className="block">
-                      <span className="font-mono text-xs text-primary">{p.id}</span>
+                      <span className="font-mono text-xs text-link">{p.id}</span>
                       <span className="mt-0.5 block text-xs text-muted-foreground">{p.name}</span>
                     </Link>
                   ),
@@ -101,7 +101,7 @@ export function InventoryPage() {
                       <span className="flex flex-wrap gap-1">
                         {r.projects.map((id) => (
                           <Link key={id} to={`/p/${encodeURIComponent(id)}`}
-                                className="font-mono text-xs text-primary hover:underline">{id}</Link>
+                                className="tap font-mono text-xs text-link hover:underline">{id}</Link>
                         ))}
                       </span>
                     ) },

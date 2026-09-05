@@ -56,7 +56,7 @@ export function ProjectsPage() {
                       <span className="flex flex-wrap gap-1">
                         {r.projects.map((id) => (
                           <Link key={id} to={`/p/${encodeURIComponent(id)}`}
-                                className="font-mono text-xs text-primary hover:underline">{id}</Link>
+                                className="tap font-mono text-xs text-link hover:underline">{id}</Link>
                         ))}
                       </span>
                     ) },
@@ -92,7 +92,7 @@ function ProjectCard({ p }: { p: HubProject }) {
       to={`/p/${encodeURIComponent(p.id)}`}
       className="block rounded-lg border bg-card p-4 transition-colors hover:border-primary/50 hover:bg-accent"
     >
-      <div className="font-mono text-sm text-primary">{p.id}</div>
+      <div className="font-mono text-sm text-link">{p.id}</div>
       <div className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{p.name}</div>
       <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
         <Stat label="slots" value={c.slots} />

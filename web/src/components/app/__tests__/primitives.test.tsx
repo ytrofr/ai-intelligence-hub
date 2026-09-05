@@ -8,9 +8,10 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { StateChip } from "../StateChip";
 import { DataTable } from "../DataTable";
-import { SourceBadge, BRANDED_SOURCES } from "../SourceBadge";
+import { SourceBadge, BRANDED_SOURCES, BRAND, BRAND_INK } from "../SourceBadge";
 import { DimBar, ScoreBar } from "../ScoreBar";
 import { band, favour, scoreBand } from "@/lib/favour";
+import { contrast, over } from "@/lib/contrast";
 import { timeAgo, ageDays, compact } from "@/lib/time";
 
 describe("a state can never be colour alone", () => {
@@ -115,8 +116,41 @@ describe("an unknown source is muted, never dropped", () => {
     const { container } = render(<SourceBadge source="github" />);
     const el = container.firstElementChild as HTMLElement;
     expect(el.getAttribute("title")).toBe("github");
-    expect(el.style.color).toBeTruthy();
+    // The brand still reaches the badge - as the border and the tint, and as
+    // the two per-theme inks. It is no longer a plain `color`, because one
+    // colour cannot be readable on both a white tint and a near-black one.
+    expect(el.style.borderColor).toBeTruthy();
+    expect(el.style.getPropertyValue("--brand-ink-light")).toMatch(/^#[0-9a-f]{6}$/);
+    expect(el.style.getPropertyValue("--brand-ink-dark")).toMatch(/^#[0-9a-f]{6}$/);
     expect(BRANDED_SOURCES).toContain("github");
+  });
+
+  /**
+   * The reason the inks are DERIVED rather than chosen. Twenty-two values, and
+   * the twelfth source someone adds gets checked by this without anyone
+   * remembering to.
+   */
+  it("every brand ink clears 4.5:1 on its own tint, in both themes", () => {
+    const bad: string[] = [];
+    for (const id of BRANDED_SOURCES) {
+      const brand = BRAND[id];
+      const ink = BRAND_INK[id];
+      const light = contrast(ink.light, over(brand, "#ffffff", 0.1));
+      const dark = contrast(ink.dark, over(brand, "#1a1d28", 0.1));
+      if (light < 4.5) bad.push(`${id} light ${light.toFixed(2)}`);
+      if (dark < 4.5) bad.push(`${id} dark ${dark.toFixed(2)}`);
+    }
+    expect(bad, "a source name nobody can read is a source the page under-reports").toEqual([]);
+  });
+
+  it("POSITIVE CONTROL: the raw brand colour would have FAILED that check", () => {
+    // Without this, the assertion above passes on a build where readableInk
+    // returns its input unchanged - which is exactly what a broken derivation
+    // looks like.
+    const raw = Object.keys(BRAND).filter(
+      (id) => contrast(BRAND[id], over(BRAND[id], "#ffffff", 0.1)) < 4.5,
+    );
+    expect(raw.length, "the undarkened brands must fail, or the check proves nothing").toBeGreaterThan(0);
   });
 });
 

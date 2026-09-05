@@ -82,7 +82,8 @@ export default {
   			success: 'hsl(var(--success) / <alpha-value>)',
   			warning: 'hsl(var(--warning) / <alpha-value>)',
   			info: 'hsl(var(--info) / <alpha-value>)',
-  			dim: 'hsl(var(--text-dim) / <alpha-value>)'
+  			dim: 'hsl(var(--text-dim) / <alpha-value>)',
+  			link: 'hsl(var(--link) / <alpha-value>)'
   		},
   		borderRadius: {
   			lg: 'var(--radius)',

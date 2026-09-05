@@ -26,3 +26,94 @@
     @apply bg-background text-foreground font-sans antialiased;
   }
 }
+
+@layer base {
+  /*
+   * Someone who has asked their OS to stop animating things has usually asked
+   * for a reason - vestibular disorder, motion sickness, or simply a machine
+   * that cannot afford the frames. Radix drives its open/close states with CSS
+   * animations, and tailwindcss-animate adds more, so the app is full of motion
+   * nothing in our own source declares.
+   *
+   * Near-zero rather than `none`: an animation with no duration still FIRES its
+   * end event, and Radix waits for that event before unmounting a dialog. Set
+   * it to none and the sheet never closes.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /*
+   * The keyboard's own cursor. shadcn's own components carry a focus ring; the
+   * plain <a> and <button> this app writes by hand did not, so tabbing through
+   * a page of item cards moved an invisible selection. :focus-visible rather
+   * than :focus, so a mouse click does not leave a ring behind it.
+   */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
+    border-radius: calc(var(--radius) - 2px);
+  }
+}
+
+@layer base {
+  /*
+   * The touch floor, applied only where touching happens.
+   *
+   * 44px is the house rule and WCAG 2.2 AAA; 24px is AA and the hard floor.
+   * Making every control 44px unconditionally would make a dense desktop
+   * dashboard look like a phone app, which is a real cost paid by the person
+   * who actually uses this - so the floor is applied on a COARSE pointer,
+   * where fingers are the input and the compactness buys nothing.
+   *
+   * Anchors are deliberately absent. A link inside a sentence is exempt under
+   * SC 2.5.8 and cannot be given a height without breaking the sentence it
+   * sits in; the small links this app has are all of that kind.
+   */
+  @media (pointer: coarse) {
+    button,
+    [role="button"],
+    [role="tab"],
+    input:not([type="hidden"]),
+    select,
+    textarea {
+      min-height: 44px;
+    }
+    button:not(:has(> span:not([class*="sr-only"]))) {
+      min-width: 44px;
+    }
+  }
+}
+
+@layer components {
+  /*
+   * A link that is a TARGET rather than a word in a sentence.
+   *
+   * The coarse-pointer rule above cannot cover anchors: an anchor inside a
+   * sentence is exempt under SC 2.5.8 and giving it a height breaks the line
+   * it sits in, and CSS cannot tell the two apart. So the standalone ones say
+   * so themselves. 24px is the AA floor and applies to every pointer; 44px is
+   * the house rule and only a finger needs it.
+   */
+  .tap {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    /* Width too. The breadcrumb's project link truncates under pressure and at
+       390px it collapsed to 16px - a target narrower than the finger and a name
+       shorter than one character. */
+    min-width: 24px;
+  }
+  @media (pointer: coarse) {
+    .tap {
+      min-height: 44px;
+    }
+  }
+}

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -15,6 +15,25 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
+    <!--
+      The theme, applied BEFORE the first paint. React mounts too late: the page
+      would paint light, then flip, on every single load. Kept deliberately tiny
+      and inline - an external file is another round trip in front of first
+      paint, which is the thing this exists to avoid.
+
+      THE KEY AND THE DEFAULT ARE ALSO IN src/components/app/theme.ts.
+      theme.test.ts reads this file and fails if the two drift apart, because a
+      boot script that disagrees with the module is invisible from inside the
+      module: the app works, remembers nothing, and flashes.
+    -->
+    <script>
+      (function () {
+        var t = "dark";
+        try { if (localStorage.getItem("theme") === "light") t = "light"; } catch (e) {}
+        if (t === "dark") document.documentElement.classList.add("dark");
+        document.documentElement.style.colorScheme = t;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
