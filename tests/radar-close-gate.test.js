@@ -109,6 +109,10 @@ test("T5 lesson 'none' is accepted — it is a deliberate sentence, not an empty
 
 test("T6 open transitions are unaffected — no evidence required", () => {
   const { store } = tmpStore();
+  // The ACCEPT gate (2026-09-05, tests/radar-accept-gate.test.js) wants a bench
+  // on the row before accepted/trial. That is a different gate; this test is
+  // about EVIDENCE, so the bench goes on first and the assertion stays.
+  makeAdoptable(store, "proj", "a/two", "SKIP");
   assert.equal(store.setStatus("proj", "a/two", "accepted").status, "accepted");
   assert.equal(store.setStatus("proj", "a/two", "trial").status, "trial");
   assert.equal(store.setStatus("proj", "a/two", "proposed").status, "proposed");

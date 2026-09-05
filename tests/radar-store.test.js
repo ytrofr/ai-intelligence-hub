@@ -5,7 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { RadarStore, STATUSES } = require("../routes/lib/radar-store");
 const { isLoopback } = require("../routes/lib/net");
-const { makeAdoptable } = require("./fixtures/adoption");
+const { makeAdoptable, BENCH_OK } = require("./fixtures/adoption");
 
 // Operator law 2026-08-17: closing also needs the pair the operator saw and their
 // verdict on it. See tests/radar-pair-gate.test.js for that half of the gate.
@@ -39,6 +39,7 @@ test("setStatus validates enum, updates row atomically, stamps updated_at", () =
   const s = tmpStore();
   assert.throws(() => s.setStatus("apollo", "a/b", "bogus"), /status must be one of/i);
   assert.throws(() => s.setStatus("apollo", "zz/zz", "accepted"), /not in radar/i);
+  makeAdoptable(s, "apollo", "a/b"); // accepted needs a bench since 2026-09-05 (accept gate)
   const row = s.setStatus("apollo", "a/b", "accepted");
   assert.equal(row.status, "accepted");
   assert.match(row.updated_at, /^\d{4}-\d{2}-\d{2}/);
@@ -89,10 +90,15 @@ test("done WITH evidence is stored, and stamps done_at", () => {
 });
 
 test("accepted and proposed still need no evidence — only CLOSING does", () => {
-  // Accepting is a decision; closing is a claim about the world. Only the claim
-  // needs backing, or the gate would just make the radar tedious.
+  // Closing is a claim about the world, so only closing needs EVIDENCE and a
+  // LESSON. Accepting is a decision — and since 2026-09-05 a decision needs a
+  // MEASUREMENT on this project's own data (a bench: tests/radar-accept-gate.
+  // test.js), which is a different thing from evidence of an outcome. So the
+  // bench goes on first for accepted/trial, and the assertion here stays what it
+  // was: no evidence, no lesson demanded.
   for (const status of ["accepted", "proposed", "trial"]) {
     const s = tmpStore();
+    if (status !== "proposed") makeAdoptable(s, "apollo", "a/b");
     assert.equal(s.setStatus("apollo", "a/b", status).status, status);
   }
 });
@@ -217,6 +223,7 @@ test("pair and eyeballed are NOT closure-only - they survive a non-closing statu
   // acting on an ADOPT verdict moves the row OFF `rejected`, and deleting the
   // answer at the moment it is honoured is the bug that comment records.
   const s = tmpStore();
+  makeAdoptable(s, "apollo", "a/b"); // accepted needs a bench since 2026-09-05 (accept gate)
   const row = s.setStatus("apollo", "a/b", "accepted", { pair: PAIR_OK, eyeballed: ADOPT_OK });
   assert.equal(row.pair, PAIR_OK);
   assert.equal(row.eyeballed, ADOPT_OK);
@@ -236,7 +243,8 @@ test("pair and eyeballed are NOT closure-only - they survive a non-closing statu
 // closed at all".
 test("a status change does NOT destroy evidence/lesson on a row that was never closed", () => {
   const s = tmpStore();
-  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", evidence: "apollo@3f9a12c", lesson: "quality/x.md" });
+  // bench: accepted needs one since 2026-09-05 (accept gate); it is not what this test is about
+  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", evidence: "apollo@3f9a12c", lesson: "quality/x.md", bench: BENCH_OK });
   const row = s.setStatus("apollo", "a/b", "accepted");
   assert.equal(row.evidence, "apollo@3f9a12c", "the row was never closed - there is no stale claim to clear");
   assert.equal(row.lesson, "quality/x.md");

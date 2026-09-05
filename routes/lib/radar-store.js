@@ -47,6 +47,9 @@ const VERDICTS = ["ADOPT", "WATCH", "SKIP"];
 const STATUSES = ["proposed", "accepted", "trial", "done", "rejected"];
 // Closing a row is the moment a decision has to become knowledge — see setStatus.
 const CLOSING = new Set(["done", "rejected"]);
+// The two statuses that say "we are taking this" before it is closed. Both
+// need a BENCH on the project's own row (operator law 2026-09-05, see setStatus).
+const ADOPTING = new Set(["accepted", "trial"]);
 const ID_RE = /^[a-z0-9][a-z0-9-]{0,40}$/;
 
 // What counts as evidence that something was BUILT: a bare or project-qualified
@@ -63,7 +66,8 @@ const REPORT_RE = /^(~|\.{0,2}\/)[\w.\/@ -]+\.(md|json|txt|csv|log)$/i;
 // The PAIR the operator actually looked at: a Decision Board card (8776) or a
 // Visual Hall batch (8772). A report PATH is deliberately NOT accepted — nobody
 // eyeballs a markdown file, and `evidence` already holds that. Operator law
-// 2026-08-17: ~/.claude/rules/quality/adoption-needs-an-eyeballed-before-after.md
+// 2026-08-17, now kept in ~/.claude/skills/stack/SKILL.md § The Pair (moved out of
+// rules/quality on 2026-08-21; the text is intact there, the gate is here).
 const PAIR_RE = /^https?:\/\/(localhost|127\.0\.0\.1):(8776|8772)\/\S*$/i;
 
 // Their verdict and when: "adopt 2026-08-17T11:42Z". `not-yet` is a real answer
@@ -449,6 +453,24 @@ class RadarStore {
             "Set them on the row itself - POST /api/radar/row (upsertRow) keeps them at any status.",
         );
       }
+    }
+
+    // Operator law 2026-09-05: "measure everything per project before we adopt".
+    // A row reaches `accepted` or `trial` FOR A PROJECT only with a bench on that
+    // project's own row — a run, on that project's own data, as { run, date,
+    // result }. Measured the day the law was set: 12 rows sat `accepted` with no
+    // bench anywhere, because this transition needed nothing. The bench lives in
+    // the project's OWN file (config/radar/<project>.json), so a sibling project's
+    // run cannot satisfy it — one bench per project. `done` demands it below as
+    // well; `proposed` and `rejected` never will: a rejected candidate was never
+    // adopted, and proposing costs nothing on purpose.
+    if (ADOPTING.has(status) && !row.bench) {
+      console.warn(`[radar] refused ${project}/${repo} -> ${status}: no bench on this project's row`);
+      throw new Error(
+        `cannot set status="${status}" on ${repo}: bench first — run it on ${project}'s own data and record ` +
+          `{ run, date, result } via POST /api/radar/row (upsertRow). An adoption decision with no ` +
+          `measurement on this project is a guess (operator law 2026-09-05).`,
+      );
     }
 
     if (CLOSING.has(status)) {

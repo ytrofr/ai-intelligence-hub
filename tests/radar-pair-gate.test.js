@@ -156,6 +156,9 @@ test("rejected closes on a reject verdict, with a report as its evidence", () =>
 
 test("accepted and proposed need no pair — only CLOSING does", () => {
   const { store } = tmpStore();
+  // accepted/trial DO need a bench since 2026-09-05 (tests/radar-accept-gate.test.js);
+  // this test is about the PAIR, so the bench goes on first and the assertion stays.
+  makeAdoptable(store, "proj", "a/two", "SKIP");
   assert.equal(store.setStatus("proj", "a/two", "accepted").status, "accepted");
   assert.equal(store.setStatus("proj", "a/two", "trial").status, "trial");
 });
