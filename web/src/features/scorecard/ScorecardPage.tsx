@@ -117,8 +117,8 @@ export function ScorecardPage() {
                   { key: "verdict", header: "Your verdict", width: "9rem", cell: verdictCell },
                   { key: "before_after", header: "Before / after", width: "14rem", secondary: true, cell: beforeAfterCell },
                   { key: "lesson", header: "Lesson", width: "14rem", secondary: true, cell: (r) => clip(r.lesson, 60) },
-                  { key: "next", header: "Next", width: "11rem", cell: (r) =>
-                      r.next && r.next !== "-" ? <span className="text-xs">{r.next}</span> : <NoValue title="closed - nothing left to do" /> },
+                  { key: "next", header: "Next", width: "13rem", cell: (r) =>
+                      r.next && r.next !== "-" ? <span className="whitespace-nowrap text-xs">{r.next}</span> : <NoValue title="closed - nothing left to do" /> },
                 ]}
                 rows={rows}
                 rowKey={(r) => `${r.project}::${r.repo}`}
