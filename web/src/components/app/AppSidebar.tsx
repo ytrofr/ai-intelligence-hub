@@ -13,6 +13,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { useApi } from "@/lib/useApi";
 import { cn } from "@/lib/utils";
 import { useProject } from "./useProject";
+import { healthPill, type HealthPayload } from "./health";
 
 interface HubPayload {
   projects: { id: string; name: string }[];
@@ -155,31 +156,13 @@ export function AppSidebar() {
 
 /**
  * The server's own health, which today is invisible unless someone curls it.
- * Degraded says WHICH part is degraded, because "degraded" alone sends the
- * reader to the logs anyway.
+ * The wording and the glyph both come from healthPill(), so a healthy hub
+ * cannot wear a warning triangle over the words "0 of N sources failing" -
+ * which is what it did until 2026-09-05.
  */
 function HealthPill() {
-  const health = useApi<{
-    status?: string;
-    sources_failed_last_run?: number;
-    sources_total?: number;
-  }>("/health");
-
-  // "degraded" on its own sends the reader to the logs, which is where they
-  // were going anyway. The count is the whole reason to render this at all.
-  let label: string;
-  if (health.state === "loading") label = "checking…";
-  else if (health.state === "error") label = "unreachable";
-  else if (health.data.status === "ok") label = "healthy";
-  else {
-    const bad = health.data.sources_failed_last_run;
-    const all = health.data.sources_total;
-    label =
-      typeof bad === "number" && typeof all === "number"
-        ? `${bad} of ${all} sources failing`
-        : (health.data.status ?? "unknown");
-  }
-  const ok = health.state === "ready" && health.data.status === "ok";
+  const health = useApi<HealthPayload>("/health");
+  const { ok, label } = healthPill(health);
 
   return (
     <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-sidebar-foreground/70">
