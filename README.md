@@ -1,11 +1,11 @@
 # AI Intelligence Hub
 
-**Track AI trends from 25 sources in one dashboard, and turn them into per-project adoption decisions.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, arXiv, Google AI Blog, Simon Willison, and more — with full-text search and keyword scoring.
+**Track AI trends from 24 live sources in one dashboard, and turn them into per-project adoption decisions.** GitHub Trending, HuggingFace, MCP Servers, Claude Code Releases, Anthropic Skills & Cookbooks, arXiv, Google AI Blog, Simon Willison, and more — with full-text search and keyword scoring.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-green.svg)](https://nodejs.org/)
 [![Port](https://img.shields.io/badge/Port-4444-blue.svg)]()
-[![Sources](https://img.shields.io/badge/Sources-19-purple.svg)]()
+[![Sources](https://img.shields.io/badge/Sources-24-purple.svg)]()
 
 ---
 
@@ -39,12 +39,14 @@ No paid services required. Most sources are free feeds/APIs; GitHub discovery wa
 
 ## Features
 
-- **19 AI Sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Anthropic Skills Library, Claude Cookbooks, arXiv CS.AI, Google AI Blog, Simon Willison, MarkTechPost, The Gradient, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News, AI News
+- **24 live sources** — GitHub Trending repos, HuggingFace models, MCP server registry, Claude Code releases and docs, Anthropic Skills Library, Claude Cookbooks, arXiv CS.AI, Google AI Blog, Simon Willison, MarkTechPost, The Gradient, Hacker News, Product Hunt, Anthropic Blog, OpenAI Blog, TechCrunch AI, MIT AI News, AI News
 - **Full-Text Search** — SQLite FTS5 indexes all items for instant keyword search
 - **Keyword Scoring** — Configurable categories with weighted keywords rank items by relevance
 - **Bookmarks** — Save items for later with persistent bookmarks
 - **Modular Architecture** — Add new sources by extending `BaseModule` (one file per source)
-- **Zero Build Step** — Vanilla JavaScript frontend, no bundler or framework required
+- **One design system** — React + shadcn/ui on a token contract a test pins, so a theme cannot silently revert to stock
+- **Colour is never the only channel** — every verdict carries a shape and a word as well as a hue
+- **A design-system page** — `/design` reads the live stylesheet and measures every ink/surface pair in the theme you are in
 - **Self-Contained** — SQLite database, no external database or service dependencies
 
 ---
@@ -116,18 +118,50 @@ tree.
 
 ---
 
+## The app
+
+Ten destinations plus the design system, all served from one bundle on 4444. `nav.ts` is the
+single list the sidebar, the breadcrumbs and the router all read, so a nav entry cannot point
+at a route that does not exist.
+
+| Route | What it is |
+| --- | --- |
+| `/` | Items - everything the fetchers found, newest first |
+| `/digests` | The written-up version, one per week |
+| `/discovery` | What to look at next, and why |
+| `/projects` | Every project, five numbers each |
+| `/inventory` | Live dependency counts, read from the checkouts |
+| `/p/:project` | What this project needs and what we have for it |
+| `/p/:project/matrix` | Candidates ranked, with the gates each still owes |
+| `/p/:project/stack` | Every repo we use, how it turned out, what it taught us |
+| `/p/:project/radar` | Proposed, tried, adopted or refused |
+| `/p/:project/ground-truth` | Every instrument, and when it last actually said something |
+| `/design` | The design system: tokens as the browser resolves them, contrast measured, every shared component |
+
+Every address the pre-rebuild HTML version used still resolves, `?project=` and all.
+
+---
+
 ## API Reference
 
-| Method | Endpoint         | Description                     |
-| ------ | ---------------- | ------------------------------- |
-| GET    | `/`              | Dashboard UI                    |
-| GET    | `/api/items`     | List items (paginated, filters) |
-| POST   | `/api/fetch`     | Trigger fetch from sources      |
-| GET    | `/api/sources`   | List configured sources         |
-| GET    | `/api/bookmarks` | List bookmarked items           |
-| GET    | `/api/stats`     | Dashboard statistics            |
-| GET    | `/api/search`    | Full-text search (FTS5)         |
-| GET    | `/api/health`    | Health check                    |
+| Method | Endpoint                | Description                                    |
+| ------ | ----------------------- | ---------------------------------------------- |
+| GET    | `/api/items`            | List items (paginated, filtered)               |
+| GET    | `/api/search`           | Full-text search (FTS5)                        |
+| GET    | `/api/bookmarks`        | Saved items                                    |
+| GET    | `/api/digest`           | Weekly digests; `/api/digest/:date` is markdown |
+| GET    | `/api/recommendations`  | What to look at next, and why                  |
+| GET    | `/api/projects-hub`     | Every project, five numbers each                |
+| GET    | `/api/adoption-matrix`  | Candidates ranked, with the gates they owe     |
+| GET    | `/api/ledger`           | Every repo used, how it turned out             |
+| GET    | `/api/radar`            | The adoption queue; POST `/status` to move a row |
+| GET    | `/api/ground-truth`     | Every instrument and when it last spoke        |
+| GET    | `/api/inventory`        | Live dependency counts, read from the checkouts |
+| GET    | `/api/tracked`          | Upstream repos being watched                   |
+| GET    | `/api/sources`          | Configured sources and their last status       |
+| POST   | `/api/fetch`            | Trigger a fetch                                |
+| GET    | `/api/stats`            | Dashboard statistics                           |
+| GET    | `/api/health`           | `healthy` or `degraded`, with the failing count |
 
 ---
 
@@ -137,7 +171,7 @@ tree.
 2. Implement the `fetch()` method returning normalized items
 3. Register it in `modules/index.js`
 4. Add source config to `config/sources.json`
-5. Add badge CSS in `public/css/components.css`
+5. Add its brand colour to `BRAND` in `web/src/components/app/SourceBadge.tsx` - the badge's ink is derived from it per theme, so a new source cannot ship unreadable
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
@@ -197,7 +231,7 @@ Edit `config/sources.json` to add or modify sources:
 A: Port 4444. This is hardcoded in `server.js` and does not conflict with other common development ports.
 
 **Q: Do I need any API keys?**
-A: No. All 19 sources use free, unauthenticated APIs. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
+A: No. Every source uses a free, unauthenticated API. Optionally add a `GITHUB_TOKEN` for higher GitHub rate limits (60/h free, 5,000/h with token).
 
 **Q: How is data stored?**
 A: SQLite with FTS5 (full-text search). The database is created automatically on first run. No setup needed.
@@ -215,6 +249,14 @@ A: No. This is a local-first tool designed to run on your machine. Your data sta
 - [Express](https://expressjs.com/) — Web framework for Node.js
 - [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) — Synchronous SQLite3 with FTS5 support
 - [xml2js](https://github.com/Leonidas-from-XIV/node-xml2js) — XML/RSS feed parser
+
+The front end, whose dependencies are deliberately in their own `package.json` so none of
+them can reach the server's three:
+
+- [React](https://react.dev/) + [React Router](https://reactrouter.com/) — UI and routing
+- [Vite](https://vitejs.dev/) — the build; no dev server, see Quick Start
+- [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) — the design system
+- [Vitest](https://vitest.dev/) + [Testing Library](https://testing-library.com/) — component tests
 
 ---
 
