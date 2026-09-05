@@ -33,7 +33,7 @@ export const DESTINATIONS: Destination[] = [
   {
     id: "digests", label: "Digests", section: "discover",
     path: "/digests", href: () => "/digests",
-    blurb: "The written-up version, one per day",
+    blurb: "The written-up version, one per week",
   },
   {
     id: "discovery", label: "Discovery", section: "discover",

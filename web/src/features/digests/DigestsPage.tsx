@@ -1,16 +1,20 @@
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { PageShell } from "@/components/app/PageShell";
 import { Async } from "@/components/app/Loading";
 import { AbsenceRow } from "@/components/app/AbsenceRow";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useApi } from "@/lib/useApi";
+import { useApi, useApiText } from "@/lib/useApi";
 import { destinationById } from "@/components/app/nav";
-import { useNavigate } from "react-router-dom";
+import { digestDate, digestLabel } from "./digestFile";
 
 interface DigestList { digests: string[] }
 
 /**
  * The written-up version, one per week.
+ *
+ * The URL carries the DATE, not the filename - it is the shorter, stabler half
+ * and it is what the API already speaks. `digestFile.ts` holds the translation
+ * between the two vocabularies, which is where this page was broken.
  *
  * The raw-markdown link is kept. It is the only way to read a digest that the
  * renderer cannot mangle, and it is how the operator checks a digest against
@@ -29,47 +33,78 @@ export function DigestsPage() {
       width="prose"
       actions={
         <Async query={list} what="the digest list">
-          {(l) => (
-            <Select value={date ?? l.digests[0] ?? ""} onValueChange={(v) => nav(`/digests/${v}`)}>
-              <SelectTrigger className="h-8 w-64" aria-label="Choose a digest">
-                <SelectValue placeholder="pick a week" />
-              </SelectTrigger>
-              <SelectContent>
-                {l.digests.map((f) => (
-                  <SelectItem key={f} value={f} className="font-mono text-xs">{f}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
+          {(l) => {
+            const dates = l.digests.map(digestDate).filter((x): x is string => x !== null);
+            const chosen = date ?? dates[0] ?? "";
+            return (
+              <Select value={chosen} onValueChange={(v) => nav(`/digests/${v}`)}>
+                <SelectTrigger className="h-8 w-56" aria-label="Choose a digest">
+                  <SelectValue placeholder="pick a week" />
+                </SelectTrigger>
+                <SelectContent>
+                  {l.digests.map((f) => {
+                    const iso = digestDate(f);
+                    if (!iso) return null;
+                    return <SelectItem key={f} value={iso}>{digestLabel(f)}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
+            );
+          }}
         </Async>
       }
     >
       <Async query={list} what="the digest list">
         {(l) => {
-          const chosen = date ?? l.digests[0];
-          if (!chosen) {
+          const named = l.digests.map((f) => ({ file: f, date: digestDate(f) }));
+          const usable = named.filter((n) => n.date !== null);
+          // A file we cannot name is a ROW, not a silent omission - and it is a
+          // different finding from having no digests at all. Forwarding it to
+          // the API to be refused there would read to the operator as a broken
+          // backend rather than a file we could not parse.
+          const unnamed = named.filter((n) => n.date === null).map((n) => n.file);
+
+          if (usable.length === 0) {
             return (
               <AbsenceRow
                 tone="loud"
-                what="No digests have been written."
-                reason="Nothing has run the weekly write-up yet, so there is no file to read."
+                what={unnamed.length ? "No digest could be named." : "No digests have been written."}
+                reason={
+                  unnamed.length
+                    ? `${unnamed.length} file(s) do not match weekly-YYYY-MM-DD.md: ${unnamed.join(", ")}`
+                    : "Nothing has run the weekly write-up yet, so there is no file to read."
+                }
               />
             );
           }
-          return <One file={chosen} />;
+
+          const chosen = date ?? usable[0].date!;
+          return (
+            <div className="space-y-4">
+              <One date={chosen} />
+              {unnamed.length > 0 && (
+                <AbsenceRow
+                  what={`${unnamed.length} file(s) in the digests folder could not be named.`}
+                  reason={`Expected weekly-YYYY-MM-DD.md, got: ${unnamed.join(", ")}`}
+                />
+              )}
+            </div>
+          );
         }}
       </Async>
     </PageShell>
   );
 }
 
-function One({ file }: { file: string }) {
-  const body = useApi<{ content?: string; markdown?: string }>(`/digest/${encodeURIComponent(file)}`);
+function One({ date }: { date: string }) {
+  // `/api/digest/:date` answers text/markdown, so this reads TEXT. The JSON
+  // reader threw on the content type before the body was ever seen, which is
+  // half of why this page had never worked.
+  const body = useApiText(`/digest/${encodeURIComponent(date)}`);
   return (
     <div className="space-y-4">
-      <Async query={body} what={file}>
-        {(b) => {
-          const text = b.content ?? b.markdown ?? "";
+      <Async query={body} what={`the digest for ${date}`}>
+        {(text) => {
           if (!text.trim()) {
             return (
               <AbsenceRow
@@ -89,7 +124,7 @@ function One({ file }: { file: string }) {
         }}
       </Async>
       <p className="text-xs text-muted-foreground">
-        <a href={`/api/digest/${encodeURIComponent(file)}`} target="_blank" rel="noreferrer"
+        <a href={`/api/digest/${encodeURIComponent(date)}`} target="_blank" rel="noreferrer"
            className="text-primary hover:underline">
           read the raw markdown →
         </a>{" "}

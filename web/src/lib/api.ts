@@ -34,3 +34,26 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   }
   return (await res.json()) as T;
 }
+
+/**
+ * A body that is NOT JSON.
+ *
+ * `/api/digest/:date` answers `text/markdown` - deliberately, because a digest
+ * is the operator's own prose and wrapping it in JSON only to unwrap it adds a
+ * place for it to get mangled. `api()` calls `res.json()` unconditionally, so
+ * it throws on that endpoint before the caller ever sees a byte. Two content
+ * types need two readers; one reader that guesses would be worse.
+ */
+export async function apiText(path: string, init?: RequestInit): Promise<string> {
+  const res = await fetch(`${API_BASE}${path}`, init);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail = ((await res.json()) as { error?: string }).error ?? "";
+    } catch {
+      /* a non-JSON body is not itself an error worth reporting */
+    }
+    throw new ApiError(res.status, path, detail || `${res.status} from ${path}`);
+  }
+  return res.text();
+}

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ApiError } from "./api";
+import { api, apiText, ApiError } from "./api";
 
 /**
  * Three states, never two: loading, error, data.
@@ -21,6 +21,28 @@ export function useApi<T>(path: string | null): Async<T> {
     let live = true;
     setResult({ state: "loading" });
     api<T>(path)
+      .then((data) => live && setResult({ state: "ready", data }))
+      .catch((error) => live && setResult({ state: "error", error }));
+    return () => {
+      live = false;
+    };
+  }, [path]);
+
+  return result;
+}
+
+/**
+ * The text sibling of `useApi`. Same three states, same contract - it exists
+ * only because the body it reads is markdown rather than JSON.
+ */
+export function useApiText(path: string | null): Async<string> {
+  const [result, setResult] = useState<Async<string>>({ state: "loading" });
+
+  useEffect(() => {
+    if (path === null) return;
+    let live = true;
+    setResult({ state: "loading" });
+    apiText(path)
       .then((data) => live && setResult({ state: "ready", data }))
       .catch((error) => live && setResult({ state: "error", error }));
     return () => {
