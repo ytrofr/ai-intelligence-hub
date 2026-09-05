@@ -120,7 +120,18 @@ function One({ date }: { date: string }) {
             // beside the point: 700 lines of `**[repo](url)** · 47,181★` is
             // not something a person reads. The raw link below stays for
             // checking against the source; this is for reading.
-            <article className="space-y-3 rounded-lg border bg-card p-6 text-sm">
+            //
+            // overflow-wrap is INHERITED, so the one declaration on this
+            // article reaches every code span, link and bullet below rather
+            // than each needing its own. `anywhere` rather than `break-all`:
+            // it breaks a token only when it will not otherwise fit, so
+            // ordinary prose is untouched. It is load-bearing at phone widths -
+            // a repo description carrying a raw HTML fragment, which this
+            // renderer deliberately prints as text rather than injecting, is
+            // one unbreakable token and it pushed /digests 263px sideways at
+            // 320. A flex item with min-w-0 does not save you: the box shrinks
+            // and the glyphs paint straight past it.
+      <article className="space-y-3 rounded-lg border bg-card p-6 text-sm [overflow-wrap:anywhere]">
               {renderMarkdown(text)}
             </article>
           );

@@ -26,7 +26,7 @@ const PROJECT = process.env.HUB_PROJECT ?? "";
 const WIDTHS = [320, 390];
 
 const ROUTES = [
-  "/", "/digests", "/discovery", "/projects", "/inventory",
+  "/", "/digests", "/discovery", "/projects", "/inventory", "/design",
   ...(PROJECT
     ? ["", "/matrix", "/stack", "/radar", "/ground-truth"].map((s) => `/p/${PROJECT}${s}`)
     : []),

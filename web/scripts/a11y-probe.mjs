@@ -35,6 +35,15 @@ const BASE = process.env.HUB_URL ?? "http://localhost:4444";
 const PROJECT = process.env.HUB_PROJECT ?? "";
 const THEMES = (process.env.HUB_THEMES ?? "dark,light").split(",");
 
+/**
+ * The PRODUCT surfaces. `/design` is deliberately absent, and the reason is not
+ * convenience: that page renders specimens ON PURPOSE, including the two token
+ * pairs this probe would correctly flag - a swatch labelled "under the floor"
+ * is the page doing its job, and counting it here would turn documentation into
+ * a defect. Those two pairs are guarded instead by the instrument that can tell
+ * the difference: src/features/design/__tests__/palette.test.tsx pins the exact
+ * set of below-floor pairs and reds if it grows.
+ */
 const ROUTES = [
   "/", "/digests", "/discovery", "/projects", "/inventory",
   ...(PROJECT
@@ -97,6 +106,31 @@ const COLLECT = () => {
     "width:20px!important;height:20px!important;min-width:20px!important;" +
     "min-height:20px!important;max-height:20px!important;padding:0;";
   document.body.appendChild(tiny);
+
+  /**
+   * The EXEMPTION classifier's own control, in two arms.
+   *
+   * The 20x20 button above proves the size check fires. It says nothing about
+   * inlineInText, because a fixed inline-block button never reaches that walk -
+   * so widening the exemption could have swallowed every real finding on the
+   * page and the run would still have reported both controls FIRED. That is
+   * how this run went from 99 findings to 0: the number moved because the
+   * classifier moved, and nothing in the output could tell the two apart.
+   *
+   * Arm YES must be exempt (a link in a sentence, one inline wrapper deep).
+   * Arm NO must NOT be (a link that is the entire block). One arm alone proves
+   * nothing: a classifier stuck on `true` passes YES, and one stuck on `false`
+   * passes NO.
+   *
+   * Off-screen rather than fixed: a third fixed element would occlude real
+   * content, and the contrast pass reads pixels.
+   */
+  const rig = document.createElement("div");
+  rig.style.cssText = "position:absolute;left:-10000px;top:0;width:400px;font-size:10px;line-height:12px;";
+  rig.innerHTML =
+    '<p>a sentence with <strong><a href="#" id="__exempt_yes__">a link</a></strong> inside it</p>' +
+    '<p><strong><a href="#" id="__exempt_no__">the whole block</a></strong></p>';
+  document.body.appendChild(rig);
 
   const path = (el) => {
     const bits = [];
@@ -172,13 +206,32 @@ const COLLECT = () => {
   /**
    * WCAG 2.2 exempts a target that sits INLINE in a run of text - a link in a
    * sentence cannot be 44px tall without wrecking the sentence, and SC 2.5.8
-   * says so explicitly. Detected structurally: an inline element whose parent
-   * also holds text of its own.
+   * says so explicitly ("its size is otherwise constrained by the line-height
+   * of non-target text").
+   *
+   * This used to read the IMMEDIATE parent only, which meant a single inline
+   * wrapper defeated it: `<strong><a>…</a></strong>` puts the link's parent at
+   * <strong>, whose only child is the link, so a title in a run of prose was
+   * classified as a standalone target. The digest renderer emits exactly that
+   * shape and produced 39 phantom findings on its first measured run - a
+   * detector hole the corpus had never contained an example of until then.
+   *
+   * Now it walks OUT through inline wrappers to the first element that
+   * establishes a line box, and asks the question that actually matters: does
+   * that block say anything besides this link? If it does, the link's height is
+   * set by the surrounding text and the exemption applies. If the link IS the
+   * whole block, it is a standalone target and gets no exemption.
    */
   const inlineInText = (el) => {
-    const p = el.parentElement;
-    if (!p || getComputedStyle(el).display !== "inline") return false;
-    return [...p.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 0);
+    if (getComputedStyle(el).display !== "inline") return false;
+    let node = el;
+    let p = node.parentElement;
+    while (p && getComputedStyle(p).display === "inline") {
+      node = p;
+      p = node.parentElement;
+    }
+    if (!p) return false;
+    return (p.textContent || "").trim().length > (node.textContent || "").trim().length;
   };
   for (const el of document.querySelectorAll(SEL)) {
     const r = el.getBoundingClientRect();
@@ -195,6 +248,7 @@ const COLLECT = () => {
       h: Math.round(r.height),
       inline: inlineInText(el),
       control: el.id === "__target_control__",
+      id: el.id,
     });
   }
   return { text, targets };
@@ -245,6 +299,8 @@ const run = async () => {
   const browser = await chromium.launch();
   const findings = { contrast: [], targets: [] };
   let textSeen = 0, unmeasured = 0, targetSeen = 0, exempt = 0;
+  // null until the rig is read - "never ran" must not read as "passed".
+  let exemptArmYes = null, exemptArmNo = null;
   const aspiration = [];
   let contrastControlFired = false, targetControlFired = false;
 
@@ -314,6 +370,10 @@ const run = async () => {
         }
       }
       for (const g of targets) {
+        // The exemption rig is read for its CLASSIFICATION and never counted:
+        // it is off-screen scaffolding, not a control on the page.
+        if (g.id === "__exempt_yes__") { exemptArmYes = g.inline; continue; }
+        if (g.id === "__exempt_no__") { exemptArmNo = g.inline; continue; }
         targetSeen++;
         if (g.w >= 44 && g.h >= 44) continue;
         // 24px is WCAG 2.2 AA (SC 2.5.8) and is the FLOOR - under it is a
@@ -340,6 +400,14 @@ const run = async () => {
   console.log(`            ${THEMES.length} theme(s) x ${ROUTES.length} routes at 390px`);
   console.log(`positive control (contrast, #828282 on #808080): ${contrastControlFired ? "FIRED" : "*** DID NOT FIRE ***"}`);
   console.log(`positive control (target, 20x20 button):         ${targetControlFired ? "FIRED" : "*** DID NOT FIRE ***"}`);
+  const exemptOk = exemptArmYes === true && exemptArmNo === false;
+  console.log(
+    `exemption control (in-a-sentence / whole-block):  ` +
+    (exemptOk
+      ? "DISCRIMINATES"
+      : `*** BROKEN *** in-sentence=${exemptArmYes}, whole-block=${exemptArmNo}` +
+        " - the exempt count below is not evidence"),
+  );
   console.log(`not measured: ${unmeasured} (an unmeasured run is NOT a pass)`);
 
   const c = dedupe(findings.contrast, (r) => `${r.theme}|${r.sel}|${r.text}`);
