@@ -8,7 +8,7 @@
  * patterns and a link to a page that had been deleted.
  */
 
-export type Section = "discover" | "project" | "fleet";
+export type Section = "discover" | "project" | "fleet" | "system";
 
 export interface Destination {
   id: string;
@@ -73,6 +73,12 @@ export const DESTINATIONS: Destination[] = [
     blurb: "Every project, five numbers each",
   },
   {
+    id: "design", label: "Design system", section: "system",
+    path: "/design", href: () => "/design",
+    blurb: "Every token measured in the theme you are in, and every shared component",
+  },
+
+  {
     id: "inventory", label: "What we have", section: "fleet",
     path: "/inventory", href: () => "/inventory",
     blurb: "Live dependency counts, read from the checkouts",
@@ -83,6 +89,7 @@ export const SECTION_LABEL: Record<Section, string> = {
   discover: "Discover",
   project: "This project",
   fleet: "Across the fleet",
+  system: "This app",
 };
 
 export function destinationById(id: string): Destination | undefined {

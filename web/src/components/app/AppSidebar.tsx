@@ -35,7 +35,7 @@ export function AppSidebar() {
   const projects = hub.state === "ready" ? hub.data.projects : [];
   const current = projects.find((x) => x.id === project);
 
-  const groups: Section[] = ["discover", "project", "fleet"];
+  const groups: Section[] = ["discover", "project", "fleet", "system"];
 
   return (
     <Sidebar collapsible="icon">

@@ -15,6 +15,7 @@ import { RadarPage } from "@/features/radar/RadarPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
 import { DigestsPage } from "@/features/digests/DigestsPage";
 import { DiscoveryPage } from "@/features/discovery/DiscoveryPage";
+import { DesignPage } from "@/features/design/DesignPage";
 import { LEGACY_PATHS, LegacyRedirect } from "@/components/app/LegacyRedirect";
 import { useProject } from "@/components/app/useProject";
 
@@ -59,6 +60,7 @@ const BUILT: Record<string, () => JSX.Element> = {
   "ground-truth": GroundTruthPage,
   projects: ProjectsPage,
   inventory: InventoryPage,
+  design: DesignPage,
 };
 
 /** Sends /p/:project/<nothing> style typos somewhere real rather than blank. */
