@@ -3,11 +3,12 @@ import { PageShell } from "@/components/app/PageShell";
 import { Async } from "@/components/app/Loading";
 import { AbsenceRow } from "@/components/app/AbsenceRow";
 import { SourceBadge } from "@/components/app/SourceBadge";
-import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useApi } from "@/lib/useApi";
 import { destinationById } from "@/components/app/nav";
 import { compact, timeAgo } from "@/lib/time";
+import { LIMIT, useItemFilters } from "./filters/useItemFilters";
+import { FilterBar } from "./filters/FilterBar";
 
 interface Item {
   id: number;
@@ -21,6 +22,7 @@ interface Item {
   bookmark_id: number | null;
 }
 interface ItemsPayload { items: Item[]; count: number; total: number }
+interface Stats { totalItems: number; bySource: Record<string, number> }
 
 /**
  * Everything the fetchers found.
@@ -32,7 +34,7 @@ interface ItemsPayload { items: Item[]; count: number; total: number }
 const VIEW_KEY = "viewMode";
 
 export function ItemsPage() {
-  const [q, setQ] = useState("");
+  const filters = useItemFilters();
   const [view, setView] = useState<"grid" | "list">(() => {
     try {
       return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "grid";
@@ -50,13 +52,20 @@ export function ItemsPage() {
     } catch { /* see above */ }
   };
 
-  const path = useMemo(() => {
-    const p = new URLSearchParams({ limit: "60" });
-    if (q.trim()) p.set("q", q.trim());
-    return `/items?${p}`;
-  }, [q]);
-
-  const items = useApi<ItemsPayload>(path);
+  const items = useApi<ItemsPayload>(filters.path);
+  // Per-source counts for the picker. They come from /stats, which already
+  // computes them - a second count derived here could disagree with the one
+  // the rest of the app shows.
+  const stats = useApi<Stats>("/stats");
+  const sources = useMemo(
+    () =>
+      stats.state === "ready"
+        ? Object.entries(stats.data.bySource)
+            .map(([id, count]) => ({ id, count }))
+            .sort((a, b) => b.count - a.count)
+        : [],
+    [stats],
+  );
   const d = destinationById("items")!;
 
   return (
@@ -65,42 +74,36 @@ export function ItemsPage() {
       blurb={d.blurb}
       width="wide"
       actions={
-        <>
-          <Input
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            placeholder="search titles and descriptions"
-            className="h-8 w-72"
-            aria-label="Search items"
-          />
-          <div className="flex rounded-md border">
-            {(["grid", "list"] as const).map((m) => (
-              <Button
-                key={m}
-                variant="ghost"
-                size="sm"
-                aria-pressed={view === m}
-                onClick={() => setMode(m)}
-                className={view === m ? "h-7 bg-accent font-semibold" : "h-7"}
-              >
-                {m}
-              </Button>
-            ))}
-          </div>
-        </>
+        <div className="flex rounded-md border">
+          {(["grid", "list"] as const).map((m) => (
+            <Button
+              key={m}
+              variant="ghost"
+              size="sm"
+              aria-pressed={view === m}
+              onClick={() => setMode(m)}
+              className={view === m ? "h-7 bg-accent font-semibold" : "h-7"}
+            >
+              {m}
+            </Button>
+          ))}
+        </div>
       }
     >
+      <div className="mb-4">
+        <FilterBar {...filters} sources={sources} />
+      </div>
       <Async query={items} what="the item feed">
         {(data) =>
           data.items.length === 0 ? (
             <AbsenceRow
-              what={q ? "Nothing matches that search." : "The feed is empty."}
+              what={filters.active || filters.f.q ? "Nothing matches these filters." : "The feed is empty."}
               reason={
-                q
-                  ? `No stored item's title or description contains "${q}". The fetchers may simply not have seen it yet.`
+                filters.active || filters.f.q
+                  ? `${filters.active} filter(s) active${filters.f.q ? ` and a search for "${filters.f.q}"` : ""} over ${stats.state === "ready" ? stats.data.totalItems.toLocaleString() : "the"} stored items. Widen one, or clear them all.`
                   : "No source has returned anything yet. Run a fetch, or check the failing-source count in the sidebar."
               }
-              tone={q ? "neutral" : "loud"}
+              tone={filters.active || filters.f.q ? "neutral" : "loud"}
             />
           ) : (
             <div className="space-y-4">
@@ -113,8 +116,18 @@ export function ItemsPage() {
               >
                 {data.items.map((it) => <ItemCard key={it.id} item={it} dense={view === "list"} />)}
               </div>
+              {/* `total` from /api/items is the STORE count - it does not move
+                  when filters narrow the feed. Calling it "matching" made a
+                  true number read as a false claim, so the page says only what
+                  it can actually know: a short page IS the whole match set; a
+                  full page means there are more, and how many more is a
+                  question this endpoint cannot answer. */}
               <p className="text-xs text-muted-foreground">
-                Showing {data.items.length} of {data.total} stored items.
+                {data.items.length < LIMIT
+                  ? `${data.items.length} item${data.items.length === 1 ? "" : "s"} match`
+                  : `First ${data.items.length} of more that match`}
+                {filters.active > 0 ? ` · ${filters.active} filter(s) on` : ""}
+                {` · ${data.total.toLocaleString()} stored`}
               </p>
             </div>
           )

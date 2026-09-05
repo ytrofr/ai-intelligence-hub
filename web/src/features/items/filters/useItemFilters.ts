@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { daysAgoIso } from "./dimensions";
 
 /**
@@ -55,7 +56,11 @@ export function activeCount(f: FilterState): number {
   return n;
 }
 
-export function toQuery(f: FilterState, limit = 60): string {
+/** The page size. Exported so the page can tell "this is everything"
+ *  from "this is the first page" without hardcoding the number twice. */
+export const LIMIT = 60;
+
+export function toQuery(f: FilterState, limit = LIMIT): string {
   const p = new URLSearchParams({ limit: String(limit) });
   if (f.q.trim()) p.set("q", f.q.trim());
   if (f.sources.length) p.set("sources", f.sources.join(","));
@@ -72,17 +77,72 @@ export function toQuery(f: FilterState, limit = 60): string {
   return `/items?${p}`;
 }
 
+/** The URL params this hook owns. Anything else in the query string is left
+ *  alone - the page does not own the whole URL, only its own filters. */
+const OWNED = [
+  "q", "sources", "scoreMin", "scoreMax", "starsMin", "starsMax",
+  "addedDays", "dateFrom", "dateTo", "bookmarksOnly", "sortBy", "sortOrder",
+] as const;
+
+function fromParams(sp: URLSearchParams): FilterState {
+  return {
+    ...EMPTY,
+    q: sp.get("q") ?? "",
+    sources: (sp.get("sources") ?? "").split(",").filter(Boolean),
+    scoreMin: sp.get("scoreMin") ?? "",
+    scoreMax: sp.get("scoreMax") ?? "",
+    starsMin: sp.get("starsMin") ?? "",
+    starsMax: sp.get("starsMax") ?? "",
+    addedDays: sp.get("addedDays") ?? "",
+    dateFrom: sp.get("dateFrom") ?? "",
+    dateTo: sp.get("dateTo") ?? "",
+    bookmarksOnly: sp.get("bookmarksOnly") === "true",
+    sortBy: sp.get("sortBy") ?? EMPTY.sortBy,
+    sortOrder: sp.get("sortOrder") ?? EMPTY.sortOrder,
+  };
+}
+
+function intoParams(f: FilterState, sp: URLSearchParams): URLSearchParams {
+  const next = new URLSearchParams(sp);
+  for (const k of OWNED) next.delete(k);
+  if (f.q.trim()) next.set("q", f.q.trim());
+  if (f.sources.length) next.set("sources", f.sources.join(","));
+  if (f.scoreMin) next.set("scoreMin", f.scoreMin);
+  if (f.scoreMax) next.set("scoreMax", f.scoreMax);
+  if (f.starsMin) next.set("starsMin", f.starsMin);
+  if (f.starsMax) next.set("starsMax", f.starsMax);
+  if (f.addedDays) next.set("addedDays", f.addedDays);
+  if (f.dateFrom) next.set("dateFrom", f.dateFrom);
+  if (f.dateTo) next.set("dateTo", f.dateTo);
+  if (f.bookmarksOnly) next.set("bookmarksOnly", "true");
+  // Defaults are omitted, so a clean feed has a clean URL. A link carrying
+  // ?sortBy=date&sortOrder=DESC reads as a filtered view when it is not one.
+  if (f.sortBy !== EMPTY.sortBy) next.set("sortBy", f.sortBy);
+  if (f.sortOrder !== EMPTY.sortOrder) next.set("sortOrder", f.sortOrder);
+  return next;
+}
+
+/**
+ * Filter state, in the URL.
+ *
+ * This is the one change that alters behaviour rather than appearance: a
+ * filtered view becomes a link you can paste, the back button undoes a filter,
+ * and a browser bookmark IS a saved search. `replace: true` keeps typing in the
+ * search box from filling the history with one entry per keystroke - back
+ * should leave the feed, not walk backwards through a word.
+ */
 export function useItemFilters() {
-  const [f, setF] = useState<FilterState>(EMPTY);
-  const set = <K extends keyof FilterState>(k: K, v: FilterState[K]) =>
-    setF((prev) => ({ ...prev, [k]: v }));
+  const [sp, setSp] = useSearchParams();
+  const f = useMemo(() => fromParams(sp), [sp]);
+
+  const write = (next: FilterState) => setSp(intoParams(next, sp), { replace: true });
+  const set = <K extends keyof FilterState>(k: K, v: FilterState[K]) => write({ ...f, [k]: v });
   const toggleSource = (id: string) =>
-    setF((prev) => ({
-      ...prev,
-      sources: prev.sources.includes(id)
-        ? prev.sources.filter((s) => s !== id)
-        : [...prev.sources, id],
-    }));
+    write({
+      ...f,
+      sources: f.sources.includes(id) ? f.sources.filter((s) => s !== id) : [...f.sources, id],
+    });
+
   const path = useMemo(() => toQuery(f), [f]);
-  return { f, set, setF, toggleSource, reset: () => setF(EMPTY), path, active: activeCount(f) };
+  return { f, set, setF: write, toggleSource, reset: () => write(EMPTY), path, active: activeCount(f) };
 }

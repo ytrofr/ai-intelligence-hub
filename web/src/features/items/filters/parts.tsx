@@ -1,6 +1,4 @@
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent,
@@ -47,34 +45,6 @@ export function BandGroup({
   );
 }
 
-/** Stacked form of the same control, for the left-panel variant. */
-export function BandStack({
-  label, bands, value, onChange,
-}: { label: string; bands: Band[]; value: string; onChange: (v: string) => void }) {
-  return (
-    <div className="space-y-1">
-      <Label className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</Label>
-      <div className="flex flex-col">
-        {bands.map((b) => {
-          const on = b.value === value;
-          return (
-            <button
-              key={b.value || "any"}
-              aria-pressed={on}
-              onClick={() => onChange(b.value)}
-              className={`flex items-center justify-between rounded px-2 py-1 text-left text-xs ${
-                on ? "bg-accent font-semibold" : "text-muted-foreground hover:bg-accent/50"
-              }`}
-            >
-              <span>{on ? "● " : "○ "}{b.label}</span>
-              {b.hint && <span className="font-mono text-[10px] text-dim">{b.hint}</span>}
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
 
 /**
  * 24 sources is too many for a chip row, so they live behind one trigger that
@@ -120,17 +90,3 @@ export function SourcePicker({
   );
 }
 
-export function NumberPair({
-  label, min, max, onMin, onMax,
-}: { label: string; min: string; max: string; onMin: (v: string) => void; onMax: (v: string) => void }) {
-  return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
-      <Input value={min} onChange={(e) => onMin(e.target.value)} placeholder="min"
-             className="h-7 w-20 font-mono text-xs" aria-label={`${label} minimum`} />
-      <span className="text-xs text-dim">to</span>
-      <Input value={max} onChange={(e) => onMax(e.target.value)} placeholder="max"
-             className="h-7 w-20 font-mono text-xs" aria-label={`${label} maximum`} />
-    </div>
-  );
-}
