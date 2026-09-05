@@ -52,6 +52,11 @@ export const DESTINATIONS: Destination[] = [
     blurb: "Candidates ranked, with the gates each one still owes",
   },
   {
+    id: "scorecard", label: "Scorecard", section: "project",
+    path: "/p/:project/scorecard", href: (x) => `/p/${p(x)}/scorecard`,
+    blurb: "What this project measured on its own data, what it only guessed, and what each no taught",
+  },
+  {
     id: "stack", label: "Stack Ledger", section: "project",
     path: "/p/:project/stack", href: (x) => `/p/${p(x)}/stack`,
     blurb: "Every repo we use, how it turned out, what it taught us",

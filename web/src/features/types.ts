@@ -125,3 +125,47 @@ export interface LedgerPayload {
   };
   generated_at: string;
 }
+
+/** One row of the per-project adoption scorecard (GET /api/adoption-scorecard). */
+export interface ScorecardRow {
+  repo: string;
+  project: string;
+  kind: string;
+  slot: string | null;
+  verdict: string | null;
+  status: string;
+  state: string;
+  measure: "measured" | "estimated" | "not-run";
+  bench: { run: string; date: string; result: string } | null;
+  bench_date: string | null;
+  bench_result: string | null;
+  legacy_unbenched: boolean;
+  score_total: number | "unscored";
+  score_basis: string | null;
+  pair: string | null;
+  eyeballed: { verb: string | null; at: string | null; raw: string } | null;
+  before_after: { before: string; after: string; window: string; date: string } | null;
+  telemetry: { project?: string; counters?: string[]; url?: string } | null;
+  evidence: string | null;
+  lesson: string | null;
+  outcome: string | null;
+  why: string | null;
+  updated_at: string | null;
+  next: string;
+}
+
+export interface ScorecardCounts {
+  rows: number;
+  measured: number;
+  estimated: number;
+  not_run: number;
+  legacy_unbenched: number;
+  closed: number;
+  with_verdict: number;
+}
+
+export interface ScorecardPayload {
+  generated_at: string;
+  population: ScorecardCounts & { projects: number; repos: number };
+  projects: { id: string; name: string; counts: ScorecardCounts; rows: ScorecardRow[] }[];
+}

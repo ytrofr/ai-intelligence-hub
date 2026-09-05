@@ -10,6 +10,7 @@ import { NeedsPage } from "@/features/needs/NeedsPage";
 import { InventoryPage } from "@/features/inventory/InventoryPage";
 import { StackPage } from "@/features/stack/StackPage";
 import { MatrixPage } from "@/features/matrix/MatrixPage";
+import { ScorecardPage } from "@/features/scorecard/ScorecardPage";
 import { GroundTruthPage } from "@/features/ground-truth/GroundTruthPage";
 import { RadarPage } from "@/features/radar/RadarPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
@@ -55,6 +56,7 @@ const BUILT: Record<string, () => JSX.Element> = {
   discovery: DiscoveryPage,
   needs: NeedsPage,
   matrix: MatrixPage,
+  scorecard: ScorecardPage,
   stack: StackPage,
   radar: RadarPage,
   "ground-truth": GroundTruthPage,
