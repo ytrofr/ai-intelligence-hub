@@ -67,7 +67,13 @@ function renderItem(item) {
   const reason = meta.match_reason || meta.perplexity_summary || meta.discovery_strategy || '';
   const lang = meta.language ? ` · ${meta.language}` : '';
   const desc = (item.description || '').replace(/\s+/g, ' ').trim().slice(0, 200);
-  return `- **[${mdLinkText(item.title)}](${item.url})** · ${stars}★${lang}\n  - ${desc}${desc ? '\n  - ' : ''}_${reason}_`;
+  // Only lines we actually have. The old form appended `_${reason}_`
+  // unconditionally, so an item with no match reason rendered as a bullet
+  // reading `- __` - an empty emphasis that survives every renderer and reads
+  // as a broken row rather than as an absent one. 60 of 69 items in the
+  // 2026-09-03 digest carried one.
+  const sub = [desc, reason && `_${reason}_`].filter(Boolean).map((l) => `\n  - ${l}`).join('');
+  return `- **[${mdLinkText(item.title)}](${item.url})** · ${stars}★${lang}${sub}`;
 }
 
 function renderTLDR(items) {

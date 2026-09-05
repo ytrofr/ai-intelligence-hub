@@ -6,6 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useApi, useApiText } from "@/lib/useApi";
 import { destinationById } from "@/components/app/nav";
 import { digestDate, digestLabel } from "./digestFile";
+import { renderMarkdown } from "@/lib/markdown";
 
 interface DigestList { digests: string[] }
 
@@ -114,15 +115,14 @@ function One({ date }: { date: string }) {
             );
           }
           return (
-            // Rendered as preformatted text on purpose: this is the operator's
-            // own writing and a markdown renderer that re-flows or drops a line
-            // makes it harder, not easier, to check against the source.
-            // break-words as well as pre-wrap: pre-wrap breaks at spaces, and a
-            // markdown line carrying a long URL or a table rule has none, so it
-            // pushed the whole page sideways on a phone - 228px over at 390.
-            <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded-lg border bg-card p-5 font-mono text-xs leading-relaxed">
-              {text}
-            </pre>
+            // Rendered, not printed. This page shipped inside a <pre> on the
+            // reasoning that a renderer can mangle a line - which is true, and
+            // beside the point: 700 lines of `**[repo](url)** · 47,181★` is
+            // not something a person reads. The raw link below stays for
+            // checking against the source; this is for reading.
+            <article className="space-y-3 rounded-lg border bg-card p-6 text-sm">
+              {renderMarkdown(text)}
+            </article>
           );
         }}
       </Async>
