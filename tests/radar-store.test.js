@@ -222,3 +222,37 @@ test("pair and eyeballed are NOT closure-only - they survive a non-closing statu
   assert.equal(row.eyeballed, ADOPT_OK);
   assert.equal(s.load("apollo").audit[0].eyeballed, ADOPT_OK);
 });
+
+// Found by my own CONTROL, one minute after shipping the refusal above: the
+// control call (`accepted`, no fields) is supposed to be the harmless arm, and
+// it DELETED the evidence and lesson that `upsertRow` had legitimately written
+// on a row that had never been closed. The refusal stopped the false yes and
+// left the data loss standing - a fix that reads complete because the thing it
+// fixed did stop happening.
+//
+// The reopen behaviour is the one to keep, so the test is which row it applies
+// to: `done_at` exists only after a closing status, so it is the only field that
+// distinguishes "this was closed and is being reopened" from "this was never
+// closed at all".
+test("a status change does NOT destroy evidence/lesson on a row that was never closed", () => {
+  const s = tmpStore();
+  s.upsertRow("apollo", { repo: "a/b", verdict: "ADOPT", evidence: "apollo@3f9a12c", lesson: "quality/x.md" });
+  const row = s.setStatus("apollo", "a/b", "accepted");
+  assert.equal(row.evidence, "apollo@3f9a12c", "the row was never closed - there is no stale claim to clear");
+  assert.equal(row.lesson, "quality/x.md");
+  assert.equal(s.load("apollo").audit[0].lesson, "quality/x.md", "and it survives the round-trip to disk");
+});
+
+test("POSITIVE CONTROL for the test above: a row that WAS closed still gets cleared", () => {
+  // Without this pair the test above passes just as well against a build that
+  // never clears anything, which is the behaviour the reopen case exists to
+  // forbid. Two cells, one distinguishing question.
+  const s = tmpStore();
+  makeAdoptable(s, "apollo", "a/b");
+  s.setStatus("apollo", "a/b", "done", { evidence: "apollo@3f9a12c", lesson: "quality/x.md", pair: PAIR_OK, eyeballed: ADOPT_OK });
+  assert.equal(s.load("apollo").audit[0].evidence, "apollo@3f9a12c");
+  const row = s.setStatus("apollo", "a/b", "accepted");
+  assert.equal(row.evidence, undefined);
+  assert.equal(row.lesson, undefined);
+  assert.equal(row.done_at, undefined);
+});

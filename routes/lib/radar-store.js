@@ -634,8 +634,18 @@ class RadarStore {
       row.eyeballed = next.eyeballed;
       if (!row.pair) delete row.pair;
       if (!row.eyeballed) delete row.eyeballed;
-      delete row.evidence;
-      delete row.lesson;
+      // Clear them only when there IS a closure to reopen. `done_at` is written
+      // by the closing branch and by nothing else, so it is the only field that
+      // separates "this was closed and is being reopened" (a stale claim, clear
+      // it) from "this was never closed" (a legitimate record `upsertRow` wrote,
+      // and deleting it here is data loss with no signal at all). Unconditional
+      // deletion made every status change destroy the evidence on an open row -
+      // found by the control arm of the fix above, which was supposed to be the
+      // harmless one.
+      if (row.done_at) {
+        delete row.evidence;
+        delete row.lesson;
+      }
       delete row.done_at;
     }
     this.save(project, cfg);
