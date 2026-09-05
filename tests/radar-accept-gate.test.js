@@ -142,3 +142,27 @@ test("a legacy accepted row moving to trial IS gated — that is the row the law
   const { store } = tmpStore();
   assert.throws(() => store.setStatus("proj", "a/one", "trial"), /bench/i);
 });
+
+// --- the SHAPE, not just the presence ---------------------------------------
+// `done` validates the bench through benchField; `accepted` must too, or a
+// hand-edited file carrying `bench: {}` or `bench: "yes"` walks through a gate
+// that only asks "is there something in the slot". Presence is not measurement.
+
+test("a malformed bench on the row does NOT satisfy the gate — {} and a bare string are refused", () => {
+  for (const bad of [{}, "yes", { run: "~/.claude/reports/x.md" }, { run: "not-a-report", date: "2026-09-05", result: "r" }]) {
+    const { store, dir } = tmpStore();
+    const cfg = JSON.parse(fs.readFileSync(path.join(dir, "proj.json"), "utf-8"));
+    cfg.audit.find((r) => r.repo === "a/two").bench = bad;
+    fs.writeFileSync(path.join(dir, "proj.json"), JSON.stringify(cfg));
+    assert.throws(() => store.setStatus("proj", "a/two", "accepted"), /bench/i, `bench=${JSON.stringify(bad)} must be refused`);
+    assert.equal(store.load("proj").audit.find((r) => r.repo === "a/two").status, "proposed");
+  }
+});
+
+test("POSITIVE CONTROL for the shape test: the same edit with a WELL-FORMED bench is accepted", () => {
+  const { store, dir } = tmpStore();
+  const cfg = JSON.parse(fs.readFileSync(path.join(dir, "proj.json"), "utf-8"));
+  cfg.audit.find((r) => r.repo === "a/two").bench = BENCH_OK;
+  fs.writeFileSync(path.join(dir, "proj.json"), JSON.stringify(cfg));
+  assert.equal(store.setStatus("proj", "a/two", "accepted").status, "accepted");
+});

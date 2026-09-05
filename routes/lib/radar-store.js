@@ -464,13 +464,25 @@ class RadarStore {
     // run cannot satisfy it — one bench per project. `done` demands it below as
     // well; `proposed` and `rejected` never will: a rejected candidate was never
     // adopted, and proposing costs nothing on purpose.
-    if (ADOPTING.has(status) && !row.bench) {
-      console.warn(`[radar] refused ${project}/${repo} -> ${status}: no bench on this project's row`);
-      throw new Error(
-        `cannot set status="${status}" on ${repo}: bench first — run it on ${project}'s own data and record ` +
-          `{ run, date, result } via POST /api/radar/row (upsertRow). An adoption decision with no ` +
-          `measurement on this project is a guess (operator law 2026-09-05).`,
-      );
+    if (ADOPTING.has(status)) {
+      // Presence is not measurement: the SHAPE is checked with the same validator
+      // `done` uses, so a hand-edited `bench: {}` cannot walk through.
+      let benchProblem = row.bench === undefined ? "no bench on this project's row" : "";
+      if (!benchProblem) {
+        try {
+          benchField(row.bench);
+        } catch (e) {
+          benchProblem = `bench is malformed: ${e.message}`;
+        }
+      }
+      if (benchProblem) {
+        console.warn(`[radar] refused ${project}/${repo} -> ${status}: ${benchProblem}`);
+        throw new Error(
+          `cannot set status="${status}" on ${repo}: bench first — run it on ${project}'s own data and record ` +
+            `{ run, date, result } via POST /api/radar/row (upsertRow). An adoption decision with no ` +
+            `measurement on this project is a guess (operator law 2026-09-05). (${benchProblem})`,
+        );
+      }
     }
 
     if (CLOSING.has(status)) {
