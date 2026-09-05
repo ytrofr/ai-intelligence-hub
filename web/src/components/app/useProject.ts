@@ -12,8 +12,20 @@ import { useMatch } from "react-router-dom";
  *
  * `useMatch` matches the location itself, so there is one answer for the whole
  * tree.
+ *
+ * BOTH patterns are matched UNCONDITIONALLY, and that is load-bearing rather
+ * than stylistic. Written as `useMatch(deep) ?? useMatch(bare)` the `??`
+ * short-circuits, so the second hook ran only on the routes where the first
+ * missed - two hooks on /projects, one on /p/x/matrix. React identifies hooks
+ * by call order, so the first NAVIGATION between those two shapes desynced the
+ * list and threw inside an unrelated useMemo. The stack named react-dom and
+ * react-router and nothing of ours but a line number.
+ *
+ * A single render can never show this. Its guard has to navigate:
+ * `__tests__/useProject.test.tsx`.
  */
 export function useProject(): string | undefined {
-  const match = useMatch("/p/:project/*") ?? useMatch("/p/:project");
-  return match?.params.project;
+  const deep = useMatch("/p/:project/*");
+  const bare = useMatch("/p/:project");
+  return (deep ?? bare)?.params.project;
 }
