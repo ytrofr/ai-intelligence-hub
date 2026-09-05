@@ -124,3 +124,72 @@ describe("an absence is a row", () => {
     expect(glyph(neutral)).not.toBe(glyph(loud));
   });
 });
+
+describe("the header row can run out of space without losing the actions", () => {
+  /**
+   * The failure this guards is not visible in jsdom - it is a layout defect, and
+   * it was found by measuring right edges in a real browser at 320px, where the
+   * Stack search box sat 44px past the viewport with no way to reach it. What
+   * jsdom CAN hold is the contract that made the fix work, so that is what these
+   * assert: the breadcrumb is the part allowed to shrink, and the actions slot
+   * is allowed to shrink rather than being pushed out of the row.
+   *
+   * The browser-level check is `web/scripts/no-sideways-scroll.mjs`, which
+   * carries its own positive control and is the thing to run after any header
+   * change. It is not in `npm test` because playwright is not a dependency of
+   * this repo and installing one here is not free.
+   */
+  const renderShell = () =>
+    renderAt(
+      "/p/demo/stack",
+      <PageShell title="Stack Ledger" actions={<input aria-label="probe" />}>
+        x
+      </PageShell>,
+      "/p/:project/stack",
+    );
+
+  it("POSITIVE CONTROL: the header renders both a breadcrumb and the actions", () => {
+    // Every assertion below reads one of these two nodes. If either is missing
+    // the queries throw rather than passing vacuously - which is the point.
+    renderShell();
+    expect(screen.getByRole("navigation", { name: /breadcrumb/i })).toBeTruthy();
+    expect(screen.getByLabelText("probe")).toBeTruthy();
+  });
+
+  /**
+   * Read the class LIST, never the class STRING. `toContain("min-w-0")` is
+   * satisfied by `[&>*]:min-w-0`, so the first version of the actions cell below
+   * survived a mutation that deleted the very class it names - it was asserting
+   * a substring of a different class. Caught by the mutation run, not by review.
+   */
+  const classes = (el: Element) => [...el.classList];
+
+  it("the breadcrumb takes the leftover room and is allowed to shrink", () => {
+    renderShell();
+    const nav = screen.getByRole("navigation", { name: /breadcrumb/i });
+    // flex-1 without min-w-0 does nothing: a flex item's default minimum is its
+    // content, so the trail refuses to shorten and pushes the row wider instead.
+    expect(classes(nav)).toContain("min-w-0");
+    expect(classes(nav)).toContain("flex-1");
+  });
+
+  it("the page title truncates rather than widening the row", () => {
+    renderShell();
+    const nav = screen.getByRole("navigation", { name: /breadcrumb/i });
+    const page = within(nav).getByText("Stack Ledger");
+    expect(classes(page)).toContain("truncate");
+    // A wrapping list inside a fixed-height header does not save space, it
+    // spills vertically - so the list must stay on one line.
+    expect(classes(page.closest("ol")!)).toContain("flex-nowrap");
+  });
+
+  it("the actions slot may shrink, and so may a fixed-width control inside it", () => {
+    renderShell();
+    const slot = screen.getByLabelText("probe").parentElement!;
+    expect(classes(slot)).toContain("min-w-0");
+    expect(classes(slot)).toContain("shrink");
+    // Without this the child keeps its declared width whatever the slot does,
+    // and escapes the row on its own.
+    expect(classes(slot)).toContain("[&>*]:min-w-0");
+  });
+});

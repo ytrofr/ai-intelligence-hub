@@ -43,7 +43,7 @@ export function StackPage() {
           value={needle}
           onChange={(e) => setNeedle(e.target.value)}
           placeholder="filter by repo, topic or reason"
-          className="h-8 w-64"
+          className="h-8 w-36 sm:w-64"
           aria-label="Filter the ledger"
         />
       }

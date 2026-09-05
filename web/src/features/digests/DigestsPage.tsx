@@ -38,7 +38,7 @@ export function DigestsPage() {
             const chosen = date ?? dates[0] ?? "";
             return (
               <Select value={chosen} onValueChange={(v) => nav(`/digests/${v}`)}>
-                <SelectTrigger className="h-8 w-56" aria-label="Choose a digest">
+                <SelectTrigger className="h-8 w-40 sm:w-56" aria-label="Choose a digest">
                   <SelectValue placeholder="pick a week" />
                 </SelectTrigger>
                 <SelectContent>

@@ -47,34 +47,52 @@ export function PageShell({
   return (
     <div className="flex min-h-svh flex-1 flex-col">
       <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
-        <SidebarTrigger className="-ml-1" />
-        <Separator orientation="vertical" className="mr-2 h-4" />
-        <Breadcrumb>
-          <BreadcrumbList>
-            <BreadcrumbItem>
+        <SidebarTrigger className="-ml-1 shrink-0" />
+        <Separator orientation="vertical" className="mr-2 h-4 shrink-0" />
+        {/* The breadcrumb is the part that YIELDS. It takes the leftover room
+            and truncates inside it, so a wide control in `actions` shortens the
+            trail rather than being pushed off the right edge - which is what
+            used to happen, silently, because a non-wrapping row with ml-auto
+            has no way to tell you it ran out of space. Measured at 320: the
+            Stack search box sat 44px past the edge and could not be reached. */}
+        <Breadcrumb className="min-w-0 flex-1">
+          <BreadcrumbList className="flex-nowrap">
+            <BreadcrumbItem className="shrink-0">
               <BreadcrumbLink asChild>
                 <Link to="/">Hub</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             {project && (
               <>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
+                <BreadcrumbSeparator className="shrink-0" />
+                <BreadcrumbItem className="min-w-0 shrink">
                   <BreadcrumbLink asChild>
-                    <Link to={`/p/${encodeURIComponent(project)}`} className="font-mono">
+                    <Link
+                      to={`/p/${encodeURIComponent(project)}`}
+                      className="block truncate font-mono"
+                    >
                       {project}
                     </Link>
                   </BreadcrumbLink>
                 </BreadcrumbItem>
               </>
             )}
-            <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage>{title}</BreadcrumbPage>
+            <BreadcrumbSeparator className="shrink-0" />
+            <BreadcrumbItem className="min-w-0 shrink">
+              <BreadcrumbPage className="truncate">{title}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
-        {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
+        {/* min-w-0 on the slot AND on its children: a fixed-width control is a
+            flex item with an intrinsic minimum, and without this it refuses to
+            shrink and escapes the row instead. Pages still declare a sensible
+            small-screen width of their own - this is the backstop that makes a
+            page which forgets one survivable rather than broken. */}
+        {actions && (
+          <div className="ml-auto flex min-w-0 shrink items-center gap-2 [&>*]:min-w-0">
+            {actions}
+          </div>
+        )}
       </header>
 
       <main className="flex-1 px-4 py-8 sm:px-6">
