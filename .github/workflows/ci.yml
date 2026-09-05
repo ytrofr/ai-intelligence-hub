@@ -23,7 +23,25 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          # 22, not 24, and not by preference. Node 24.20.0 aborts at process
+          # exit with
+          #   node::RemoveEnvironmentCleanupHook(...) at ../src/api/hooks.cc:142
+          # in any test file that loads better-sqlite3 - AFTER every assertion
+          # in it has passed. `node --test` reports that as a file-level
+          # failure, so six green files read as six failures and the run is red
+          # for a reason that has nothing to do with the diff.
+          #
+          # That is worse than an ordinary flake: this workflow is the ONLY gate
+          # on the de-identification guard, and a permanently red run is a gate
+          # nobody reads. It hid a real finding for three pushes on 2026-09-05:
+          # the guard named the offending file and the offending id, in public,
+          # in the log, and it went unnoticed under the crashes. (This comment
+          # does not repeat the id - the guard reads this file too, and was
+          # right to.)
+          #
+          # Local 24.18.0 does not abort; 24.20.0 does. Revisit when
+          # better-sqlite3 ships a build that survives Node 24's teardown.
+          node-version: "22"
       - run: npm ci --no-audit --no-fund
       - run: npm --prefix web ci --no-audit --no-fund
       # Builds before testing: dist/ is gitignored, and one of the guards

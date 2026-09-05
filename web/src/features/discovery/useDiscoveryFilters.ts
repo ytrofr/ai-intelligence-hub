@@ -8,14 +8,14 @@ import { useSearchParams } from "react-router-dom";
  * Three dimensions, and the reason each is here was measured rather than
  * chosen (2026-09-05, over a 200-row pool per project):
  *
- *   why     tech-stack 111 / unknown 41 / rising 35 / curated 13 on ogas, and
+ *   why     tech-stack 111 / unknown 41 / rising 35 / curated 13 on one project, and
  *           populated on all four projects. It is the only dimension that
  *           answers "why is this in front of me".
  *   stars   the feed's own bands, reused verbatim.
  *   source  4 distinct sources in a project-scoped pool.
  *
  * DELIBERATELY ABSENT: dependency overlap. It reads 3+ for all 200 rows on
- * ogas and agentsmith, so on half the projects it is a control that cannot
+ * two of the projects, so on half the projects it is a control that cannot
  * move. Also absent: "hide what we already ruled on" - modules/recommend.js
  * already DROPS rejected/done/accepted/trial/in-use rows before they arrive,
  * so the filter would have nothing to hide.

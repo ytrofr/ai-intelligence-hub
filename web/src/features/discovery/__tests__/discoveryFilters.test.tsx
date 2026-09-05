@@ -3,8 +3,8 @@
  *
  * The dimensions here were measured before they were built (2026-09-05, a
  * 200-row pool per project) and two candidates were REJECTED by that
- * measurement: dependency overlap reads 3+ for all 200 rows on ogas and
- * agentsmith, and "hide what we already ruled on" has nothing to hide because
+ * measurement: dependency overlap reads 3+ for all 200 rows on two of the
+ * projects, and "hide what we already ruled on" has nothing to hide because
  * modules/recommend.js drops those rows before they arrive. The cells below
  * pin the three that survived.
  */
@@ -73,10 +73,10 @@ describe("applyFilters", () => {
 
   it("activeCount counts what is NARROWING, not what is available", () => {
     expect(activeCount(EMPTY)).toBe(0);
-    expect(activeCount({ project: "ogas", why: "tech-stack", starsMin: "500", sources: ["x"] })).toBe(3);
+    expect(activeCount({ project: "apollo", why: "tech-stack", starsMin: "500", sources: ["x"] })).toBe(3);
     // The project is a LENS, not a filter: it changes which pool is ranked
     // rather than hiding rows from one, so it must not inflate the count.
-    expect(activeCount({ ...EMPTY, project: "ogas" })).toBe(0);
+    expect(activeCount({ ...EMPTY, project: "apollo" })).toBe(0);
   });
 
   it("star band hints count THIS pool, never the feed's", () => {
