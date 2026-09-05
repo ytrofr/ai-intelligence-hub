@@ -72,7 +72,7 @@
       "name": "AI News (smol.ai)",
       "type": "rss",
       "url": "https://news.smol.ai/rss.xml",
-      "enabled": true,
+      "enabled": false,
       "rate_limit_minutes": 60,
       "config": {
         "retention_days": 60
