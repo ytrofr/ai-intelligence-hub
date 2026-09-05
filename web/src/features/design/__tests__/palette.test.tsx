@@ -61,33 +61,27 @@ describe("hslChannelsToHex", () => {
 });
 
 /**
- * The pairs that are BELOW the floor today, and why each is still here.
+ * The pairs below the floor today: NONE.
  *
- * This is a RATCHET, not a licence: the assertion is a SUBSET check, so fixing
- * one of these passes and adding a new failure reds. Pinning the set exactly
- * would make a fix look like a regression, which is how a known-bad list stops
- * being a to-do and becomes a floor.
+ * It was two until 2026-09-05, and how they got there is worth keeping. R8b's
+ * probe measures RENDERED PIXELS, and no route in this app painted a default or
+ * a destructive button - every Button in ten routes is ghost or outline. A token
+ * pair with no caller is invisible to an instrument whose population is the
+ * screen. /design is the first thing that painted them and it reported both on
+ * its first run:
  *
- * Both were invisible until this page existed, and not by accident: R8b's probe
- * measures RENDERED PIXELS, and as of 2026-09-05 no route in the app paints a
- * default or a destructive button - every Button in ten routes is `ghost` or
- * `outline`. A token pair with no caller cannot be measured by an instrument
- * whose population is the screen. This gallery is the first thing that paints
- * them, and it reported both on its first run.
+ *   --primary-foreground on --primary          4.47 dark / 4.41 light
+ *   --destructive-foreground on --destructive  3.76      / 3.78
  *
- *   --primary-foreground on --primary       4.47 dark / 4.41 light  (needs 4.50)
- *   --destructive-foreground on --destructive  3.76 / 3.78
+ * The operator ruled on the rendered before/after: nudge both. The blue moved
+ * one hex digit (#6366f1 -> #6265f1, invisible); the red moved visibly
+ * (#ef4444 -> #eb1616).
  *
- * Neither is fixed here on purpose. --primary is the operator's signature
- * colour, pinned by tokenContract.test.ts, and moving a brand to win 0.03 is
- * their call and not a session's. --destructive is free to move but is a
- * sibling of the same question, and shipping half an answer to it would leave
- * the pair looking resolved.
+ * This stays a SUBSET check rather than an equality one. Empty today is the
+ * right state, and a subset check keeps saying so while still reddening the
+ * moment a new pair drops under - which is the only event worth an alarm.
  */
-const KNOWN_BELOW_FLOOR = [
-  "--primary-foreground on --primary",
-  "--destructive-foreground on --destructive",
-];
+const KNOWN_BELOW_FLOOR: string[] = [];
 
 const below = (read: (n: string) => string) =>
   PAIRS.map((p) => measure(read, p))
@@ -110,7 +104,7 @@ describe("reading roles", () => {
       expect(roles.filter((x) => swatch(r, x).hex === null)).toEqual([]);
     });
 
-    it(`${theme} adds no contrast failure beyond the two known ones`, () => {
+    it(`${theme} has no ink/surface pair under the floor`, () => {
       // Subset, not equality - see KNOWN_BELOW_FLOOR. A token edit that breaks
       // a real pair reds here long before anyone runs the pixel probe.
       const news = below(reader(theme)).filter((x) => !KNOWN_BELOW_FLOOR.includes(x));
@@ -125,10 +119,12 @@ describe("reading roles", () => {
     expect(below(grey).length).toBeGreaterThan(0);
   });
 
-  it("the two known failures are still real, not stale entries", () => {
+  it("the known-bad list is not carrying entries that were already fixed", () => {
     // A known-bad list nobody re-measures becomes a list of things that were
-    // once wrong. If one of these has been fixed, this cell says so.
-    expect(below(read).sort()).toEqual([...KNOWN_BELOW_FLOOR].sort());
+    // once wrong, and then it is a licence rather than a ratchet. Every entry
+    // must still be a live failure.
+    const live = below(read);
+    expect(KNOWN_BELOW_FLOOR.filter((x) => !live.includes(x)), "stale entries").toEqual([]);
   });
 
   it("an unreadable side reports 'not measured', never a ratio of zero", () => {

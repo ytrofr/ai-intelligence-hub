@@ -17,6 +17,27 @@
  *   They live in their own files and reach the page only through <SourceBadge>
  *   and <StateChip>, so a component cannot reach for them by accident.
  *
+
+ * THE 2026-09-05 NUDGE, and why a brand colour moved at all.
+ *
+ * --primary and --destructive are SURFACES with white text on them, and neither
+ * cleared 4.5:1 against that white: 4.47 and 3.76 in dark, 4.41 and 3.78 in
+ * light. Nothing in the app painted either one - every Button in ten routes is
+ * ghost or outline - so R8b's pixel probe, whose population is the screen,
+ * could not have seen them. /design paints them, and reported both.
+ *
+ * The operator ruled: nudge both. The blue moved 66.7% -> 66.5% lightness,
+ * which is #6366f1 -> #6265f1 and is not a visible change; the red moved
+ * 60.2% -> 50.5%, #ef4444 -> #eb1616, which IS visible and was ruled on after
+ * looking at the rendered pair rather than at the hex.
+ *
+ * --ring, --sidebar-primary and --sidebar-ring moved with --primary. They are
+ * the same brand colour and leaving them behind would put two blues one hex
+ * digit apart in the same rail - invisible, and exactly the kind of drift this
+ * file exists to prevent.
+ */
+
+/**
  * tokenContract.test.ts pins all of it, including the two signature colours -
  * `shadcn init` and `shadcn add` both rewrite theme files, and a silent
  * overwrite back to slate is the failure this repo would otherwise ship.
@@ -32,7 +53,7 @@
   --card-foreground: 222 47% 11%;
   --popover: 0 0% 100%;
   --popover-foreground: 222 47% 11%;
-  --primary: 239 84% 67%;
+  --primary: 239 84% 66.7%;
   --primary-foreground: 0 0% 100%;
   --secondary: 210 40% 96%;
   --secondary-foreground: 222 47% 11%;
@@ -42,20 +63,20 @@
   --muted-foreground: 215 16% 45.7%;
   --accent: 210 40% 94%;
   --accent-foreground: 222 47% 11%;
-  --destructive: 0 84% 60%;
+  --destructive: 0 84% 50.4%;
   --destructive-foreground: 0 0% 100%;
   --border: 214 32% 91%;
   --input: 214 32% 91%;
-  --ring: 239 84% 67%;
+  --ring: 239 84% 66.7%;
 
   --sidebar-background: 210 40% 98%;
   --sidebar-foreground: 215 16% 45.7%;
-  --sidebar-primary: 239 84% 67%;
+  --sidebar-primary: 239 84% 66.7%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 210 40% 94%;
   --sidebar-accent-foreground: 222 47% 11%;
   --sidebar-border: 214 32% 91%;
-  --sidebar-ring: 239 84% 67%;
+  --sidebar-ring: 239 84% 66.7%;
 
   --radius: 0.5rem;
 
@@ -92,7 +113,7 @@
   --card-foreground: 214.3 31.8% 91.4%;
   --popover: 227.1 21.2% 12.9%;
   --popover-foreground: 214.3 31.8% 91.4%;
-  --primary: 238.7 83.5% 66.7%;            /* #6366f1 - signature, pinned by a test */
+  --primary: 238.7 83.5% 66.5%;            /* #6265f1 - signature, pinned by a test */
   --primary-foreground: 0 0% 100%;
   --secondary: 229.4 18.7% 17.8%;          /* #252836 */
   --secondary-foreground: 214.3 31.8% 91.4%;
@@ -100,20 +121,20 @@
   --muted-foreground: 213.8 20.3% 69%;   /* #a0aec0 */
   --accent: 229.4 18.7% 17.8%;             /* #252836 - the HOVER surface, not the brand */
   --accent-foreground: 214.3 31.8% 91.4%;
-  --destructive: 0 84.2% 60.2%;          /* #ef4444 - always beside a word, never a status hue */
+  --destructive: 0 84.2% 50.5%;          /* #eb1616 - always beside a word, never a status hue */
   --destructive-foreground: 0 0% 100%;
   --border: 217.8 23.1% 22.9%;             /* #2d3748 */
   --input: 217.8 23.1% 22.9%;
-  --ring: 238.7 83.5% 66.7%;
+  --ring: 238.7 83.5% 66.5%;
 
   --sidebar-background: 222.9 24.1% 5.7%;  /* #0b0d12 - a shade under the page, so the rail reads as a rail */
   --sidebar-foreground: 213.8 20.3% 69%;
-  --sidebar-primary: 238.7 83.5% 66.7%;
+  --sidebar-primary: 238.7 83.5% 66.5%;
   --sidebar-primary-foreground: 0 0% 100%;
   --sidebar-accent: 227.1 21.2% 12.9%;
   --sidebar-accent-foreground: 214.3 31.8% 91.4%;
   --sidebar-border: 222.4 21.5% 15.5%;     /* #1f2430 */
-  --sidebar-ring: 238.7 83.5% 66.7%;
+  --sidebar-ring: 238.7 83.5% 66.5%;
 
   /* See :root. 4.54:1 on the card, 5.10 on the page, 4.78 on the tinted card. */
   --link: 238.7 83.5% 70.3%;

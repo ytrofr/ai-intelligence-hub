@@ -155,7 +155,12 @@ describe("the hub still looks like the hub", () => {
     // whole palette drifting a step off the pages it is replacing is exactly
     // what a before/after comparison is for.
     expect(value(tokens, ".dark", "background")).toBe("225 21.1% 7.5%");   // #0f1117 exactly
-    expect(value(tokens, ".dark", "primary")).toBe("238.7 83.5% 66.7%"); // #6366f1 exactly
+    // 66.5%, not 66.7%, since 2026-09-05. #6366f1 measured 4.47:1 against the
+    // white sitting on it - a button label 0.03 under the floor - and /design
+    // was the first surface in the app that ever painted the pair. The operator
+    // ruled on the rendered before/after, not on the hex. #6265f1 is one hex
+    // digit away and clears at 4.52.
+    expect(value(tokens, ".dark", "primary")).toBe("238.7 83.5% 66.5%"); // #6265f1 exactly
   });
 });
 
@@ -284,5 +289,28 @@ describe("every colour class names a role that exists", () => {
       .match(/\btext-[a-z]+-foreground\b/g);
     expect(uses, "no *-foreground classes found at all - the matcher is broken").not.toBeNull();
     expect((uses ?? []).length).toBeGreaterThan(5);
+  });
+});
+
+describe("the brand blue is ONE value", () => {
+  // --primary was nudged for contrast on 2026-09-05. --ring, --sidebar-primary
+  // and --sidebar-ring are the same colour and had to move with it; a future
+  // nudge that moves one and forgets the others leaves two blues a hex digit
+  // apart in the same rail, which is invisible to the eye and exactly what a
+  // token file is for.
+  for (const theme of [":root", ".dark"]) {
+    it(`${theme}: every brand-blue role carries the same value`, () => {
+      const primary = value(tokens, theme, "primary");
+      expect(primary, `${theme} has no --primary`).toBeTruthy();
+      for (const role of ["ring", "sidebar-primary", "sidebar-ring"]) {
+        expect(value(tokens, theme, role), `--${role} in ${theme}`).toBe(primary);
+      }
+    });
+  }
+
+  it("POSITIVE CONTROL: the comparison can fail", () => {
+    // --accent is deliberately NOT the brand. If this ever matches, the check
+    // above is comparing something to itself.
+    expect(value(tokens, ".dark", "accent")).not.toBe(value(tokens, ".dark", "primary"));
   });
 });
