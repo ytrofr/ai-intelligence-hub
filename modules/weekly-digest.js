@@ -344,7 +344,9 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   }
 
   const groundTruth = buildGroundTruthDigestSection();
-  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections() + groundTruth;
+  // Per project, what to run next - read off the scorecard, refreshed every Monday.
+  const { buildAdoptionQueueDigestSection } = require('./adoption-queue-digest');
+  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');
