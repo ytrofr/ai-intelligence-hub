@@ -1,4 +1,6 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { TrustMatrix } from "./TrustMatrix";
+import { DnaMap } from "./DnaMap";
 import { PageShell } from "@/components/app/PageShell";
 import { Async } from "@/components/app/Loading";
 import { DataTable } from "@/components/app/DataTable";
@@ -32,11 +34,32 @@ interface InventoryPayload {
  * failed read into a confident false claim.
  */
 export function InventoryPage() {
-  const q = useApi<InventoryPayload>("/inventory");
+  const [params, setParams] = useSearchParams();
+  const raw = params.get("view");
+  const view = raw === "trust" || raw === "dna" ? raw : "stack";
   const d = destinationById("inventory")!;
 
   return (
     <PageShell title="What we have" blurb={d.blurb} width="wide">
+      <div role="tablist" className="mb-6 flex gap-2">
+        {(["stack", "trust", "dna"] as const).map((v) => (
+          <button key={v} role="tab" aria-selected={view === v}
+                  onClick={() => setParams(v === "stack" ? {} : { view: v })}
+                  className={view === v
+                    ? "rounded-md border bg-card px-3 py-1.5 text-sm font-semibold"
+                    : "rounded-md px-3 py-1.5 text-sm text-muted-foreground hover:underline"}>
+            {v === "stack" ? "Stack" : v === "trust" ? "Trust" : "DNA"}
+          </button>
+        ))}
+      </div>
+      {view === "trust" ? <TrustMatrix /> : view === "dna" ? <DnaMap /> : <StackView />}
+    </PageShell>
+  );
+}
+
+function StackView() {
+  const q = useApi<InventoryPayload>("/inventory");
+  return (
       <Async query={q} what="the inventory">
         {(inv) => (
           <div className="space-y-8">
@@ -117,6 +140,5 @@ export function InventoryPage() {
           </div>
         )}
       </Async>
-    </PageShell>
   );
 }
