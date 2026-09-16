@@ -58,6 +58,7 @@ app.use("/api/radar", require("./routes/radar"));
 app.use("/api/tracked", require("./routes/tracked"));
 app.use("/api/inventory", require("./routes/inventory"));
 app.use("/api/capabilities", require("./routes/capabilities"));
+app.use("/api/ai-practice", require("./routes/ai-practice"));
 app.use("/api/dna-map", require("./routes/dna-map"));
 app.use("/api/ledger", require("./routes/ledger"));
 app.use("/api/adoption-matrix", require("./routes/adoption-matrix"));
