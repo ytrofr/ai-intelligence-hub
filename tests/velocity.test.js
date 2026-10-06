@@ -22,6 +22,19 @@ test("snapshots: gain7 = today - 7 days ago; velocity = gain7 / sqrt(max(50, bas
   assert.equal(v.eligible, true);
 });
 
+// /deep-test 2026-10-06: the base floor survived a mutation to 1 - every case above starts at
+// 1,000+ stars, so the floor never bound. A brand-new repo can sit at 0 a week ago, and
+// sqrt(0) would make its velocity Infinity. Literal numbers on purpose: a case derived
+// from the floor's own constant would move with any mutation of it.
+test("base floor: a repo at 0 or 10 stars a week ago divides by sqrt(50), never by its own base", () => {
+  const zero = computeVelocity([{ day: "2026-10-06", stars: 0 }, { day: "2026-10-13", stars: 400 }], { today: "2026-10-13" });
+  assert.equal(zero.stars_7d_ago, 0);
+  assert.ok(Number.isFinite(zero.velocity));
+  assert.ok(Math.abs(zero.velocity - 400 / Math.sqrt(50)) < 1e-9);
+  const ten = computeVelocity([{ day: "2026-10-06", stars: 10 }, { day: "2026-10-13", stars: 410 }], { today: "2026-10-13" });
+  assert.ok(Math.abs(ten.velocity - 400 / Math.sqrt(50)) < 1e-9);
+});
+
 test("NEGATIVE CONTROL: a 200k repo gaining 300/wk ranks BELOW a 2k repo gaining 1,500/wk", () => {
   const giant = { repo: "giant/old", v: computeVelocity([{ day: "2026-10-06", stars: 200000 }, { day: "2026-10-13", stars: 200300 }], { today: "2026-10-13" }) };
   const surge = { repo: "small/new", v: computeVelocity([{ day: "2026-10-06", stars: 2000 }, { day: "2026-10-13", stars: 3500 }], { today: "2026-10-13" }) };
