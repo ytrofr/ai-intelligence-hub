@@ -53,6 +53,38 @@ const { applySlotNearMissSchema, SlotNearMissStore } = require("./slot-near-miss
 applySlotNearMissSchema(db);
 const nearMissStore = new SlotNearMissStore(db);
 
+// Star history (star_snapshots): one total-star reading per repo per day, written
+// by gh-trending and gh-snapshot. DDL + statements live in snapshot-store.js.
+const { applySnapshotSchema, SnapshotStore } = require("./snapshot-store");
+applySnapshotSchema(db);
+const snapshotStore = new SnapshotStore(db);
+
+/**
+ * Pure: enabled source rows -> the /api/health source block.
+ *
+ * `partial` (fetch-runner: real items ingested, not all planned work ran) is
+ * DEGRADED, not healthy - it is the status that exists precisely so a half-run
+ * stops reading as success. It is listed apart from failures because the fix
+ * differs: a failed source produced nothing, a partial one produced too little.
+ */
+const FAILED_STATUSES = new Set(["error", "timeout"]);
+function summarizeSourceStatus(rows = []) {
+  const failed = rows.filter((r) => FAILED_STATUSES.has(r.last_status));
+  const partial = rows.filter((r) => r.last_status === "partial");
+  const runs = rows.map((r) => r.last_run_at).filter(Boolean).sort();
+  return {
+    // A boolean, not the word: server.js owns the two status literals (the
+    // web health pill's guard test reads them off that line).
+    degraded: failed.length > 0 || partial.length > 0,
+    sources_total: rows.length,
+    sources_failed_last_run: failed.length,
+    sources_partial_last_run: partial.length,
+    failed_sources: failed,
+    partial_sources: partial,
+    last_fetch_at: runs.length ? runs[runs.length - 1] : null,
+  };
+}
+
 // Prepared statements
 const stmts = {
   // first_seen_at is set on INSERT only — omitted from UPDATE SET so it's preserved
@@ -174,15 +206,10 @@ const stmts = {
     `UPDATE sources SET last_status = @last_status, last_error = @last_error,
        last_item_count = @last_item_count, last_run_at = @last_run_at WHERE id = @id`,
   ),
-  sourceStatusSummary: db.prepare(
-    `SELECT COUNT(*) AS sources_total,
-       SUM(CASE WHEN last_status IN ('error','timeout') THEN 1 ELSE 0 END) AS sources_failed_last_run,
-       MAX(last_run_at) AS last_fetch_at
-     FROM sources WHERE enabled = 1`,
-  ),
-  failedSources: db.prepare(
-    `SELECT id, last_status, last_error, last_run_at FROM sources
-     WHERE enabled = 1 AND last_status IN ('error','timeout') ORDER BY id`,
+  // One read of every enabled source; summarizeSourceStatus() derives the
+  // counts, the lists and the verdict from it, so they cannot disagree.
+  enabledSourceStatus: db.prepare(
+    `SELECT id, last_status, last_error, last_run_at FROM sources WHERE enabled = 1 ORDER BY id`,
   ),
 
   clearOldItems: db.prepare(`
@@ -569,10 +596,8 @@ module.exports = {
       last_item_count: row.last_item_count ?? 0,
       last_run_at: row.last_run_at || new Date().toISOString(),
     }),
-  getSourceStatusSummary: () => ({
-    ...stmts.sourceStatusSummary.get(),
-    failed_sources: stmts.failedSources.all(),
-  }),
+  getSourceStatusSummary: () => summarizeSourceStatus(stmts.enabledSourceStatus.all()),
+  summarizeSourceStatus,
 
   // Search history & suggestions
   getSearchSuggestions: (prefix) =>
@@ -606,6 +631,9 @@ module.exports = {
 
   // Upstream tracker — see database/tracked-store.js
   tracked: trackedStore,
+
+  // Star history — see database/snapshot-store.js
+  snapshots: snapshotStore,
 
   close: () => db.close(),
 };

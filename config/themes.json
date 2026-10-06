@@ -1,0 +1,460 @@
+{
+  "_doc": "Theme taxonomy for the GitHub Trends lane. modules/themes.js tags a repo from name + description + topics (word-boundary aware, hyphenated compounds count as ONE word). `queries` are BASE GitHub search queries: the theme-search source appends its own date/star windows (created:>, pushed:>, stars:>). `projects` stays empty in this PUBLIC file: loadThemes() fills it at runtime from an optional `themes: [...]` array on each profile in the gitignored config/projects.json.",
+  "themes": [
+    {
+      "id": "agentic-ai",
+      "label": "Agentic AI",
+      "topics": [
+        "ai-agents",
+        "ai-agent",
+        "agents",
+        "agentic-ai",
+        "agentic",
+        "multi-agent",
+        "multi-agent-systems",
+        "agent-framework",
+        "autonomous-agents"
+      ],
+      "keywords": [
+        "agent",
+        "agentic",
+        "multi agent",
+        "ai agent",
+        "agent framework",
+        "autonomous agent",
+        "agent sdk",
+        "agent orchestration",
+        "agent harness"
+      ],
+      "queries": [
+        "topic:ai-agents",
+        "\"agent framework\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "coding-agents",
+      "label": "Coding agents",
+      "topics": [
+        "coding-agent",
+        "coding-assistant",
+        "ai-coding",
+        "claude-code",
+        "codex",
+        "code-generation",
+        "ai-pair-programming",
+        "vibe-coding"
+      ],
+      "keywords": [
+        "coding agent",
+        "coding assistant",
+        "claude code",
+        "codex",
+        "aider",
+        "opencode",
+        "ai coding",
+        "pair programmer",
+        "code agent",
+        "vibe coding",
+        "terminal agent",
+        "cursor ide",
+        "cursor rules"
+      ],
+      "queries": [
+        "topic:coding-agent",
+        "\"coding agent\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "browser-computer-use",
+      "label": "Browser / computer use",
+      "topics": [
+        "browser-automation",
+        "browser-use",
+        "computer-use",
+        "web-agent",
+        "playwright",
+        "puppeteer",
+        "web-automation"
+      ],
+      "keywords": [
+        "browser use",
+        "computer use",
+        "browser agent",
+        "browser automation",
+        "web agent",
+        "headless browser",
+        "playwright",
+        "puppeteer",
+        "desktop automation",
+        "gui agent"
+      ],
+      "queries": [
+        "topic:browser-automation agent",
+        "\"computer use\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "agent-memory",
+      "label": "Agent memory",
+      "topics": [
+        "agent-memory",
+        "llm-memory",
+        "long-term-memory",
+        "memory-layer",
+        "knowledge-graph-memory"
+      ],
+      "keywords": [
+        "agent memory",
+        "llm memory",
+        "long term memory",
+        "memory layer",
+        "persistent memory",
+        "memory for agents",
+        "memory for llms",
+        "ai memory",
+        "context engineering",
+        "memory graph"
+      ],
+      "queries": [
+        "topic:agent-memory",
+        "\"long-term memory\" agent in:description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "llm-observability",
+      "label": "LLM observability / OTel",
+      "topics": [
+        "llm-observability",
+        "observability",
+        "opentelemetry",
+        "tracing",
+        "llmops",
+        "llm-monitoring",
+        "ai-observability"
+      ],
+      "keywords": [
+        "observability",
+        "opentelemetry",
+        "otel",
+        "tracing",
+        "llm monitoring",
+        "llmops",
+        "telemetry",
+        "langfuse",
+        "trace viewer"
+      ],
+      "queries": [
+        "topic:llm-observability",
+        "opentelemetry llm in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "evals",
+      "label": "Evals",
+      "topics": [
+        "llm-evaluation",
+        "evaluation",
+        "evals",
+        "llm-eval",
+        "benchmark",
+        "llm-as-a-judge",
+        "red-teaming"
+      ],
+      "keywords": [
+        "eval",
+        "evals",
+        "evaluation",
+        "llm as a judge",
+        "llm judge",
+        "benchmark",
+        "red teaming",
+        "prompt testing",
+        "regression testing for llm"
+      ],
+      "queries": [
+        "topic:llm-evaluation",
+        "\"llm evaluation\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "llm-gateways-routers",
+      "label": "LLM gateways / routers",
+      "topics": [
+        "llm-gateway",
+        "ai-gateway",
+        "llm-router",
+        "model-router",
+        "llm-proxy",
+        "openai-proxy",
+        "litellm"
+      ],
+      "keywords": [
+        "llm gateway",
+        "ai gateway",
+        "llm router",
+        "model router",
+        "llm proxy",
+        "openai compatible proxy",
+        "model routing",
+        "fallback routing",
+        "litellm",
+        "portkey"
+      ],
+      "queries": [
+        "topic:llm-gateway",
+        "\"llm router\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "small-models-inference",
+      "label": "Small models / inference",
+      "topics": [
+        "inference",
+        "llm-inference",
+        "onnx",
+        "quantization",
+        "gguf",
+        "llama-cpp",
+        "vllm",
+        "small-language-models",
+        "edge-ai",
+        "distillation"
+      ],
+      "keywords": [
+        "inference engine",
+        "llm inference",
+        "local llm",
+        "small language model",
+        "slm",
+        "quantization",
+        "quantized",
+        "gguf",
+        "onnx",
+        "llama.cpp",
+        "vllm",
+        "distillation",
+        "on device",
+        "edge inference",
+        "text classification"
+      ],
+      "queries": [
+        "topic:llm-inference",
+        "topic:llama-cpp"
+      ],
+      "projects": []
+    },
+    {
+      "id": "rag-retrieval",
+      "label": "RAG / retrieval",
+      "topics": [
+        "rag",
+        "retrieval-augmented-generation",
+        "vector-database",
+        "embeddings",
+        "reranker",
+        "semantic-search",
+        "graphrag",
+        "vector-search"
+      ],
+      "keywords": [
+        "rag",
+        "retrieval augmented generation",
+        "retrieval",
+        "reranker",
+        "reranking",
+        "vector database",
+        "vector search",
+        "embeddings",
+        "semantic search",
+        "graphrag",
+        "document parsing",
+        "chunking"
+      ],
+      "queries": [
+        "topic:rag",
+        "reranker in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "web-ui-generation",
+      "label": "Website / UI generation",
+      "topics": [
+        "ui-generation",
+        "generative-ui",
+        "website-builder",
+        "design-to-code",
+        "text-to-ui",
+        "landing-page",
+        "shadcn-ui"
+      ],
+      "keywords": [
+        "ui generation",
+        "generative ui",
+        "website builder",
+        "website generator",
+        "design to code",
+        "screenshot to code",
+        "text to ui",
+        "landing page",
+        "app builder",
+        "ui components"
+      ],
+      "queries": [
+        "topic:generative-ui",
+        "\"website builder\" ai in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "video-generation",
+      "label": "Video generation",
+      "topics": [
+        "video-generation",
+        "text-to-video",
+        "remotion",
+        "video-editing",
+        "ai-video",
+        "video-editor",
+        "motion-graphics"
+      ],
+      "keywords": [
+        "video",
+        "video generation",
+        "text to video",
+        "ai video",
+        "video editor",
+        "video editing",
+        "remotion",
+        "motion graphics",
+        "programmatic video",
+        "talking head",
+        "avatar video"
+      ],
+      "queries": [
+        "topic:video-generation",
+        "\"video editor\" ai in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "ads-seo-aeo",
+      "label": "Ads / SEO / AEO",
+      "topics": [
+        "seo",
+        "google-ads",
+        "facebook-ads",
+        "marketing-automation",
+        "aeo",
+        "generative-engine-optimization",
+        "adtech"
+      ],
+      "keywords": [
+        "seo",
+        "aeo",
+        "answer engine optimization",
+        "generative engine optimization",
+        "google ads",
+        "meta ads",
+        "facebook ads",
+        "ad copy",
+        "advertising",
+        "marketing automation",
+        "search console",
+        "ppc"
+      ],
+      "queries": [
+        "topic:seo llm",
+        "topic:google-ads"
+      ],
+      "projects": []
+    },
+    {
+      "id": "chat-bots-whatsapp",
+      "label": "Chat bots / WhatsApp",
+      "topics": [
+        "whatsapp",
+        "whatsapp-bot",
+        "chatbot",
+        "telegram-bot",
+        "whatsapp-api",
+        "conversational-ai"
+      ],
+      "keywords": [
+        "whatsapp",
+        "telegram bot",
+        "chatbot",
+        "chat bot",
+        "conversational ai",
+        "customer support bot",
+        "whatsapp bot",
+        "messenger bot"
+      ],
+      "queries": [
+        "topic:whatsapp-bot",
+        "whatsapp ai agent in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "text-to-sql-bi",
+      "label": "Text-to-SQL / BI",
+      "topics": [
+        "text-to-sql",
+        "nl2sql",
+        "text2sql",
+        "business-intelligence",
+        "sql-agent"
+      ],
+      "keywords": [
+        "text to sql",
+        "nl2sql",
+        "text2sql",
+        "natural language to sql",
+        "sql agent",
+        "business intelligence",
+        "bi tool",
+        "data analyst agent",
+        "chat with your database",
+        "semantic layer"
+      ],
+      "queries": [
+        "topic:text-to-sql",
+        "\"text-to-sql\" in:name,description"
+      ],
+      "projects": []
+    },
+    {
+      "id": "hebrew-rtl",
+      "label": "Hebrew / RTL",
+      "topics": [
+        "hebrew",
+        "rtl",
+        "right-to-left",
+        "bidi",
+        "israel"
+      ],
+      "keywords": [
+        "hebrew",
+        "rtl",
+        "right to left",
+        "bidi",
+        "bidirectional text",
+        "israel",
+        "israeli"
+      ],
+      "queries": [
+        "topic:hebrew",
+        "hebrew llm in:name,description"
+      ],
+      "projects": []
+    }
+  ]
+}

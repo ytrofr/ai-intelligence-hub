@@ -9,7 +9,7 @@
  *
  * Per repo: GET /repos/{slug}, and GET /repos/{slug}/releases/latest. The HTTP
  * status is recorded verbatim — 200, 301 (moved), 404 (gone) — because those
- * three ARE three of the six events. A 5xx is not an answer about upstream at
+ * three ARE three of the six events. A 5xx or a 403/429 rate limit is not an answer about upstream at
  * all, so it records an error and leaves the last good snapshot alone.
  *
  * H2 fix (2026-09): every row used to be asked at api.github.com regardless of
@@ -34,6 +34,7 @@ const { hfClient } = require("./tracked-hf");
 
 const API = "https://api.github.com";
 const CONCURRENCY = 5;
+const ANSWER_STATUSES = new Set([200, 301, 308, 404]);
 
 function ghClient({ token = process.env.GITHUB_TOKEN, timeoutMs = 15000 } = {}) {
   const headers = {
@@ -91,18 +92,33 @@ function ghClient({ token = process.env.GITHUB_TOKEN, timeoutMs = 15000 } = {}) 
 async function probeByKind(row, { gh, hf }) {
   const kind = row.kind === "model" || row.kind === "dataset" ? row.kind : "repo";
   if (kind !== "repo") {
-    const r = await hf.probe(row.repo, kind);
-    return { ...r, viaHf: true };
+    // A declared kind is checked first, but a 404 there may just be the wrong
+    // endpoint - the other HF kind gets one look before "gone" is believed.
+    const other = kind === "model" ? "dataset" : "model";
+    return (await hfLook(hf, row.repo, [kind, other])) || { status: 404, body: null, viaHf: true };
   }
 
   const ghResult = await gh.repo(row.repo);
   if (ghResult.status !== 404 || !hf) return ghResult;
 
-  for (const guess of ["model", "dataset"]) {
-    const rescue = await hf.probe(row.repo, guess);
-    if (rescue && rescue.status === 200) return { ...rescue, viaHf: true };
+  // Only HF saying not-found on EVERY kind confirms the GitHub 404. An HF
+  // non-answer (429, 5xx) is returned as-is so runTracker records an error -
+  // falling back to the 404 here is what turned a rate limit into DELETED.
+  return (await hfLook(hf, row.repo, ["model", "dataset"])) || ghResult;
+}
+
+/**
+ * Ask HF about `id` under each kind in order. Returns the first 200, else the
+ * first non-answer (anything but 200/404), else null when every kind said 404.
+ */
+async function hfLook(hf, id, kinds) {
+  let nonAnswer = null;
+  for (const kind of kinds) {
+    const r = await hf.probe(id, kind);
+    if (r && r.status === 200) return { ...r, viaHf: true };
+    if (!nonAnswer && !(r && r.status === 404)) nonAnswer = { status: r ? r.status : null, body: null, viaHf: true };
   }
-  return ghResult; // genuinely gone from both hosts we know to ask
+  return nonAnswer;
 }
 
 /** Run the pool through the check. Pure of I/O except the injected gh/hf + store. */
@@ -123,8 +139,12 @@ async function runTracker({ pool, gh, hf, store, now = new Date().toISOString(),
       return;
     }
 
-    // 5xx (and a null body on a 2xx) tells us nothing about upstream.
-    if (meta.status >= 500 || (meta.status === 200 && !meta.body)) {
+    // Only 200 (with a body), a move, or a 404 is an ANSWER about upstream.
+    // Everything else - 403/429 rate limits, 5xx, a null body - tells us
+    // nothing, so it records an error and leaves the last good snapshot alone.
+    // (A 429 stored as the snapshot made the next real 301/404 re-alarm with
+    // `from: "429"` - tracked_events #408-#433, 2026-09-04.)
+    if (!ANSWER_STATUSES.has(meta.status) || (meta.status === 200 && !meta.body)) {
       errors += 1;
       store.recordError(slug, `HTTP ${meta.status} from ${meta.viaHf ? "huggingface.co" : "api.github.com"}`, now);
       return;
@@ -163,7 +183,12 @@ async function runTracker({ pool, gh, hf, store, now = new Date().toISOString(),
     for (const e of diffRepo(merged, { now, staleDays })) {
       // diffRepo is pure on the row and the row has no column for a new name,
       // so the destination is grafted on here rather than smuggled into it.
-      if (e.event === "renamed" && meta.movedTo) e.to = meta.movedTo;
+      // A rename names slugs on both sides, never the status codes diffRepo
+      // compared; an unreadable destination is unknown (null), not "301".
+      if (e.event === "renamed") {
+        e.from = slug;
+        e.to = meta.movedTo || null;
+      }
       store.appendEvent(e);
       events.push(e);
     }

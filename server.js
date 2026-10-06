@@ -57,10 +57,14 @@ app.use("/api/digest", require("./routes/digest"));
 app.use("/api/radar", require("./routes/radar"));
 app.use("/api/tracked", require("./routes/tracked"));
 app.use("/api/inventory", require("./routes/inventory"));
+app.use("/api/capabilities", require("./routes/capabilities"));
+app.use("/api/ai-practice", require("./routes/ai-practice"));
+app.use("/api/dna-map", require("./routes/dna-map"));
 app.use("/api/ledger", require("./routes/ledger"));
 app.use("/api/adoption-matrix", require("./routes/adoption-matrix"));
 app.use("/api/adoption-scorecard", require("./routes/adoption-scorecard"));
 app.use("/api/ground-truth", require("./routes/ground-truth"));
+app.use("/api/trends", require("./routes/trends"));
 app.use("/api/projects-hub", require("./routes/projects-hub"));
 app.use("/api/maintenance", require("./routes/maintenance"));
 
@@ -69,7 +73,7 @@ app.get("/api/health", (req, res) => {
   const stats = db.getStats();
   const src = db.getSourceStatusSummary();
   res.json({
-    status: src.sources_failed_last_run > 0 ? "degraded" : "healthy",
+    status: src.degraded ? "degraded" : "healthy", // degraded = any source error/timeout OR partial
     port: PORT,
     totalItems: stats.totalItems,
     bookmarks: stats.bookmarkCount,
@@ -79,6 +83,8 @@ app.get("/api/health", (req, res) => {
     all_failed_last_run:
       src.sources_total > 0 && src.sources_failed_last_run === src.sources_total,
     failed_sources: src.failed_sources,
+    sources_partial_last_run: src.sources_partial_last_run,
+    partial_sources: src.partial_sources,
     last_fetch_at: src.last_fetch_at,
   });
 });

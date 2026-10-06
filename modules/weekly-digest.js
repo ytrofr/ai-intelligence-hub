@@ -48,20 +48,44 @@ function classify(item) {
 }
 
 
-function isRisingStar(item) {
+// A repo above the 5,000-star ceiling still counts as rising when it gained
+// this many stars in 7 days: "already big" is not "not rising".
+const RISING_CAP = 5000;
+const RISING_CAP_LIFT_GAIN7 = 1000;
+
+const slugOf = (item) => String(item.title || '').trim().toLowerCase();
+
+/**
+ * `v` (optional) is this repo's computeVelocity result. Without it the rule is
+ * the old one exactly; with gain7 >= 1,000 the <5,000 cap is dropped.
+ */
+function isRisingStar(item, v) {
   const meta = parseMeta(item);
   if (!meta.created_at) return false;
   const ageDays = (Date.now() - new Date(meta.created_at).getTime()) / 86400000;
-  return ageDays <= 90 && (item.stars || 0) >= 200 && (item.stars || 0) < 5000;
+  const stars = item.stars || 0;
+  const surging = !!v && typeof v.gain7 === 'number' && v.gain7 >= RISING_CAP_LIFT_GAIN7;
+  return ageDays <= 90 && stars >= 200 && (stars < RISING_CAP || surging);
+}
+
+/**
+ * Velocity first where we have it (eligible rows, velocity desc), then the rest
+ * in their incoming score order. A repo with no history is not ranked as a 0.
+ */
+function rankRising(rising, velocityByRepo) {
+  if (!velocityByRepo || !velocityByRepo.size) return rising;
+  const v = (it) => velocityByRepo.get(slugOf(it));
+  const ranked = rising.filter((it) => v(it) && v(it).eligible).sort((a, b) => v(b).velocity - v(a).velocity || v(b).gain7 - v(a).gain7);
+  return [...ranked, ...rising.filter((it) => !(v(it) && v(it).eligible))];
 }
 
 // mdLinkText lives in ./digest-sections — the canonical escaper for every
 // markdown link built from a third-party title, in this file (renderItem,
 // renderTLDR, formatProjectSections below) AND in digest-sections.js's own
 // ground-truth renderer. See that file for the full rationale.
-const { mdLinkText, formatGroundTruthSection } = require('./digest-sections');
+const { mdLinkText, formatGroundTruthSection, formatTrendsSection } = require('./digest-sections');
 
-function renderItem(item) {
+function renderItem(item, v) {
   const meta = parseMeta(item);
   const stars = (item.stars || 0).toLocaleString();
   const reason = meta.match_reason || meta.perplexity_summary || meta.discovery_strategy || '';
@@ -73,7 +97,10 @@ function renderItem(item) {
   // as a broken row rather than as an absent one. 60 of 69 items in the
   // 2026-09-03 digest carried one.
   const sub = [desc, reason && `_${reason}_`].filter(Boolean).map((l) => `\n  - ${l}`).join('');
-  return `- **[${mdLinkText(item.title)}](${item.url})** · ${stars}★${lang}${sub}`;
+  const gain = v && typeof v.gain7 === 'number'
+    ? ` · +${v.gain7.toLocaleString('en-US')}★ in 7d${v.origin === 'trending-page' ? ' (trending page)' : ''}`
+    : '';
+  return `- **[${mdLinkText(item.title)}](${item.url})** · ${stars}★${gain}${lang}${sub}`;
 }
 
 function renderTLDR(items) {
@@ -87,7 +114,7 @@ function renderTLDR(items) {
     .join('\n');
 }
 
-function buildDigestStructure({ items, runDate }) {
+function buildDigestStructure({ items, runDate, velocityByRepo }) {
   const buckets = {};
   for (const cat of CATEGORY_MATCHERS) buckets[cat.id] = { cat, items: [] };
   buckets.other = { cat: { id: 'other', label: '✨ Other', topics: [] }, items: [] };
@@ -96,7 +123,7 @@ function buildDigestStructure({ items, runDate }) {
   for (const item of items) {
     const cat = classify(item);
     buckets[cat.id]?.items.push(item);
-    if (isRisingStar(item)) rising.push(item);
+    if (isRisingStar(item, velocityByRepo && velocityByRepo.get(slugOf(item)))) rising.push(item);
   }
 
   const perCategory = {};
@@ -106,7 +133,7 @@ function buildDigestStructure({ items, runDate }) {
 
   return {
     buckets,
-    rising,
+    rising: rankRising(rising, velocityByRepo),
     runDate,
     totals: {
       totalItems: items.length,
@@ -116,8 +143,9 @@ function buildDigestStructure({ items, runDate }) {
   };
 }
 
-function formatDigest({ items, runDate, channelStats = {} }) {
-  const { buckets, rising } = buildDigestStructure({ items, runDate });
+function formatDigest({ items, runDate, channelStats = {}, velocityByRepo }) {
+  const { buckets, rising } = buildDigestStructure({ items, runDate, velocityByRepo });
+  const vOf = (it) => velocityByRepo && velocityByRepo.get(slugOf(it));
 
   const lines = [];
   lines.push(`# Weekly Claude Code Ecosystem Digest — ${runDate}`);
@@ -138,12 +166,12 @@ function formatDigest({ items, runDate, channelStats = {} }) {
   lines.push('');
 
   // Rising stars sub-section (always show, even if empty — signals the channel exists)
-  lines.push('## 🌟 Rising Stars (last 90d, 200-5000★)');
+  lines.push('## 🌟 Rising Stars (last 90d, 200-5000★, or more when +1,000★ in 7d; ranked by velocity where history exists)');
   lines.push('');
   if (rising.length === 0) {
     lines.push('_No rising stars surfaced this week._');
   } else {
-    for (const item of rising.slice(0, 8)) lines.push(renderItem(item));
+    for (const item of rising.slice(0, 8)) lines.push(renderItem(item, vOf(item)));
   }
   lines.push('');
 
@@ -319,6 +347,24 @@ function buildGroundTruthDigestSection() {
   }
 }
 
+/**
+ * "Trending by theme" - built by the SAME buildTrends the /trends page serves,
+ * so the two cannot disagree. Also returns the velocity map the Rising Stars
+ * section re-ranks by. A failure is a visible section, never a thrown error.
+ */
+function buildTrendsDigestSection(items = []) {
+  try {
+    const { buildTrends, velocityMap } = require('../routes/lib/trends-builder');
+    const handle = db.snapshots.db;
+    const md = formatTrendsSection(buildTrends(handle, { period: 7 }));
+    const velocityByRepo = velocityMap(handle, items.map((it) => it.title));
+    return { md, velocityByRepo };
+  } catch (err) {
+    console.error(`[digest] trends section failed: ${err.message}`);
+    return { md: `\n## 📈 Trending by theme\n\n- _section failed: ${err.message}_\n`, velocityByRepo: new Map() };
+  }
+}
+
 async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs = Date.now() } = {}) {
   if (!fs.existsSync(DIGESTS_DIR)) fs.mkdirSync(DIGESTS_DIR, { recursive: true });
 
@@ -346,7 +392,8 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   const groundTruth = buildGroundTruthDigestSection();
   // Per project, what to run next - read off the scorecard, refreshed every Monday.
   const { buildAdoptionQueueDigestSection } = require('./adoption-queue-digest');
-  const md = formatDigest({ items, runDate, channelStats }) + tracked + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
+  const trends = buildTrendsDigestSection(items);
+  const md = formatDigest({ items, runDate, channelStats, velocityByRepo: trends.velocityByRepo }) + trends.md + tracked + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');
@@ -363,4 +410,4 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   return { digestPath: outPath, itemCount: items.length, runtimeMs };
 }
 
-module.exports = { generateDigest, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, dropClearedDeletions, buildDigestStructure, classify, isRisingStar, parseMeta };
+module.exports = { generateDigest, buildTrendsDigestSection, rankRising, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, dropClearedDeletions, buildDigestStructure, classify, isRisingStar, parseMeta };

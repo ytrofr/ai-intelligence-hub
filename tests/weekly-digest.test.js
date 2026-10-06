@@ -248,3 +248,75 @@ test("CONTROL: an ordinary bracketed title is unchanged to a reader", () => {
   assert.match(line, /Soft Rains \\\[pdf\\\]/);
   assert.equal((line.match(/(^|[^\\])\]\(/g) || []).length, 1);
 });
+
+// ── GitHub Trends lane: Rising Stars cap lift + the "Trending by theme" section ─
+const { formatTrendsSection, trendsPopulationLine } = require('../modules/digest-sections');
+
+test('isRisingStar: 6000 stars lifts past the ceiling only with gain7 >= 1,000', () => {
+  const created = new Date(Date.now() - 30 * 86400000).toISOString();
+  const item = { stars: 6000, metadata: JSON.stringify({ created_at: created }) };
+  assert.equal(isRisingStar(item, { gain7: 1000 }), true);
+  assert.equal(isRisingStar(item, { gain7: 999 }), false);
+  assert.equal(isRisingStar(item, { gain7: null }), false, 'insufficient history is not a surge');
+});
+
+test('formatDigest prints the 7-day gain on a rising star, and where it came from', () => {
+  const item = {
+    title: 'new/thing', url: 'https://github.com/new/thing', stars: 7000, description: '',
+    metadata: JSON.stringify({ created_at: new Date(Date.now() - 10 * 86400000).toISOString() }),
+  };
+  const velocityByRepo = new Map([['new/thing', { gain7: 2500, velocity: 40, eligible: true, origin: 'trending-page' }]]);
+  const md = formatDigest({ items: [item], runDate: '2026-10-06', velocityByRepo });
+  const rising = md.slice(md.indexOf('## 🌟 Rising Stars'), md.indexOf('\n## ', md.indexOf('## 🌟 Rising Stars') + 3));
+  assert.match(rising, /new\/thing.*7,000★ · \+2,500★ in 7d \(trending page\)/);
+});
+
+// Synthetic buildTrends-shaped payload: the renderer is pure, so it is tested on the shape.
+const trendRow = (repo, themes, gain, extra = {}) => ({
+  repo, key: repo.toLowerCase(), url: `https://github.com/${repo}`, themes, gain, gain7: gain,
+  velocity: gain / 50, stars: gain * 3, origin: 'snapshots', status: { kind: 'new', label: 'new' }, ...extra,
+});
+const POP = { pool: 210, ranked: 5, unranked: 140, ruled_hidden: 4, snapshots_today: 758, oldest_history_days: 0,
+  sources: { 'gh-trending': 210, 'gh-theme': 0, 'snapshots-only': 0 }, missing_sources: ['gh-theme'] };
+
+test('trends section: top 3 per theme by rank, gain shown, "other" counted not listed, population printed', () => {
+  const rows = [
+    trendRow('A/one', ['agentic-ai'], 900), trendRow('A/two', ['agentic-ai'], 800),
+    trendRow('A/three', ['agentic-ai'], 700), trendRow('A/four', ['agentic-ai'], 600),
+    trendRow('Z/noise', ['other'], 999, { origin: 'trending-page' }),
+  ];
+  const md = formatTrendsSection({
+    rows, population: POP, surgedThoughKnown: [], candidates: [],
+    themes: [{ id: 'agentic-ai', label: 'Agentic AI' }, { id: 'evals', label: 'Evals' }, { id: 'other', label: 'Other' }],
+  });
+  assert.match(md, /## 📈 Trending by theme/);
+  assert.match(md, /### Agentic AI/);
+  assert.doesNotMatch(md, /### Evals/, 'a theme with no ranked repo is not printed as an empty heading');
+  assert.match(md, /A\/three.*\+700★ in 7d/);
+  assert.doesNotMatch(md, /A\/four/, 'top 3 only');
+  assert.doesNotMatch(md, /Z\/noise/);
+  assert.doesNotMatch(md, /match no theme/, 'nothing hidden -> no "hidden" line');
+  assert.match(md, /### 🚀 Surged this week though known\n\n_None/);
+  assert.match(md, /### 👀 Worth a WATCH\?\n\n_None/);
+  assert.match(md, /_Population: pool=210 repos .*snapshots today=758 · oldest history=0 days · sources: gh-trending 210 · gh-theme 0 · snapshots-only 0 · not running yet: gh-theme\._/);
+});
+
+test('trends section: candidates name their projects and say the list is read-only', () => {
+  const md = formatTrendsSection({
+    rows: [], themes: [], population: POP, surgedThoughKnown: [],
+    candidates: [{ theme: 'agentic-ai', label: 'Agentic AI', projects: ['a', 'b'], repos: [trendRow('X/new', ['agentic-ai'], 900)] }],
+  });
+  assert.match(md, /- \*\*Agentic AI\*\* \(for a, b\): \[X\/new\]\(https:\/\/github.com\/X\/new\) \+900★/);
+  assert.match(md, /Nothing is added to a radar automatically/);
+  assert.match(md, /No repo cleared the gain floor/);
+});
+
+test('trends section: theme-less repos the builder hid are counted, in the list and the population line', () => {
+  const md = formatTrendsSection({ rows: [], themes: [], surgedThoughKnown: [], candidates: [], population: { ...POP, other_hidden: 124 } });
+  assert.match(md, /124 more repos match no theme \("other"\) and are not listed - see the Other tab/);
+  assert.match(md, /no theme \(hidden\)=124/);
+});
+
+test('trends population line: no snapshot history reads as none, never as 0 days', () => {
+  assert.match(trendsPopulationLine({ ...POP, oldest_history_days: null }), /oldest history=none/);
+});

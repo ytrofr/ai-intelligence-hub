@@ -48,6 +48,11 @@ function hfClient({ timeoutMs = 15000 } = {}) {
       const body = await res.json().catch(() => null);
       return { status: res.status, body: toGhShape(body) };
     } catch (err) {
+      // Measured 2026-10-06: unauthenticated, HF answers 401 ("Invalid username
+      // or password.") for an id that does not exist on that endpoint - its
+      // spelling of not-found (or private, which is gone to us too). Every other
+      // non-2xx (429, 5xx) is passed through so the caller can call it an error.
+      if (err && err.status === 401) return { status: 404, body: null };
       if (Number.isFinite(err && err.status)) return { status: err.status, body: null };
       throw err;
     }

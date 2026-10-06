@@ -16,6 +16,7 @@ import { RadarPage } from "@/features/radar/RadarPage";
 import { ItemsPage } from "@/features/items/ItemsPage";
 import { DigestsPage } from "@/features/digests/DigestsPage";
 import { DiscoveryPage } from "@/features/discovery/DiscoveryPage";
+import { TrendsPage } from "@/features/trends/TrendsPage";
 import { DesignPage } from "@/features/design/DesignPage";
 import { LEGACY_PATHS, LegacyRedirect } from "@/components/app/LegacyRedirect";
 import { useProject } from "@/components/app/useProject";
@@ -54,6 +55,7 @@ const BUILT: Record<string, () => JSX.Element> = {
   items: ItemsPage,
   digests: DigestsPage,
   discovery: DiscoveryPage,
+  trends: TrendsPage,
   needs: NeedsPage,
   matrix: MatrixPage,
   scorecard: ScorecardPage,

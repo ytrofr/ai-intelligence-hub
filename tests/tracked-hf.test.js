@@ -285,3 +285,124 @@ test("toGhShape never fabricates archived=true for a model with no such field", 
 test("CONTROL: toGhShape on a null body is null, never a fabricated empty object", () => {
   assert.equal(toGhShape(null), null);
 });
+
+// --- A4 (2026-10-06): a non-answer is an ERROR, never an event ---------------
+// Replays of real false rows in tracked_events (append-only, left as they are):
+//  - #412 google/generative-ai-js  renamed  from "429"  (2026-09-04)
+//  - #408 facebook/react           renamed  from "403"  (2026-09-04)
+//  - #419 lazy-frames/lazyframes   deleted  from "429"  (2026-09-04)
+// Root: runTracker only treated 5xx as "no answer", so a rate-limit 403/429 was
+// stored as the snapshot; the next real 301/404 then diffed against it and
+// re-alarmed. And the HF rescue fell back to the GitHub 404 whenever HF did not
+// say 200, so an HF 429 turned a live model into DELETED (the shape of #362,
+// #371, #379 on Alibaba-NLP/gte-multilingual-reranker-base,
+// dicta-il/neodictabert-bilingual-embed, ivrit-ai/whisper-large-v3-turbo-ct2).
+
+const hf429 = { status: 429, body: null };
+const STATUS_CODE = /^\d{3}$/;
+
+async function runOnce(s, entry, ghMap, hfMap, now) {
+  return runTracker({ pool: [entry], gh: gh(ghMap), hf: hfMap ? hf(hfMap) : undefined, store: s, now });
+}
+
+test("A4: an HF 429 during the rescue is an ERROR, never DELETED (replay #362/#371/#379)", async () => {
+  for (const slug of [
+    "Alibaba-NLP/gte-multilingual-reranker-base",
+    "dicta-il/neodictabert-bilingual-embed",
+    "ivrit-ai/whisper-large-v3-turbo-ct2",
+  ]) {
+    const s = store();
+    const entry = { repo: slug, projects: ["x"], role: "watch" };
+    await runOnce(s, entry, { [slug]: { status: 404, body: null } }, { [`model:${slug}`]: hfOk() }, "2026-09-02T00:00:00Z");
+    const r = await runOnce(s, entry, { [slug]: { status: 404, body: null } }, { [`model:${slug}`]: hf429 }, "2026-09-03T00:00:00Z");
+    assert.deepEqual(r.events, [], `${slug}: a rate-limited HF look is not proof it is gone`);
+    assert.equal(r.errors, 1, `${slug}: the non-answer must be counted as an error`);
+    assert.equal(s.get(slug).http_status, 200, `${slug}: the last good snapshot stays`);
+    assert.match(s.get(slug).last_error, /429/);
+  }
+});
+
+test("A4: rescue with model 429 + dataset 404 is still unknown, not gone", async () => {
+  const meta = await probeByKind(
+    { repo: "org/m" },
+    { gh: gh({ "org/m": { status: 404, body: null } }), hf: hf({ "model:org/m": hf429 }) },
+  );
+  assert.notEqual(meta.status, 404, "one host that did not answer cannot vote 'gone'");
+  assert.equal(meta.status, 429);
+});
+
+test("A4: a declared kind on the WRONG HF endpoint is checked on the other one before DELETED", async () => {
+  const s = store();
+  const r = await runOnce(
+    s,
+    { repo: "org/really-a-dataset", projects: [], role: "watch", kind: "model" },
+    {},
+    { "dataset:org/really-a-dataset": hfOk() }, // model: absent -> 404
+    NOW,
+  );
+  assert.deepEqual(r.events, [], "a 404 on the wrong kind is not a deletion");
+  assert.equal(s.get("org/really-a-dataset").http_status, 200);
+});
+
+test("A4 CONTROL: a declared-kind row gone from BOTH HF endpoints is still DELETED", async () => {
+  const s = store();
+  const r = await runOnce(s, { repo: "org/gone-model", projects: [], role: "watch", kind: "model" }, {}, {}, NOW);
+  assert.deepEqual(r.events.map((e) => e.event), ["deleted"]);
+});
+
+test("A4: a GitHub 429/403 is an ERROR and never overwrites the snapshot (replay #412/#408)", async () => {
+  for (const code of [429, 403]) {
+    const s = store();
+    const slug = "google/generative-ai-js";
+    const entry = { repo: slug, projects: ["x"], role: "dep" };
+    const moved = { status: 301, body: null, movedTo: "google-gemini/deprecated-generative-ai-js" };
+    const r1 = await runOnce(s, entry, { [slug]: moved }, null, "2026-09-02T00:00:00Z");
+    assert.deepEqual(r1.events.map((e) => e.event), ["renamed"], "first sight of the move alarms once");
+    const r2 = await runOnce(s, entry, { [slug]: { status: code, body: null } }, null, "2026-09-03T00:00:00Z");
+    assert.equal(r2.errors, 1, `HTTP ${code} must be counted as an error`);
+    assert.deepEqual(r2.events, []);
+    assert.equal(s.get(slug).http_status, 301, `HTTP ${code} must not replace the last good snapshot`);
+    const r3 = await runOnce(s, entry, { [slug]: moved }, null, "2026-09-04T00:00:00Z");
+    assert.deepEqual(r3.events, [], `a known move must not re-alarm after a ${code}`);
+  }
+});
+
+test("A4: a deleted repo does not re-alarm DELETED after a 429 (replay #419)", async () => {
+  const s = store();
+  const slug = "lazy-frames/lazyframes";
+  const entry = { repo: slug, projects: ["x"], role: "dep" };
+  await runOnce(s, entry, { [slug]: { status: 404, body: null } }, null, "2026-09-02T00:00:00Z");
+  await runOnce(s, entry, { [slug]: { status: 429, body: null } }, null, "2026-09-03T00:00:00Z");
+  const r = await runOnce(s, entry, { [slug]: { status: 404, body: null } }, null, "2026-09-04T00:00:00Z");
+  assert.deepEqual(r.events, []);
+});
+
+test("A4: a renamed event names slugs, never an HTTP status code", async () => {
+  const s = store();
+  const r = await runOnce(s, { repo: "facebook/react", projects: [], role: "dep" }, { "facebook/react": { status: 301, body: null, movedTo: "react/react" } }, null, NOW);
+  const e = r.events.find((x) => x.event === "renamed");
+  assert.equal(e.from, "facebook/react");
+  assert.equal(e.to, "react/react");
+});
+
+test("A4: a 301 whose destination could not be read leaves `to` empty, not '301'", async () => {
+  const s = store();
+  const r = await runOnce(s, { repo: "a/moved", projects: [], role: "dep" }, { "a/moved": { status: 301, body: null } }, null, NOW);
+  const e = r.events.find((x) => x.event === "renamed");
+  assert.ok(e, "the move itself is still reported");
+  assert.ok(!STATUS_CODE.test(String(e.from)), `from must not be a status code, got ${e.from}`);
+  assert.equal(e.to, null, "an unknown destination is null, never a status code");
+});
+
+test("A4: hfClient reads HF's unauthenticated 401 as not-found, and keeps a 429 a 429", () =>
+  withFetch(
+    {
+      "huggingface.co/api/models/nobody/private-or-gone": { status: 401, body: { error: "Invalid username or password." } },
+      "huggingface.co/api/models/busy/model": { status: 429, body: null },
+    },
+    async () => {
+      const client = hfClient();
+      assert.equal((await client.model("nobody/private-or-gone")).status, 404, "measured 2026-10-06: HF answers 401 for a repo that does not exist");
+      assert.equal((await client.model("busy/model")).status, 429, "a rate limit is not a not-found");
+    },
+  ));

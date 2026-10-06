@@ -167,3 +167,75 @@ export interface ScorecardPayload {
   population: ScorecardCounts & { projects: number; repos: number };
   projects: { id: string; name: string; counts: ScorecardCounts; rows: ScorecardRow[] }[];
 }
+
+/** GitHub Trends lane - GET /api/trends (routes/lib/trends-builder.js). */
+export type TrendOrigin = "snapshots" | "trending-page" | "insufficient_history";
+
+export interface TrendStatus {
+  kind: "new" | "ruled" | "on-radar";
+  label: string;
+  projects: string[];
+}
+
+export interface TrendRow {
+  repo: string;
+  key: string;
+  url: string;
+  description: string;
+  language: string | null;
+  themes: string[];
+  stars: number | null;
+  /** Gain over the requested period; null = no history, never 0. */
+  gain: number | null;
+  gain1: number | null;
+  gain7: number | null;
+  gain7_origin: TrendOrigin;
+  velocity: number | null;
+  origin: TrendOrigin;
+  eligible: boolean;
+  base_day: string | null;
+  age_days: number | null;
+  first_seen_days: number | null;
+  sources: string[];
+  sparkline: { day: string; stars: number }[];
+  status: TrendStatus;
+  rank?: number;
+}
+
+export interface TrendTheme {
+  id: string;
+  label: string;
+  count: number;
+  projects: string[];
+}
+
+export interface TrendsPayload {
+  generated_at: string;
+  today: string;
+  period: 7 | 30;
+  theme: string | null;
+  min_gain: number;
+  include_ruled: boolean;
+  include_other: boolean;
+  population: {
+    pool: number;
+    shown: number;
+    ranked: number;
+    unranked: number;
+    ruled_hidden: number;
+    /** Repos matching no theme, hidden from the all view (shown on the Other tab). */
+    other_hidden: number;
+    below_min_gain: number;
+    snapshots_today: number;
+    oldest_history_days: number | null;
+    sources: Record<string, number>;
+    missing_sources: string[];
+    source_status: Record<string, { status: string | null; last_run_at: string | null; items: number | null }>;
+    gain_floor: number;
+  };
+  themes: TrendTheme[];
+  rows: TrendRow[];
+  unranked: TrendRow[];
+  surgedThoughKnown: TrendRow[];
+  candidates: { theme: string; label: string; projects: string[]; repos: TrendRow[] }[];
+}

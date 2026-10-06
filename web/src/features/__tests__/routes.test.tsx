@@ -114,3 +114,26 @@ describe("behaviours the old pages had that must not be lost", () => {
     expect(read("matrix/MatrixPage.tsx")).toMatch(/keyed on the CANDIDATE/);
   });
 });
+
+describe("the trends page is reachable and honest", () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), "src", "features", p), "utf8");
+
+  it("is a discover destination at /trends, built, not a stub", () => {
+    const d = DESTINATIONS.find((x) => x.id === "trends");
+    expect(d).toBeDefined();
+    expect(d!.section).toBe("discover");
+    expect(d!.path).toBe("/trends");
+    expect(built()).toContain("trends");
+  });
+
+  it("writes only through the existing radar row endpoint, and only as WATCH", () => {
+    const src = read("trends/TrendsPage.tsx");
+    expect(src).toMatch(/api\("\/radar\/row"/);
+    expect(src).toMatch(/verdict: "WATCH"/);
+    expect(src).not.toMatch(/radar\/status/);
+  });
+
+  it("treats no-history as a word, not a zero", () => {
+    expect(read("trends/TrendsPage.tsx")).toMatch(/insufficient history/);
+  });
+});

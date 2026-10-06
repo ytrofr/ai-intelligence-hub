@@ -2,8 +2,9 @@
  * Fetch Route - POST /api/fetch
  * Triggers fetching from all enabled sources (or one via {sourceId}).
  * Per-source wall-clock budget + honest status; see modules/fetch-runner.js.
- * Response: { fetched, sources:{id:{status,items,ms,error?}}, errors:[],
- *             sources_attempted, sources_failed, all_failed, duration_ms }
+ * Response: { fetched, sources:{id:{status,items,ms,error?,report?}}, errors:[], partial:[],
+ *             sources_attempted, sources_failed, sources_partial, all_failed, duration_ms }
+ * status `partial` = real items ingested, but not all planned work ran (see fetch-runner.js).
  */
 
 const express = require("express");
@@ -32,6 +33,9 @@ router.post("/", async (req, res) => {
       console.error(`FETCH: network-down? (${summary.sources_failed}/${summary.sources_attempted} sources failed)`);
     } else if (summary.sources_failed) {
       console.warn(`FETCH: ${summary.sources_failed}/${summary.sources_attempted} sources failed: ${summary.errors.map((e) => e.source).join(", ")}`);
+    }
+    if (summary.sources_partial) {
+      console.warn(`FETCH: ${summary.sources_partial}/${summary.sources_attempted} sources partial: ${summary.partial.map((e) => e.source).join(", ")}`);
     }
     res.json(summary);
   } catch (error) {

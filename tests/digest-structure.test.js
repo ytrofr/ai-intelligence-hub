@@ -122,3 +122,35 @@ test('buildDigestStructure: totals.perCategory sums to totalItems', () => {
     );
   }
 });
+
+// ── velocity re-rank of rising stars (GitHub Trends lane, stage 3) ─────────
+// velocityByRepo is a computeVelocity result per lowercase slug; these values
+// are synthetic test input. Without the map the old rule holds exactly.
+const recent = () => new Date(Date.now() - 20 * 86400000).toISOString();
+const vel = (velocity, gain7) => ({ velocity, gain7, eligible: true, origin: 'snapshots' });
+
+test('rising stars: ranked by velocity where data exists, the rest keep score order', () => {
+  const items = [
+    mkItem({ title: 'a/first-by-score', stars: 900, created_at: recent() }),
+    mkItem({ title: 'b/no-history', stars: 800, created_at: recent() }),
+    mkItem({ title: 'c/fast', stars: 700, created_at: recent() }),
+    mkItem({ title: 'd/faster', stars: 600, created_at: recent() }),
+  ];
+  const velocityByRepo = new Map([['c/fast', vel(10, 300)], ['d/faster', vel(30, 500)]]);
+  const withV = buildDigestStructure({ items, runDate: RUN_DATE, velocityByRepo });
+  assert.deepEqual(withV.rising.map((i) => i.title), ['d/faster', 'c/fast', 'a/first-by-score', 'b/no-history']);
+  // CONTROL: the same items with no map keep the incoming order.
+  const without = buildDigestStructure({ items, runDate: RUN_DATE });
+  assert.deepEqual(without.rising.map((i) => i.title), items.map((i) => i.title));
+});
+
+test('rising stars: the <5000 cap lifts only for a repo that gained >= 1,000 in 7 days', () => {
+  const items = [
+    mkItem({ title: 'big/surging', stars: 9000, created_at: recent() }),
+    mkItem({ title: 'big/steady', stars: 9000, created_at: recent() }),
+  ];
+  const velocityByRepo = new Map([['big/surging', vel(12, 1200)], ['big/steady', vel(5, 400)]]);
+  const { rising, totals } = buildDigestStructure({ items, runDate: RUN_DATE, velocityByRepo });
+  assert.deepEqual(rising.map((i) => i.title), ['big/surging']);
+  assert.equal(totals.risingCount, 1);
+});
