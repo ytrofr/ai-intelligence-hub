@@ -56,7 +56,14 @@ const BROAD_TOPICS = new Set([
 ]);
 
 const { readDeps, mergeProjectDeps } = require('./project-deps');
+// The ONE process-wide GitHub search bucket + the executed/planned honesty gate
+// (shared with github.js and gh-theme, so parallel sources cannot drain the
+// 30/min search minute between them). See modules/github-theme-search.js.
+const { searchRepos, searchBucket, searchDeadline, settleSearchRun } = require('./github-theme-search');
 const { formatMatchReason } = require('./match-reason');
+// Raw-CDN README/manifest reads go through http.js so a stuck request times
+// out instead of eating the source's whole budget_ms (one hang overran 600s).
+const { fetchResponse, DEFAULT_TIMEOUT_MS } = require('./http');
 
 // Shared across module instances (createModule builds one per source per fetch):
 // one config parse + one live-deps merge per PROJECTS_TTL_MS, not one per instance.
@@ -66,6 +73,61 @@ let _sharedProjects = { at: 0, cfg: null };
 class GitHubDiscoveryModule extends BaseModule {
   constructor(config) {
     super(config);
+    // Test seams only: {bucket, fetchRes, clock}. Production uses the shared bucket and http.js.
+    this.deps = config.deps || {};
+  }
+
+  /**
+   * One search through the shared bucket, bounded by this source's budget.
+   * -> {status:'ok', data} | {status:'deferred', readyAt}; throws when the request ran and failed.
+   */
+  searchOnce(query, { perPage, deadline }) {
+    return searchRepos(query, {
+      perPage,
+      deadline,
+      bucket: this.deps.bucket || searchBucket,
+      headers: this.githubHeaders(),
+      timeoutMs: this.config.timeout_ms || 30000,
+      ...(this.deps.fetchRes ? { fetchRes: this.deps.fetchRes } : {}),
+    });
+  }
+
+  /**
+   * Latest moment to START a search: budget minus a margin for the request
+   * itself and the README analysis that follows it (raw CDN fetches).
+   */
+  searchDeadline() {
+    const clock = this.deps.clock || Date.now;
+    const budgetMs = this.config.budget_ms || 120000;
+    return searchDeadline({ budgetMs, startedAt: clock(), marginMs: Math.min(60000, budgetMs / 4) });
+  }
+
+  /**
+   * Run `queries` one by one through the bucket; `onResult(data, query)` per executed search.
+   * Counts EXECUTED, never planned: a deferred search (no slot before the
+   * deadline) stops the loop; a failed one is noted and the loop goes on.
+   */
+  async runSearches(label, queries, perPage, onResult) {
+    const deadline = this.searchDeadline();
+    const notes = [];
+    let executed = 0;
+    for (let i = 0; i < queries.length; i++) {
+      const q = queries[i];
+      let r;
+      try {
+        r = await this.searchOnce(q.query, { perPage, deadline });
+      } catch (err) {
+        notes.push(`"${q.query}": ${err.message}`.slice(0, 200));
+        continue;
+      }
+      if (r.status === 'deferred') {
+        notes.unshift(`budget: ${queries.length - i} searches left, next search slot only at ${new Date(r.readyAt).toISOString()}`);
+        break;
+      }
+      executed += 1;
+      await onResult(r.data || {}, q);
+    }
+    return { executed, planned: queries.length, notes };
   }
 
   githubHeaders() {
@@ -111,7 +173,12 @@ class GitHubDiscoveryModule extends BaseModule {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  /** Fetch wrapper — checks rate limit ratio, stops when <5% remaining */
+  /**
+   * CORE-quota fetch wrapper (curated-lists, dependency-backed: GET /repos).
+   * Searches no longer come through here - they use the shared search bucket
+   * (searchOnce), which waits for X-RateLimit-Reset instead of aborting.
+   * Checks rate limit ratio, stops when <5% remaining.
+   */
   async fetchWithRateCheck(url, headers) {
     const res = await fetch(url, { headers });
     const remaining = parseInt(res.headers.get('x-ratelimit-remaining'), 10);
@@ -132,7 +199,6 @@ class GitHubDiscoveryModule extends BaseModule {
 
   async fetchTechStack() {
     const { projects } = this.loadProjects();
-    const headers = this.githubHeaders();
     const maxQueries = this.config.max_queries || 30;
     const maxReadmeFetches = this.config.max_readme_fetches || 50;
 
@@ -148,33 +214,8 @@ class GitHubDiscoveryModule extends BaseModule {
     const seen = new Set();
     const results = [];
     let readmeFetches = 0;
-    let stopped = false;
 
-    for (const queryInfo of queries) {
-      if (stopped) break;
-      const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(queryInfo.query)}&sort=stars&per_page=10`;
-
-      let res;
-      try {
-        res = await this.fetchWithRateCheck(url, headers);
-      } catch (err) {
-        console.warn(`  Rate limit stop during tech-stack: ${err.message}`);
-        stopped = true;
-        break;
-      }
-
-      if (res.status === 403 || res.status === 429) {
-        console.warn(`  GitHub search rate limited (${res.status}). Stopping tech-stack queries.`);
-        stopped = true;
-        break;
-      }
-      if (!res.ok) {
-        console.warn(`  GitHub search failed for "${queryInfo.query}": ${res.status}`);
-        await this.sleep(2000);
-        continue;
-      }
-
-      const data = await res.json();
+    const run = await this.runSearches('tech-stack', queries, 10, async (data, queryInfo) => {
       for (const repo of data.items || []) {
         if (seen.has(repo.full_name)) continue;
         seen.add(repo.full_name);
@@ -187,11 +228,12 @@ class GitHubDiscoveryModule extends BaseModule {
         const relevance = this.calculateRelevanceScore(repo, analysis, queryInfo);
         results.push(this.normalizeRepo(repo, analysis, relevance, queryInfo));
       }
-      await this.sleep(2000); // GitHub secondary rate limit: 30 search/min
-    }
+    });
 
-    console.log(`  Tech-stack: ${results.length} repos from ${queries.length} queries`);
-    return results;
+    console.log(`  Tech-stack: ${results.length} repos · executed ${run.executed} / planned ${run.planned} queries`);
+    if (run.notes.length) console.warn(`  Tech-stack not executed: ${run.notes.slice(0, 5).join('; ')}`);
+    this.runReport = { executed: run.executed, planned: run.planned, repos: results.length };
+    return settleSearchRun({ label: 'tech-stack', items: results, ...run, report: this.runReport });
   }
 
   // -- Strategy 2: Curated Lists ---------------------------------------------
@@ -210,8 +252,8 @@ class GitHubDiscoveryModule extends BaseModule {
     for (const list of curatedLists) {
       const readmeUrl = `https://raw.githubusercontent.com/${list.repo}/HEAD/README.md`;
       try {
-        const res = await fetch(readmeUrl, { headers: { 'User-Agent': 'AI-Intelligence-Hub/1.0' } });
-        if (!res.ok) { console.warn(`  Could not fetch README for ${list.repo}: ${res.status}`); continue; }
+        // Throws HttpError on !ok and TimeoutError on a hang; both land in the catch below.
+        const res = await fetchResponse(readmeUrl, { timeoutMs: this.config.readme_timeout_ms || DEFAULT_TIMEOUT_MS });
         const markdown = await res.text();
         for (const slug of this.extractGitHubRepoUrls(markdown)) repoSlugs.add(slug);
       } catch (err) {
@@ -274,7 +316,6 @@ class GitHubDiscoveryModule extends BaseModule {
 
   async fetchRisingStars() {
     const { projects } = this.loadProjects();
-    const headers = this.githubHeaders();
 
     const langSet = new Set();
     for (const project of projects) {
@@ -287,46 +328,26 @@ class GitHubDiscoveryModule extends BaseModule {
 
     const seen = new Set();
     const results = [];
-    let stopped = false;
+    const queries = languages.map((lang) => ({
+      query: `created:>${ninetyDaysAgo} stars:>${minStars} language:${lang}`,
+      strategy: 'rising-stars',
+      language: lang,
+    }));
 
-    for (const lang of languages) {
-      if (stopped) break;
-      const q = `created:>${ninetyDaysAgo} stars:>${minStars} language:${lang}`;
-      const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&per_page=15`;
-
-      let res;
-      try {
-        res = await this.fetchWithRateCheck(url, headers);
-      } catch (err) {
-        console.warn(`  Rate limit stop during rising-stars: ${err.message}`);
-        stopped = true;
-        break;
-      }
-      if (res.status === 403 || res.status === 429) {
-        console.warn(`  GitHub search rate limited (${res.status}). Stopping rising-stars.`);
-        stopped = true;
-        break;
-      }
-      if (!res.ok) {
-        console.warn(`  Rising stars search failed for "${lang}": ${res.status}`);
-        await this.sleep(2000);
-        continue;
-      }
-
-      const data = await res.json();
+    const run = await this.runSearches('rising-stars', queries, 15, async (data, queryInfo) => {
       for (const repo of data.items || []) {
         if (seen.has(repo.full_name)) continue;
         seen.add(repo.full_name);
         const analysis = await this.analyzeRepo(repo);
-        const queryInfo = { query: q, strategy: 'rising-stars', language: lang };
         const relevance = this.calculateRelevanceScore(repo, analysis, queryInfo);
         results.push(this.normalizeRepo(repo, analysis, relevance, queryInfo));
       }
-      await this.sleep(2000);
-    }
+    });
 
-    console.log(`  Rising stars: ${results.length} repos across ${languages.length} languages`);
-    return results;
+    console.log(`  Rising stars: ${results.length} repos · executed ${run.executed} / planned ${run.planned} language searches`);
+    if (run.notes.length) console.warn(`  Rising stars not executed: ${run.notes.slice(0, 5).join('; ')}`);
+    this.runReport = { executed: run.executed, planned: run.planned, repos: results.length };
+    return settleSearchRun({ label: 'rising-stars', items: results, ...run, report: this.runReport });
   }
 
   // -- Strategy 4: Dependency-Backed -----------------------------------------
@@ -482,13 +503,14 @@ class GitHubDiscoveryModule extends BaseModule {
 
   async analyzeRepo(repoData) {
     const base = `https://raw.githubusercontent.com/${repoData.full_name}/HEAD`;
-    const h = { 'User-Agent': 'AI-Intelligence-Hub/1.0' };
+    // A missing file (404) and a timeout both read as "absent" here, as before.
+    const opts = { timeoutMs: this.config.readme_timeout_ms || DEFAULT_TIMEOUT_MS };
 
     const [readmeRes, pkgRes, reqRes, pyRes] = await Promise.all([
-      fetch(`${base}/README.md`, { headers: h }).catch(() => null),
-      fetch(`${base}/package.json`, { headers: h }).catch(() => null),
-      fetch(`${base}/requirements.txt`, { headers: h }).catch(() => null),
-      fetch(`${base}/pyproject.toml`, { headers: h }).catch(() => null),
+      fetchResponse(`${base}/README.md`, opts).catch(() => null),
+      fetchResponse(`${base}/package.json`, opts).catch(() => null),
+      fetchResponse(`${base}/requirements.txt`, opts).catch(() => null),
+      fetchResponse(`${base}/pyproject.toml`, opts).catch(() => null),
     ]);
 
     const readme = readmeRes && readmeRes.ok ? await readmeRes.text() : null;

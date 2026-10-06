@@ -40,6 +40,11 @@ export const DESTINATIONS: Destination[] = [
     path: "/discovery", href: () => "/discovery",
     blurb: "What to look at next, and why",
   },
+  {
+    id: "trends", label: "Trends", section: "discover",
+    path: "/trends", href: () => "/trends",
+    blurb: "What is gaining stars now, by theme, ranked by velocity",
+  },
 
   {
     id: "needs", label: "Needs", section: "project",

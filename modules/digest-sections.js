@@ -199,7 +199,82 @@ function formatGroundTruthSection(items, projects, nearMisses = [], ledgerRows =
   return lines.join('\n');
 }
 
+// ── GitHub Trends lane ─────────────────────────────────────────────────────
+// Renders the payload of routes/lib/trends-builder.js buildTrends() - the SAME
+// object GET /api/trends serves, so the digest and the /trends page cannot
+// disagree. Pure: the caller builds, this only formats.
+
+const fmtInt = (n) => (typeof n === 'number' && Number.isFinite(n) ? n.toLocaleString('en-US') : '?');
+const ORIGIN_NOTE = { 'trending-page': ' _(gain from the GitHub trending page, not our snapshots)_', snapshots: '' };
+
+function trendLine(r, i) {
+  const vel = typeof r.velocity === 'number' ? ` · velocity ${r.velocity.toFixed(1)}` : '';
+  return `${i + 1}. **[${mdLinkText(r.repo)}](${r.url})** · +${fmtInt(r.gain)}★ in 7d${vel} · ${fmtInt(r.stars)}★ total${ORIGIN_NOTE[r.origin] || ''}`;
+}
+
+/** The population line every trend number travels with (positive control 6). */
+function trendsPopulationLine(p = {}) {
+  const src = Object.entries(p.sources || {}).map(([k, v]) => `${k} ${v}`).join(' · ');
+  const missing = (p.missing_sources || []).length ? ` · not running yet: ${p.missing_sources.join(', ')}` : '';
+  const oldest = p.oldest_history_days === null || p.oldest_history_days === undefined ? 'none' : `${p.oldest_history_days} days`;
+  const other = p.other_hidden ? ` · no theme (hidden)=${fmtInt(p.other_hidden)}` : '';
+  return `_Population: pool=${fmtInt(p.pool)} repos · ranked=${fmtInt(p.ranked)} · not ranked yet=${fmtInt(p.unranked)}${other} · ruled and hidden=${fmtInt(p.ruled_hidden)} · snapshots today=${fmtInt(p.snapshots_today)} · oldest history=${oldest} · sources: ${src}${missing}._`;
+}
+
+/**
+ * "Trending by theme" + "Surged this week though known" + "Worth a WATCH?".
+ * `other` is left out of the per-theme list on purpose (it is where the
+ * non-AI noise of the trending page lands) and counted instead.
+ */
+function formatTrendsSection(trends, { perTheme = 3 } = {}) {
+  const lines = ['', '## 📈 Trending by theme (stars gained in 7 days, ranked by velocity)', ''];
+  const rows = trends.rows || [];
+  const groups = (trends.themes || [])
+    .filter((t) => t.id !== 'other')
+    .map((t) => ({ t, top: rows.filter((r) => (r.themes || []).includes(t.id)).slice(0, perTheme) }))
+    .filter((g) => g.top.length);
+  if (!groups.length) {
+    lines.push('_No repo cleared the gain floor in any theme this week._', '');
+  }
+  for (const { t, top } of groups) {
+    lines.push(`### ${t.label}`, '');
+    top.forEach((r, i) => lines.push(trendLine(r, i)));
+    lines.push('');
+  }
+  // buildTrends hides theme-less repos by default (include_other=false), the
+  // same default as the /trends "all" tab; say how many, never drop silently.
+  const otherHidden = (trends.population && trends.population.other_hidden) || 0;
+  if (otherHidden) lines.push(`_${otherHidden} more repos match no theme ("other") and are not listed - see the Other tab on /trends._`, '');
+
+  lines.push('### 🚀 Surged this week though known', '');
+  const surged = trends.surgedThoughKnown || [];
+  if (!surged.length) {
+    lines.push('_None: no repo the hub has known for more than 7 days gained max(500, 10% of its stars) in our own snapshots._', '');
+  } else {
+    for (const r of surged.slice(0, 10)) {
+      lines.push(`- **[${mdLinkText(r.repo)}](${r.url})** · +${fmtInt(r.gain7)}★ in 7d (snapshots) · ${fmtInt(r.stars)}★ total · known ${fmtInt(r.first_seen_days)} days`);
+    }
+    lines.push('');
+  }
+
+  lines.push('### 👀 Worth a WATCH?', '');
+  const cands = trends.candidates || [];
+  if (!cands.length) {
+    lines.push('_None this week: no unruled repo is in the top 10 of a theme that maps to a project._', '');
+  } else {
+    for (const c of cands) {
+      const repos = c.repos.map((r) => `[${mdLinkText(r.repo)}](${r.url}) +${fmtInt(r.gain)}★`).join(', ');
+      lines.push(`- **${c.label}** (for ${c.projects.join(', ')}): ${repos}`);
+    }
+    lines.push('', '_Read-only list. Nothing is added to a radar automatically - use "Add to radar as WATCH" on /trends._', '');
+  }
+  lines.push(trendsPopulationLine(trends.population), '');
+  return lines.join('\n');
+}
+
 module.exports = {
+  formatTrendsSection,
+  trendsPopulationLine,
   formatParkedPaidSection,
   formatFunnelSection,
   formatGroundTruthSection,

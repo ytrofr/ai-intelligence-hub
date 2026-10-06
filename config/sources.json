@@ -15,7 +15,8 @@
           "anthropic",
           "mcp",
           "agent"
-        ]
+        ],
+        "budget_ms": 600000
       },
       "color": "#238636"
     },
@@ -365,6 +366,78 @@
         "stale_days": 180,
         "description": "Daily upstream check of every repo we adopted, are watching, or depend on. Findings land in tracked_events and are reported in the Monday digest; a broken run shows up in /api/health the same morning."
       }
+    },
+    {
+      "id": "gh-trending",
+      "name": "GitHub Trending (scrape)",
+      "type": "github-trending",
+      "url": "https://github.com/trending",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "timeout_ms": 20000,
+        "budget_ms": 180000,
+        "retention_days": 120,
+        "page_delay_ms": 750,
+        "periods": [
+          "daily",
+          "weekly",
+          "monthly"
+        ],
+        "languages": [
+          "all",
+          "python",
+          "typescript",
+          "javascript",
+          "go",
+          "rust"
+        ],
+        "description": "18 github.com/trending pages a day (3 periods x all + 5 languages), zero search quota. Emits one item per repo with metadata.trend {period, gain, lang, rank} + metadata.themes, and writes a star_snapshots row (origin trending:<period>). Parser-drift guard: any page with 0 rows, or the weekly all-language page under 8 rows, makes the run an ERROR."
+      },
+      "color": "#2da44e"
+    },
+    {
+      "id": "gh-snapshot",
+      "name": "GitHub Star Snapshots",
+      "type": "github-snapshot",
+      "url": "https://api.github.com",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "timeout_ms": 15000,
+        "budget_ms": 900000,
+        "concurrency": 5,
+        "pool_cap": 800,
+        "top_items": 300,
+        "trending_days": 14,
+        "min_core_remaining": 200,
+        "description": "Daily GET /repos (core quota) for trending-seen-14d + tracked_repos + radar rows + top 300 github items, capped at 800. Writes star_snapshots (origin api); returns NO feed items, so last_item_count is always 0 - read the journal line [snapshot] pool N · written M · errors E."
+      },
+      "color": "#57606a"
+    },
+    {
+      "id": "gh-theme",
+      "name": "GitHub Theme Search",
+      "type": "github-theme",
+      "url": "https://api.github.com/search/repositories",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "timeout_ms": 20000,
+        "budget_ms": 600000,
+        "retention_days": 120,
+        "per_page": 30,
+        "windows": [
+          "new",
+          "active"
+        ],
+        "new_days": 30,
+        "new_min_stars": 30,
+        "active_days": 7,
+        "active_min_stars": 300,
+        "description": "Daily: each theme in config/themes.json (not 'other') x its 2 base queries x 2 windows (new = created 30d stars>30, active = pushed 7d stars>300), sort=stars, per_page 30 - about 60 searches. All GitHub searches in the process share ONE bucket (<= 25/min, waits for X-RateLimit-Reset), so this never competes with github / tech-stack / rising-stars for the search minute. Items carry metadata.themes + metadata.found_by; snapshots origin 'search'. executed < planned => status partial (journal line [theme-search] executed X / planned Y)."
+      },
+      "color": "#bf8700"
     }
   ]
 }
