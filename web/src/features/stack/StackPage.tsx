@@ -27,9 +27,13 @@ function statusChip(row: LedgerRow) {
  * the decisions that went the other way - a list of only the adoptions is a
  * list of things we happen to use, which the dependency files already are.
  */
+/** The endpoint every summary figure on this page is read from. */
+const LEDGER_PATH = "/ledger";
+const LEDGER_RAW = `/api${LEDGER_PATH}`;
+
 export function StackPage() {
   const project = useProject();
-  const q = useApi<LedgerPayload>("/ledger");
+  const q = useApi<LedgerPayload>(LEDGER_PATH);
   const [needle, setNeedle] = useState("");
   const d = destinationById("stack")!;
 
@@ -71,11 +75,16 @@ function Body({ led, project, needle }: { led: LedgerPayload; project?: string; 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap gap-x-8 gap-y-2 rounded-lg border bg-card p-4 text-sm">
-        <Fig n={led.counts.total} label="rows" />
-        <Fig n={led.counts.explained} label="explained" />
-        <Fig n={led.counts.unexplained} label="no reason on file" />
-        <Fig n={led.counts.closed} label="closed" />
-        <Fig n={led.counts.closedWithLesson} label="closed with a lesson" />
+        {/* Rows from the manifests carry no reason, so they land in "rows" and
+            "no reason on file" only - those two also show the deps snapshot age. */}
+        <Fig n={led.counts.total} label="rows" src="counts.total"
+             readAt={led.generated_at} depsAt={led.deps_generated_at} />
+        <Fig n={led.counts.explained} label="explained" src="counts.explained" readAt={led.generated_at} />
+        <Fig n={led.counts.unexplained} label="no reason on file" src="counts.unexplained"
+             readAt={led.generated_at} depsAt={led.deps_generated_at} />
+        <Fig n={led.counts.closed} label="closed" src="counts.closed" readAt={led.generated_at} />
+        <Fig n={led.counts.closedWithLesson} label="closed with a lesson" src="counts.closedWithLesson"
+             readAt={led.generated_at} />
       </div>
 
       <DataTable
@@ -131,11 +140,53 @@ function Body({ led, project, needle }: { led: LedgerPayload; project?: string; 
   );
 }
 
-function Fig({ n, label }: { n: number; label: string }) {
+/**
+ * When the data behind a figure was read. The time is the payload's OWN
+ * `generated_at`, which routes/ledger.js stamps when it reads the radar and
+ * deps files for this request - not the page's fetch time. A payload with no
+ * stamp says so rather than borrowing the clock.
+ */
+function readLabel(readAt?: string) {
+  const d = readAt ? new Date(readAt) : null;
+  if (!d || isNaN(d.getTime())) return "read time unknown";
+  return `read ${d.toISOString().slice(11, 16)} UTC`;
+}
+
+/**
+ * The age of config/ledger/deps.json, which the backfill writes and the route
+ * only re-reads. A fresh read time on an old snapshot would claim the manifest
+ * rows are current, so the snapshot date is shown beside it. Absent -> nothing.
+ */
+function depsLabel(depsAt?: string | null) {
+  const d = depsAt ? new Date(depsAt) : null;
+  if (!d || isNaN(d.getTime())) return null;
+  return `deps snapshot ${d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" })}`;
+}
+
+/**
+ * A summary figure, its label, and where it came from: the read time on the
+ * left and the payload field it is read from on the right, opening the raw
+ * endpoint (insight-doctrine, live screens).
+ */
+function Fig({ n, label, src, readAt, depsAt }: {
+  n: number; label: string; src: string; readAt?: string; depsAt?: string | null;
+}) {
+  const deps = depsLabel(depsAt);
   return (
     <div>
       <div className="font-mono text-lg tabular-nums">{n}</div>
       <div className="mt-0.5 text-[11px] uppercase tracking-wide text-dim">{label}</div>
+      <div className="mt-2 flex justify-between gap-2 border-t pt-1.5 text-[10.5px] text-muted-foreground">
+        <span>
+          {readLabel(readAt)}
+          {deps && <span className="block" title={`config/ledger/deps.json generated ${depsAt}`}>{deps}</span>}
+        </span>
+        <a href={LEDGER_RAW} target="_blank" rel="noreferrer"
+           className="whitespace-nowrap text-inherit underline decoration-dotted"
+           title={`the payload this number is read from - look under ${src}`}>
+          {src} ↗
+        </a>
+      </div>
     </div>
   );
 }

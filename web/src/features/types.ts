@@ -124,6 +124,8 @@ export interface LedgerPayload {
     byKind: Record<string, number>; projects: string[];
   };
   generated_at: string;
+  /** When config/ledger/deps.json was written by the backfill; null when the file is missing or unreadable. */
+  deps_generated_at?: string | null;
 }
 
 /** One row of the per-project adoption scorecard (GET /api/adoption-scorecard). */
