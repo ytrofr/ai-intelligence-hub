@@ -12,6 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../database/db');
 const { loadPool, recommendFromPool, parseMeta } = require('./recommend');
+const { buildNewsDigestSection, HEADING: NEWS_HEADING } = require('./news-triage');
 
 const DIGESTS_DIR = path.join(__dirname, '..', 'digests');
 
@@ -365,6 +366,17 @@ function buildTrendsDigestSection(items = []) {
   }
 }
 
+/** Platform news per project (modules/news-triage.js); a failure is shown, never fatal. */
+async function buildNewsSection() {
+  try {
+    const projects = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'projects.json'), 'utf-8')).projects || [];
+    return await buildNewsDigestSection({ db, projects });
+  } catch (err) {
+    console.error(`[digest] news section failed: ${err.message}`);
+    return `\n${NEWS_HEADING}\n\n- _section failed: ${err.message}_\n`;
+  }
+}
+
 async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs = Date.now() } = {}) {
   if (!fs.existsSync(DIGESTS_DIR)) fs.mkdirSync(DIGESTS_DIR, { recursive: true });
 
@@ -393,7 +405,8 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   // Per project, what to run next - read off the scorecard, refreshed every Monday.
   const { buildAdoptionQueueDigestSection } = require('./adoption-queue-digest');
   const trends = buildTrendsDigestSection(items);
-  const md = formatDigest({ items, runDate, channelStats, velocityByRepo: trends.velocityByRepo }) + trends.md + tracked + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
+  const news = await buildNewsSection();
+  const md = formatDigest({ items, runDate, channelStats, velocityByRepo: trends.velocityByRepo }) + trends.md + tracked + news + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');

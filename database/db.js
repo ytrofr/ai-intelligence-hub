@@ -94,6 +94,9 @@ const stmts = {
     VALUES (@id, @source, @title, @url, @description, @author, @stars, @score, @published_at, @fetched_at, @metadata, @first_seen_at)
     ON CONFLICT(id) DO UPDATE SET
       title = @title,
+      -- a later fetch may know the URL an earlier one missed (Atom links, 2026-10-16);
+      -- a blank never overwrites a known URL
+      url = COALESCE(NULLIF(@url, ''), url),
       description = @description,
       stars = @stars,
       score = @score,

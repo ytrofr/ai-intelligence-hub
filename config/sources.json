@@ -241,6 +241,19 @@
       }
     },
     {
+      "id": "google-ads-dev",
+      "name": "Google Ads Developer Blog",
+      "type": "rss",
+      "url": "https://ads-developers.googleblog.com/feeds/posts/default",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#fbbc04",
+        "retention_days": 120,
+        "description_chars": 4000
+      }
+    },
+    {
       "id": "marktechpost",
       "name": "MarkTechPost",
       "type": "rss",
