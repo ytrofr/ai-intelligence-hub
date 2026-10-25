@@ -401,12 +401,22 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
     tracked = `\n## 📡 Adopted & tracked — what changed upstream\n\n_Unavailable this week: ${err.message}_\n`;
   }
 
+  // Outside skill repos, diffed from the commit we last audited - see modules/skill-repos-diff.js
+  let skillRepos;
+  try {
+    const { readState, formatSkillReposSection } = require('./skill-repos-diff');
+    skillRepos = formatSkillReposSection(readState());
+  } catch (err) {
+    console.error(`[digest] skill repos section failed: ${err.message}`);
+    skillRepos = `\n## 🧩 Skill repos since last audit\n\n_Unavailable this week: ${err.message}_\n`;
+  }
+
   const groundTruth = buildGroundTruthDigestSection();
   // Per project, what to run next - read off the scorecard, refreshed every Monday.
   const { buildAdoptionQueueDigestSection } = require('./adoption-queue-digest');
   const trends = buildTrendsDigestSection(items);
   const news = await buildNewsSection();
-  const md = formatDigest({ items, runDate, channelStats, velocityByRepo: trends.velocityByRepo }) + trends.md + tracked + news + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
+  const md = formatDigest({ items, runDate, channelStats, velocityByRepo: trends.velocityByRepo }) + trends.md + tracked + skillRepos + news + formatProjectSections() + groundTruth + buildAdoptionQueueDigestSection();
 
   const outPath = path.join(DIGESTS_DIR, `weekly-${runDate}.md`);
   fs.writeFileSync(outPath, md, 'utf-8');

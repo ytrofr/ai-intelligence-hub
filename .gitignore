@@ -35,6 +35,8 @@ config/ledger/
 
 # Generated at runtime (not for public repo)
 digests/*.md
+# skill-repos snapshot (modules/skill-repos-diff.js) - rewritten on every fetch
+data/skill-repos-diff.json
 fetch.log
 .claude/state/
 digest.log

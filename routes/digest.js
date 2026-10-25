@@ -22,7 +22,7 @@ router.post('/run', async (req, res) => {
   const requestedChannels =
     Array.isArray(req.body?.channels) && req.body.channels.length > 0
       ? req.body.channels
-      : ['github-watchlist', 'perplexity-weekly'];
+      : ['github-watchlist', 'perplexity-weekly', 'skill-repos'];
 
   // Allow client to skip the weekly fetch and just regenerate from already-stored items
   const skipFetch = req.body?.skip_fetch === true;
