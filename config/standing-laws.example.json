@@ -1,0 +1,19 @@
+{
+  "_doc": "Standing decisions the operator has made about whole families of repos. modules/prior-ruling.js reads config/standing-laws.json (gitignored: it names private projects and their conventions) and reports a match as kind 'law' (a ruling for every project) or, with applies_to, kind 'constraint' (binds only those projects). Every law cites where it was made.",
+  "laws": [
+    {
+      "id": "example-ui-base",
+      "match": { "owners": ["example-org"], "repos": [] },
+      "law": "example-org is the UI base on every front end (operator, YYYY-MM-DD)",
+      "source": "path or link to where the decision was recorded",
+      "per_project": { "project-a": "a project-specific convention a reviewer must know" }
+    },
+    {
+      "id": "example-vendor-free",
+      "match": { "owners": ["some-vendor"] },
+      "applies_to": ["project-b"],
+      "law": "project-b does not depend on some-vendor (operator directive)",
+      "source": "where the directive is recorded"
+    }
+  ]
+}
