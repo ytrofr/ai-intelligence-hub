@@ -85,12 +85,19 @@ router.get('/:date.json', (req, res) => {
     return res.status(404).json({ error: `No digest for ${date}` });
   }
   try {
-    const windowStart = new Date(date + 'T00:00:00Z');
-    windowStart.setUTCDate(windowStart.getUTCDate() - 7);
-    const sinceIso = windowStart.toISOString();
-    const items = db.getItemsFirstSeenSince(sinceIso, { limit: 80 });
+    // The window this digest actually covered (recorded since 2026-11-03); older runs
+    // fall back to the 7 days before their date, which is what they showed then.
+    const run = db.getWeeklyRun(date);
+    let sinceIso = run && run.window_since;
+    let untilIso = run && run.window_until;
+    if (!sinceIso) {
+      const windowStart = new Date(date + 'T00:00:00Z');
+      windowStart.setUTCDate(windowStart.getUTCDate() - 7);
+      sinceIso = windowStart.toISOString();
+    }
+    const items = db.getItemsFirstSeenSince(sinceIso, untilIso ? { untilIso } : {});
     const structure = buildDigestStructure({ items, runDate: date });
-    res.json(structure);
+    res.json({ ...structure, window: { since: sinceIso, until: untilIso || null, recorded: Boolean(run && run.window_since) } });
   } catch (err) {
     console.error('[digest] JSON build failed:', err);
     res.status(500).json({ error: err.message });

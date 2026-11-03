@@ -32,6 +32,14 @@ function ensureColumns(table, columns) {
     if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
   }
 }
+// Digest window (2026-11-03): each run records the exact span it covered, so the next
+// run starts where this one ended instead of "7 days back from now". See
+// modules/digest-window.js and database/migrate-2026-11-03.sql.
+ensureColumns("weekly_runs", {
+  window_since: "TEXT",
+  window_until: "TEXT",
+  eligible_count: "INTEGER",
+});
 ensureColumns("sources", {
   last_status: "TEXT",
   last_error: "TEXT",
@@ -111,6 +119,7 @@ const stmts = {
     SELECT i.*
     FROM items i
     WHERE i.first_seen_at >= @since
+      AND i.first_seen_at < @until
       AND (
         i.stars >= 1000
         OR (
@@ -123,9 +132,17 @@ const stmts = {
   `),
 
   insertWeeklyRun: db.prepare(`
-    INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd)
-    VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd)
+    INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd, window_since, window_until, eligible_count)
+    VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd, @window_since, @window_until, @eligible_count)
   `),
+
+  // The run this digest continues from: the latest EARLIER run date, so a same-day
+  // re-run continues from last week rather than from itself.
+  getPreviousWeeklyRun: db.prepare(`
+    SELECT * FROM weekly_runs WHERE run_date < @run_date
+    ORDER BY run_date DESC, created_at DESC LIMIT 1
+  `),
+  getWeeklyRun: db.prepare(`SELECT * FROM weekly_runs WHERE run_date = @run_date`),
 
   // Basic item queries with sorting
   getItemsBase: db.prepare(`
@@ -387,14 +404,20 @@ module.exports = {
   },
 
   // Digest query helper
-  getItemsFirstSeenSince: (sinceIso, { limit = 80 } = {}) => {
+  // limit default is a SAFETY bound, not a selection: the digest shows a capped list
+  // per section and counts the rest (modules/digest-window.js capList). Until 2026-11-03
+  // this was 80 and silently dropped 70-90% of eligible items every week.
+  getItemsFirstSeenSince: (sinceIso, { limit = 5000, untilIso = '9999-12-31T00:00:00.000Z' } = {}) => {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
     return stmts.getItemsFirstSeenSince.all({
       since: sinceIso,
+      until: untilIso,
       ninetyDaysAgo,
       limit,
     });
   },
+  getPreviousWeeklyRun: (runDate) => stmts.getPreviousWeeklyRun.get({ run_date: runDate }) || null,
+  getWeeklyRun: (runDate) => stmts.getWeeklyRun.get({ run_date: runDate }) || null,
 
   // Weekly run ledger
   insertWeeklyRun: (run) =>
@@ -404,6 +427,9 @@ module.exports = {
       channels_run: run.channels_run,
       runtime_ms: run.runtime_ms,
       cost_usd: run.cost_usd || 0,
+      window_since: run.window_since || null,
+      window_until: run.window_until || null,
+      eligible_count: run.eligible_count ?? null,
     }),
 
   // Advanced search with FTS5 + filters
