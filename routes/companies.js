@@ -6,6 +6,8 @@
  *   GET  /api/companies/week?since=ISO   items that entered the inbox since `since`, any state
  *   GET  /api/companies/orgs             per-org last read, status and error
  *   GET  /api/companies/brief            the Monday one-pager, live, from the last digest's end to now (text/markdown)
+ *   GET  /api/companies/recall           the last recall check (GitHub search vs company_repos)
+ *   POST /api/companies/recall           run it now (loopback only; ~45 searches through the shared limiter)
  *   POST /api/companies/rule {repo,state,note?}  (loopback only) state: test|watch|adopted|skip|noise|new
  */
 const express = require("express");
@@ -39,6 +41,25 @@ router.get("/brief", (_req, res) => {
 router.get("/orgs", (_req, res) => {
   const orgs = db.companies.orgs();
   res.json({ count: orgs.length, failing: orgs.filter((o) => o.last_status !== "ok").length, orgs });
+});
+
+router.get("/recall", (_req, res) => {
+  const r = require("../modules/company-recall").readLastRecall();
+  if (!r) return res.status(404).json({ error: "the recall check has not run yet" });
+  res.json(r);
+});
+
+router.post("/recall", requireLoopback, async (_req, res) => {
+  try {
+    const fs = require("fs");
+    const path = require("path");
+    const registry = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "config", "companies.json"), "utf-8"));
+    const { searchRepos } = require("../modules/github-theme-search");
+    const r = await require("../modules/company-recall").runRecall({ db, registry, search: searchRepos });
+    res.json(r);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.post("/rule", requireLoopback, express.json(), (req, res) => {

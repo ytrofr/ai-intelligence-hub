@@ -65,6 +65,7 @@ router.post('/run', async (req, res) => {
       item_count: result.itemCount,
       runtime_ms: result.runtimeMs,
       channels: channelStats,
+      recall: result.recall,
     });
   } catch (err) {
     console.error('[digest] generation failed:', err);

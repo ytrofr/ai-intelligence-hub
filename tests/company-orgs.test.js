@@ -50,6 +50,7 @@ test("store: a repo below the floor is kept, and enters the inbox the day it cro
   s.upsert({ ...ORG, repo: gh({ stargazers_count: 4 }), baseline: false }, "2026-10-07T00:00:00Z");
   assert.equal(s.inbox().length, 0, "below the floor: recorded, not in the inbox");
   assert.equal(s.count(), 1);
+  assert.deepEqual(s.allRepoNames(), ["google-research/harness2"], "below-floor repos are recorded too");
   s.upsert({ ...ORG, repo: gh({ stargazers_count: 900 }), baseline: false }, "2026-10-08T00:00:00Z");
   const inbox = s.inbox();
   assert.equal(inbox.length, 1);

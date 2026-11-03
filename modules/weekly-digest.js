@@ -443,6 +443,16 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
   const { buildAdoptionQueueDigestSection } = require('./adoption-queue-digest');
   const trends = buildTrendsDigestSection(items);
   const news = await buildNewsSection(window);
+  // Recall check BEFORE the brief, so the brief's recall line is this week's (modules/company-recall.js).
+  let recall;
+  try {
+    const { searchRepos } = require('./github-theme-search');
+    const registry = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'config', 'companies.json'), 'utf-8'));
+    recall = await require('./company-recall').runRecall({ db, registry, search: searchRepos });
+  } catch (err) {
+    console.error(`[digest] recall check failed: ${err.message}`);
+    recall = { status: 'error', reasons: [err.message] };
+  }
   let brief;
   try {
     brief = require('./monday-brief').assembleBrief({ db, window });
@@ -467,7 +477,7 @@ async function generateDigest({ channelStats = {}, costUsd = 0, runtimeStartMs =
     eligible_count: items.length,
   });
 
-  return { digestPath: outPath, itemCount: items.length, runtimeMs, window };
+  return { digestPath: outPath, itemCount: items.length, runtimeMs, window, recall: { status: recall.status, reasons: (recall.reasons || []).slice(0, 5) } };
 }
 
 module.exports = { generateDigest, buildTrendsDigestSection, rankRising, formatDigest, formatProjectSections, formatGroundTruthSection, formatTrackedSection, dropClearedDeletions, buildDigestStructure, classify, isRisingStar, parseMeta };

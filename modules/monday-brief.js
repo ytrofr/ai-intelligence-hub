@@ -109,12 +109,13 @@ const stars = (n) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n || 0)) 
 const day = (iso) => String(iso || "").slice(0, 16).replace("T", " ");
 const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 
-function formatBrief({ window, inbox, companies, deadlines, tops }) {
+function formatBrief({ window, inbox, companies, deadlines, tops, recall }) {
   const L = [];
   L.push("## 📌 This week on one page");
   L.push("");
   const backlog = inbox.baseline ? ` (${inbox.baseline} from the first read)` : "";
   L.push(`> ${day(window.since)} to ${day(window.until)} UTC · inbox: ${inbox.waiting} waiting for a ruling${backlog} · oldest ${inbox.oldestDays} d · rule via POST /api/companies/rule`);
+  if (recall !== undefined) L.push(require("./company-recall").recallLine(recall));
   L.push("");
 
   const active = companies
@@ -243,7 +244,8 @@ function assembleBrief({ db, window, deps = {} }) {
 
   const oldest = waiting.reduce((m, r) => (r.floor_crossed_at < m ? r.floor_crossed_at : m), window.until);
   const inbox = { waiting: waiting.length, baseline: waiting.filter((r) => r.baseline).length, oldestDays: Math.max(0, Math.floor((Date.parse(window.until) - Date.parse(oldest)) / 86400000)) };
-  return formatBrief({ window, inbox, companies, deadlines: rankDeadlines(deadlines), tops });
+  const recall = deps.recall !== undefined ? deps.recall : require("./company-recall").readLastRecall();
+  return formatBrief({ window, inbox, companies, deadlines: rankDeadlines(deadlines), tops, recall });
 }
 
 function readJsonText(s) {

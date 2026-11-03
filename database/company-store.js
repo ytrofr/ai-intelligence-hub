@@ -89,6 +89,7 @@ class CompanyStore {
           repos_listed = COALESCE(@listed, company_orgs.repos_listed)
       `),
       orgs: db.prepare(`SELECT * FROM company_orgs ORDER BY company, org`),
+      names: db.prepare(`SELECT repo FROM company_repos`).pluck(),
     };
   }
 
@@ -144,6 +145,11 @@ class CompanyStore {
 
   orgs() {
     return this.stmts.orgs.all();
+  }
+
+  /** Every repo ever recorded, whatever its stars or state - the recall check's "found" set. */
+  allRepoNames() {
+    return this.stmts.names.all();
   }
 }
 
