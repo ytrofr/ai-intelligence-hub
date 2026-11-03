@@ -51,6 +51,11 @@ function applyCompanySchema(db) {
   // Additive columns for tables created before the column existed (record: migrate-2026-11-03.sql).
   const have = new Set(db.prepare("PRAGMA table_info(company_repos)").all().map((c) => c.name));
   if (!have.has("topics")) db.exec("ALTER TABLE company_repos ADD COLUMN topics TEXT");
+  // README excerpt for repos that declare no description (record: migrate-2026-11-03b.sql).
+  // readme_status: NULL = not read · ok · none (GitHub has no README) · error (retried next run)
+  if (!have.has("readme_excerpt")) db.exec("ALTER TABLE company_repos ADD COLUMN readme_excerpt TEXT");
+  if (!have.has("readme_status")) db.exec("ALTER TABLE company_repos ADD COLUMN readme_status TEXT");
+  if (!have.has("readme_read_at")) db.exec("ALTER TABLE company_repos ADD COLUMN readme_read_at TEXT");
 }
 
 class CompanyStore {
@@ -90,7 +95,26 @@ class CompanyStore {
       `),
       orgs: db.prepare(`SELECT * FROM company_orgs ORDER BY company, org`),
       names: db.prepare(`SELECT repo FROM company_repos`).pluck(),
+      needsReadme: db.prepare(`
+        SELECT * FROM company_repos
+        WHERE state = 'new' AND floor_crossed_at IS NOT NULL
+          AND (description IS NULL OR trim(description) = '')
+          AND (readme_status IS NULL OR readme_status = 'error')
+        ORDER BY floor_crossed_at, stars DESC LIMIT ?`),
+      saveReadme: db.prepare(`
+        UPDATE company_repos SET readme_status = @status, readme_read_at = @at,
+          readme_excerpt = COALESCE(@excerpt, readme_excerpt)
+        WHERE repo = @repo`),
     };
+  }
+
+  /** Unruled inbox repos with no description whose README was never read (or failed). */
+  needsReadme(limit) {
+    return this.stmts.needsReadme.all(limit);
+  }
+
+  saveReadme(repo, status, excerpt, atIso) {
+    this.stmts.saveReadme.run({ repo, status, excerpt: excerpt || null, at: atIso });
   }
 
   /** @param {{org,company,tier,floor,repo:object,baseline:boolean}} r  GitHub repo object in r.repo */
