@@ -241,6 +241,19 @@
       }
     },
     {
+      "id": "google-ads-dev",
+      "name": "Google Ads Developer Blog",
+      "type": "rss",
+      "url": "https://ads-developers.googleblog.com/feeds/posts/default",
+      "enabled": true,
+      "rate_limit_minutes": 60,
+      "config": {
+        "color": "#fbbc04",
+        "retention_days": 120,
+        "description_chars": 4000
+      }
+    },
+    {
       "id": "marktechpost",
       "name": "MarkTechPost",
       "type": "rss",
@@ -438,6 +451,36 @@
         "description": "Daily: each theme in config/themes.json (not 'other') x its 2 base queries x 2 windows (new = created 30d stars>30, active = pushed 7d stars>300), sort=stars, per_page 30 - about 60 searches. All GitHub searches in the process share ONE bucket (<= 25/min, waits for X-RateLimit-Reset), so this never competes with github / tech-stack / rising-stars for the search minute. Items carry metadata.themes + metadata.found_by; snapshots origin 'search'. executed < planned => status partial (journal line [theme-search] executed X / planned Y)."
       },
       "color": "#bf8700"
-    }
+    },
+    {
+      "id": "skill-repos",
+      "name": "Skill repos since last audit",
+      "type": "skill-repos-diff",
+      "url": "https://api.github.com",
+      "enabled": true,
+      "rate_limit_minutes": 720,
+      "config": {
+        "timeout_ms": 30000,
+        "budget_ms": 120000,
+        "path_regex": "(^|/)SKILL\\.md$",
+        "comment": "Which SKILL.md files changed in outside skill repos we follow, since the commit we last AUDITED (audited_at null = a baseline, not yet audited). tier: T1 vendor-official, T2 vetted practitioner; a candidate joins only after one audit. Two tree reads + one compare per repo. Writes data/skill-repos-diff.json, returns no feed items by design; the weekly digest renders every repo. After an audit, move that repo's base_sha to the audited commit.",
+        "repos": [
+          { "repo": "anthropics/skills", "tier": "T1", "base_sha": "dbd4588f9e1033efb41dad4bef2f7947c8993d44", "audited_at": null },
+          { "repo": "obra/superpowers", "tier": "T2", "base_sha": "2ce8aa15d05bd57213e6f746f953aafb7ded7a8b", "audited_at": null },
+          { "repo": "mattpocock/skills", "tier": "T2", "base_sha": "5beb35b040e3de97e54fa9e386d7e42d15c295c2", "audited_at": "2026-10-25" },
+          { "repo": "garrytan/gstack", "tier": "T2", "base_sha": "749a2382750ef742a7345ee270ab3416c0715b6e", "audited_at": "2026-10-25" },
+          { "repo": "multica-ai/andrej-karpathy-skills", "tier": "T2", "base_sha": "2c606141936f1eeef17fa3043a72095b4765b9c2", "audited_at": "2026-10-25" }
+        ]
+      },
+      "color": "#8250df"
+    },
+    {"id": "company-orgs", "name": "Company repos (every repo a tracked company creates)", "type": "company-orgs", "url": "https://api.github.com/orgs", "enabled": true, "rate_limit_minutes": 720, "config": {"timeout_ms": 20000, "budget_ms": 600000, "description": "Reads each org in config/companies.json, newest-created first, and records every non-fork repo created in the window into company_repos. A repo enters the company inbox when it passes its tier's star floor and stays until ruled. Returns no feed items by design; read /api/companies/inbox."}, "color": "#0969da"},
+    {"id": "anthropic-news", "name": "Anthropic News (page links)", "type": "page-links", "url": "https://www.anthropic.com/news", "enabled": true, "rate_limit_minutes": 360, "config": {"base": "https://www.anthropic.com", "link_regex": "^/news/[a-z0-9-]+$", "exclude": ["/news/announcements"], "timeout_ms": 20000, "description": "Anthropic publishes no news feed (RSS 404 since 2026-03); each new /news/<slug> link is an item. published_at stays null - first_seen_at is when we learned of it."}, "color": "#d97757"},
+    {"id": "vercel-changelog", "name": "Vercel Changelog", "type": "rss", "url": "https://vercel.com/changelog/feed", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 60, "retention_days": 120, "color": "#000000"}},
+    {"id": "github-changelog", "name": "GitHub Changelog", "type": "rss", "url": "https://github.blog/changelog/feed/", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 120, "color": "#24292f"}},
+    {"id": "nvidia-dev-blog", "name": "NVIDIA Technical Blog", "type": "rss", "url": "https://developer.nvidia.com/blog/feed/", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#76b900"}},
+    {"id": "hf-blog", "name": "Hugging Face Blog", "type": "rss", "url": "https://huggingface.co/blog/feed.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#ffcc4d"}},
+    {"id": "cloudflare-blog", "name": "Cloudflare Blog", "type": "rss", "url": "https://blog.cloudflare.com/rss/", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 90, "color": "#f38020"}},
+    {"id": "gemini-release-notes", "name": "Gemini Code Assist release notes (Google Cloud) - NOT the Gemini API changelog", "type": "rss", "url": "https://cloud.google.com/feeds/gemini-release-notes.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 180, "description_chars": 2000, "color": "#1a73e8"}}
   ]
 }

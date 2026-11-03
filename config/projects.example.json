@@ -68,6 +68,9 @@
             "adk"
           ]
         }
+      ],
+      "news_sources": [
+        "google-ads-dev"
       ]
     },
     {

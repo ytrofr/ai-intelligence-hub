@@ -54,12 +54,12 @@ class RSSModule extends BaseModule {
         : [parsed.feed.entry];
 
       for (const entry of entries) {
-        const link = entry.link?.href || entry.link?.[0]?.href || entry.link;
+        const link = this.atomLink(entry.link);
         items.push(
           this.normalize({
             id: entry.id || link,
             title: entry.title?._ || entry.title,
-            url: typeof link === "string" ? link : link?.href,
+            url: link,
             description: this.stripHtml(
               entry.summary?._ || entry.summary || entry.content?._ || "",
             ),
@@ -72,7 +72,23 @@ class RSSModule extends BaseModule {
       }
     }
 
-    return items;
+    // config.max_items (2026-11-03): a vendor changelog feed can carry thousands of
+    // entries (Vercel: 2,118); keep its newest N so one source cannot flood the table.
+    return newestN(items, this.config.max_items);
+  }
+
+  /**
+   * Atom <link> as xml2js gives it: attributes live under `$`, and a feed may
+   * list several (Blogger puts rel=edit and rel=self before the page). Reading
+   * `.href` straight off it stored every Atom item with no URL until 2026-10-16.
+   * The page is rel="alternate" (or no rel, which the spec defaults to it).
+   */
+  atomLink(link) {
+    const links = (Array.isArray(link) ? link : [link])
+      .map((l) => (typeof l === "string" ? { href: l } : { href: l?.$?.href || l?.href, rel: l?.$?.rel || l?.rel }))
+      .filter((l) => typeof l.href === "string" && l.href);
+    const page = links.find((l) => !l.rel || l.rel === "alternate");
+    return page ? page.href : null;
   }
 
   toIso(dateStr) {
@@ -94,8 +110,10 @@ class RSSModule extends BaseModule {
     return String(val);
   }
 
+  // config.description_chars widens one source's excerpt (default 500): a
+  // vendor post puts its sunset table below the fold, so 500 chars hid it.
   stripHtml(html) {
-    return html.replace(/<[^>]*>/g, "").substring(0, 500);
+    return html.replace(/<[^>]*>/g, "").substring(0, this.config.description_chars || 500);
   }
 
   getRecencyScore(dateStr) {
@@ -108,4 +126,12 @@ class RSSModule extends BaseModule {
   }
 }
 
+/** Newest `n` items by published_at (undated last); a falsy `n` keeps everything, in order. */
+function newestN(items, n) {
+  if (!n || items.length <= n) return items;
+  const t = (i) => (i.published_at ? Date.parse(i.published_at) : -Infinity);
+  return [...items].sort((a, b) => t(b) - t(a)).slice(0, n);
+}
+
 module.exports = RSSModule;
+module.exports.newestN = newestN;

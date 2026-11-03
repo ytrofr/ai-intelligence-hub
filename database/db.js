@@ -32,6 +32,14 @@ function ensureColumns(table, columns) {
     if (!have.has(name)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
   }
 }
+// Digest window (2026-11-03): each run records the exact span it covered, so the next
+// run starts where this one ended instead of "7 days back from now". See
+// modules/digest-window.js and database/migrate-2026-11-03.sql.
+ensureColumns("weekly_runs", {
+  window_since: "TEXT",
+  window_until: "TEXT",
+  eligible_count: "INTEGER",
+});
 ensureColumns("sources", {
   last_status: "TEXT",
   last_error: "TEXT",
@@ -52,6 +60,12 @@ const trackedStore = new TrackedStore(db);
 const { applySlotNearMissSchema, SlotNearMissStore } = require("./slot-near-miss-store");
 applySlotNearMissSchema(db);
 const nearMissStore = new SlotNearMissStore(db);
+
+// Company inbox (company_repos + company_orgs): every repo a tracked company created,
+// and the ones waiting for a ruling. DDL + statements live in company-store.js.
+const { applyCompanySchema, CompanyStore } = require("./company-store");
+applyCompanySchema(db);
+const companyStore = new CompanyStore(db);
 
 // Star history (star_snapshots): one total-star reading per repo per day, written
 // by gh-trending and gh-snapshot. DDL + statements live in snapshot-store.js.
@@ -94,6 +108,9 @@ const stmts = {
     VALUES (@id, @source, @title, @url, @description, @author, @stars, @score, @published_at, @fetched_at, @metadata, @first_seen_at)
     ON CONFLICT(id) DO UPDATE SET
       title = @title,
+      -- a later fetch may know the URL an earlier one missed (Atom links, 2026-10-16);
+      -- a blank never overwrites a known URL
+      url = COALESCE(NULLIF(@url, ''), url),
       description = @description,
       stars = @stars,
       score = @score,
@@ -108,6 +125,7 @@ const stmts = {
     SELECT i.*
     FROM items i
     WHERE i.first_seen_at >= @since
+      AND i.first_seen_at < @until
       AND (
         i.stars >= 1000
         OR (
@@ -119,10 +137,27 @@ const stmts = {
     LIMIT @limit
   `),
 
-  insertWeeklyRun: db.prepare(`
-    INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd)
-    VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd)
+  // Posts from named feed sources in a window - NO star filter: a blog post or a
+  // changelog entry has 0 stars, so getItemsFirstSeenSince (a repo query) drops every one.
+  getFeedItemsSince: db.prepare(`
+    SELECT * FROM items
+    WHERE first_seen_at >= @since AND first_seen_at < @until
+      AND source IN (SELECT value FROM json_each(@sources))
+    ORDER BY first_seen_at DESC
   `),
+
+  insertWeeklyRun: db.prepare(`
+    INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd, window_since, window_until, eligible_count)
+    VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd, @window_since, @window_until, @eligible_count)
+  `),
+
+  // The run this digest continues from: the latest EARLIER run date, so a same-day
+  // re-run continues from last week rather than from itself.
+  getPreviousWeeklyRun: db.prepare(`
+    SELECT * FROM weekly_runs WHERE run_date < @run_date
+    ORDER BY run_date DESC, created_at DESC LIMIT 1
+  `),
+  getWeeklyRun: db.prepare(`SELECT * FROM weekly_runs WHERE run_date = @run_date`),
 
   // Basic item queries with sorting
   getItemsBase: db.prepare(`
@@ -384,14 +419,22 @@ module.exports = {
   },
 
   // Digest query helper
-  getItemsFirstSeenSince: (sinceIso, { limit = 80 } = {}) => {
+  // limit default is a SAFETY bound, not a selection: the digest shows a capped list
+  // per section and counts the rest (modules/digest-window.js capList). Until 2026-11-03
+  // this was 80 and silently dropped 70-90% of eligible items every week.
+  getFeedItemsSince: (sources, sinceIso, untilIso) =>
+    stmts.getFeedItemsSince.all({ sources: JSON.stringify(sources || []), since: sinceIso, until: untilIso }),
+  getItemsFirstSeenSince: (sinceIso, { limit = 5000, untilIso = '9999-12-31T00:00:00.000Z' } = {}) => {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
     return stmts.getItemsFirstSeenSince.all({
       since: sinceIso,
+      until: untilIso,
       ninetyDaysAgo,
       limit,
     });
   },
+  getPreviousWeeklyRun: (runDate) => stmts.getPreviousWeeklyRun.get({ run_date: runDate }) || null,
+  getWeeklyRun: (runDate) => stmts.getWeeklyRun.get({ run_date: runDate }) || null,
 
   // Weekly run ledger
   insertWeeklyRun: (run) =>
@@ -401,6 +444,9 @@ module.exports = {
       channels_run: run.channels_run,
       runtime_ms: run.runtime_ms,
       cost_usd: run.cost_usd || 0,
+      window_since: run.window_since || null,
+      window_until: run.window_until || null,
+      eligible_count: run.eligible_count ?? null,
     }),
 
   // Advanced search with FTS5 + filters
@@ -634,6 +680,9 @@ module.exports = {
 
   // Star history — see database/snapshot-store.js
   snapshots: snapshotStore,
+
+  // Company inbox — see database/company-store.js
+  companies: companyStore,
 
   close: () => db.close(),
 };

@@ -120,3 +120,10 @@ test("loadThemes builds projects[] from `themes` on each private profile, nothin
   assert.ok(loadThemes({ projectsPath: path.join(dir, "missing.json") }).every((x) => x.projects.length === 0));
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test("MUST-FIRE: a page-writing design agent is web-ui-generation (vercel-labs/fx0, missed until 2026-11-03)", () => {
+  const compiled = compileThemes(loadThemes());
+  const fx0 = { name: "vercel-labs/fx0", description: "A lightweight design agent built with libfx. Describe a page and an agent writes it as one HTML file.", topics: [] };
+  assert.ok(matchThemes(fx0, compiled).includes("web-ui-generation"));
+  assert.ok(!matchThemes({ name: "x/agent-sandbox", description: "Run AI agents in a sandbox", topics: [] }, compiled).includes("web-ui-generation"));
+});
