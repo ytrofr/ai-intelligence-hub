@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS company_repos (
   created_at       TEXT,
   description      TEXT,
   language         TEXT,
+  topics           TEXT,             -- JSON array of the repo's declared GitHub topics
   stars            INTEGER,
   first_seen_at    TEXT NOT NULL,
   last_seen_at     TEXT NOT NULL,
@@ -47,6 +48,9 @@ CREATE TABLE IF NOT EXISTS company_orgs (
 
 function applyCompanySchema(db) {
   db.exec(SCHEMA);
+  // Additive columns for tables created before the column existed (record: migrate-2026-11-03.sql).
+  const have = new Set(db.prepare("PRAGMA table_info(company_repos)").all().map((c) => c.name));
+  if (!have.has("topics")) db.exec("ALTER TABLE company_repos ADD COLUMN topics TEXT");
 }
 
 class CompanyStore {
@@ -54,14 +58,15 @@ class CompanyStore {
     this.db = db;
     this.stmts = {
       upsert: db.prepare(`
-        INSERT INTO company_repos (repo, org, company, tier, created_at, description, language, stars,
+        INSERT INTO company_repos (repo, org, company, tier, created_at, description, language, topics, stars,
                                    first_seen_at, last_seen_at, floor_crossed_at, baseline)
-        VALUES (@repo, @org, @company, @tier, @created_at, @description, @language, @stars,
+        VALUES (@repo, @org, @company, @tier, @created_at, @description, @language, @topics, @stars,
                 @now, @now, CASE WHEN @stars >= @floor THEN @now END, @baseline)
         ON CONFLICT(repo) DO UPDATE SET
           stars = excluded.stars,
           description = excluded.description,
           language = excluded.language,
+          topics = excluded.topics,
           last_seen_at = @now,
           floor_crossed_at = COALESCE(company_repos.floor_crossed_at, CASE WHEN @stars >= @floor THEN @now END)
       `),
@@ -98,6 +103,7 @@ class CompanyStore {
       created_at: repo.created_at || null,
       description: repo.description || null,
       language: repo.language || null,
+      topics: JSON.stringify(Array.isArray(repo.topics) ? repo.topics : []),
       stars: Number(repo.stargazers_count) || 0,
       now: nowIso,
       baseline: baseline ? 1 : 0,

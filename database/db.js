@@ -137,6 +137,15 @@ const stmts = {
     LIMIT @limit
   `),
 
+  // Posts from named feed sources in a window - NO star filter: a blog post or a
+  // changelog entry has 0 stars, so getItemsFirstSeenSince (a repo query) drops every one.
+  getFeedItemsSince: db.prepare(`
+    SELECT * FROM items
+    WHERE first_seen_at >= @since AND first_seen_at < @until
+      AND source IN (SELECT value FROM json_each(@sources))
+    ORDER BY first_seen_at DESC
+  `),
+
   insertWeeklyRun: db.prepare(`
     INSERT OR REPLACE INTO weekly_runs (run_date, item_count, channels_run, runtime_ms, cost_usd, window_since, window_until, eligible_count)
     VALUES (@run_date, @item_count, @channels_run, @runtime_ms, @cost_usd, @window_since, @window_until, @eligible_count)
@@ -413,6 +422,8 @@ module.exports = {
   // limit default is a SAFETY bound, not a selection: the digest shows a capped list
   // per section and counts the rest (modules/digest-window.js capList). Until 2026-11-03
   // this was 80 and silently dropped 70-90% of eligible items every week.
+  getFeedItemsSince: (sources, sinceIso, untilIso) =>
+    stmts.getFeedItemsSince.all({ sources: JSON.stringify(sources || []), since: sinceIso, until: untilIso }),
   getItemsFirstSeenSince: (sinceIso, { limit = 5000, untilIso = '9999-12-31T00:00:00.000Z' } = {}) => {
     const ninetyDaysAgo = new Date(Date.now() - 90 * 86400000).toISOString();
     return stmts.getItemsFirstSeenSince.all({

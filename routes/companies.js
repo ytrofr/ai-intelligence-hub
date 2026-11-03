@@ -5,6 +5,7 @@
  *   GET  /api/companies/inbox            items above their floor with no ruling, oldest first
  *   GET  /api/companies/week?since=ISO   items that entered the inbox since `since`, any state
  *   GET  /api/companies/orgs             per-org last read, status and error
+ *   GET  /api/companies/brief            the Monday one-pager, live, from the last digest's end to now (text/markdown)
  *   POST /api/companies/rule {repo,state,note?}  (loopback only) state: test|watch|adopted|skip|noise|new
  */
 const express = require("express");
@@ -22,6 +23,17 @@ router.get("/week", (req, res) => {
   if (Number.isNaN(Date.parse(since))) return res.status(400).json({ error: "since must be an ISO date" });
   const items = db.companies.crossedSince(since);
   res.json({ since, count: items.length, items });
+});
+
+router.get("/brief", (_req, res) => {
+  try {
+    const { digestWindow } = require("../modules/digest-window");
+    const today = new Date().toISOString().slice(0, 10);
+    const window = digestWindow({ prev: db.getWeeklyRun(today) || db.getPreviousWeeklyRun(today), now: new Date() });
+    res.type("text/markdown").send(require("../modules/monday-brief").assembleBrief({ db, window }));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 router.get("/orgs", (_req, res) => {

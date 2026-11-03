@@ -237,6 +237,7 @@ async function buildNewsDigestSection({
 
 module.exports = {
   HEADING,
+  DEADLINE_TITLE,
   DEFAULT_MODEL,
   routeNews,
   inWindow,

@@ -5,3 +5,7 @@
 ALTER TABLE weekly_runs ADD COLUMN window_since TEXT;   -- ISO, inclusive
 ALTER TABLE weekly_runs ADD COLUMN window_until TEXT;   -- ISO, exclusive; next run starts here
 ALTER TABLE weekly_runs ADD COLUMN eligible_count INTEGER; -- items that qualified, before any display cap
+
+-- company_repos.topics (2026-11-03, later the same day): the repo's declared GitHub topics,
+-- JSON array. Applied by applyCompanySchema() in database/company-store.js when missing.
+ALTER TABLE company_repos ADD COLUMN topics TEXT;

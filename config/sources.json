@@ -481,6 +481,6 @@
     {"id": "nvidia-dev-blog", "name": "NVIDIA Technical Blog", "type": "rss", "url": "https://developer.nvidia.com/blog/feed/", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#76b900"}},
     {"id": "hf-blog", "name": "Hugging Face Blog", "type": "rss", "url": "https://huggingface.co/blog/feed.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#ffcc4d"}},
     {"id": "cloudflare-blog", "name": "Cloudflare Blog", "type": "rss", "url": "https://blog.cloudflare.com/rss/", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 90, "color": "#f38020"}},
-    {"id": "gemini-release-notes", "name": "Gemini release notes (Google Cloud)", "type": "rss", "url": "https://cloud.google.com/feeds/gemini-release-notes.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 180, "description_chars": 2000, "color": "#1a73e8"}}
+    {"id": "gemini-release-notes", "name": "Gemini Code Assist release notes (Google Cloud) - NOT the Gemini API changelog", "type": "rss", "url": "https://cloud.google.com/feeds/gemini-release-notes.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 180, "description_chars": 2000, "color": "#1a73e8"}}
   ]
 }

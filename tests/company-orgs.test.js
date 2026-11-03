@@ -60,6 +60,16 @@ test("store: a repo below the floor is kept, and enters the inbox the day it cro
   assert.equal(s.inbox()[0].stars, 22206);
 });
 
+test("store: declared topics are kept; an old table without the column gains it", () => {
+  const s = fresh();
+  s.upsert({ ...ORG, repo: gh({ topics: ["agents", "evals"] }), baseline: false }, "2026-10-08T00:00:00Z");
+  assert.deepEqual(JSON.parse(s.get("google-research/harness2").topics), ["agents", "evals"]);
+  const db = new Database(":memory:");
+  db.exec("CREATE TABLE company_repos (repo TEXT PRIMARY KEY, org TEXT NOT NULL, company TEXT NOT NULL, tier INTEGER NOT NULL, created_at TEXT, description TEXT, language TEXT, stars INTEGER, first_seen_at TEXT NOT NULL, last_seen_at TEXT NOT NULL, floor_crossed_at TEXT, baseline INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'new', ruled_at TEXT, note TEXT)");
+  applyCompanySchema(db);
+  assert.ok(db.prepare("PRAGMA table_info(company_repos)").all().some((c) => c.name === "topics"));
+});
+
 test("store: an inbox item stays until it is RULED - it never ages out", () => {
   const s = fresh();
   s.upsert({ ...ORG, repo: gh(), baseline: false }, "2026-10-08T00:00:00Z");
