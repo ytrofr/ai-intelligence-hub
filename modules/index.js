@@ -15,6 +15,8 @@ const GitHubTrendingModule = require("./github-trending");
 const GitHubSnapshotModule = require("./github-snapshot");
 const GitHubThemeSearchModule = require("./github-theme-search");
 const SkillReposDiffModule = require("./skill-repos-diff");
+const CompanyOrgsModule = require("./company-orgs");
+const PageLinksModule = require("./page-links");
 
 const moduleTypes = {
   github: GitHubModule,
@@ -30,6 +32,8 @@ const moduleTypes = {
   "github-snapshot": GitHubSnapshotModule,
   "github-theme": GitHubThemeSearchModule,
   "skill-repos-diff": SkillReposDiffModule,
+  "company-orgs": CompanyOrgsModule,
+  "page-links": PageLinksModule,
 };
 
 function createModule(sourceConfig) {

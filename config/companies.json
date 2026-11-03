@@ -1,0 +1,23 @@
+{
+  "_doc": "Company registry for the company-orgs source (2026-11-03). Every public repo a listed org CREATES is recorded; it enters the inbox once it passes its tier's star floor within track_days of creation. Tier = depth: 1 every new repo from 10 stars, 2 and 3 from 25 stars. Why-for-us lives per project in config/projects.json (gitignored), not here.",
+  "defaults": { "track_days": 60, "baseline_days": 60, "max_pages": 3 },
+  "tiers": {
+    "1": { "floor": 10 },
+    "2": { "floor": 25 },
+    "3": { "floor": 25 }
+  },
+  "companies": [
+    { "id": "google", "name": "Google", "tier": 1, "orgs": ["google", "google-research", "google-deepmind", "google-gemini", "google-labs-code", "GoogleCloudPlatform", "googleapis", "a2aproject", "GoogleChromeLabs", "google-agentic-commerce"] },
+    { "id": "anthropic", "name": "Anthropic", "tier": 1, "orgs": ["anthropics", "modelcontextprotocol", "safety-research"] },
+    { "id": "vercel", "name": "Vercel", "tier": 1, "orgs": ["vercel", "vercel-labs"] },
+    { "id": "openai", "name": "OpenAI", "tier": 1, "orgs": ["openai", "promptfoo"] },
+    { "id": "meta", "name": "Meta", "tier": 1, "orgs": ["meta", "react", "facebookresearch", "meta-llama", "pytorch"] },
+    { "id": "nvidia", "name": "NVIDIA", "tier": 2, "orgs": ["NVIDIA", "NVIDIA-NeMo", "NVlabs"] },
+    { "id": "microsoft", "name": "Microsoft + GitHub", "tier": 2, "orgs": ["microsoft", "github", "githubnext"] },
+    { "id": "cloudflare", "name": "Cloudflare", "tier": 2, "orgs": ["cloudflare"] },
+    { "id": "huggingface", "name": "Hugging Face", "tier": 2, "orgs": ["huggingface"] },
+    { "id": "aws", "name": "AWS", "tier": 2, "orgs": ["awslabs", "strands-agents"] },
+    { "id": "open-model-labs", "name": "Open-model labs", "tier": 2, "orgs": ["QwenLM", "deepseek-ai", "MoonshotAI", "mistralai", "zai-org", "bytedance"] },
+    { "id": "stack-vendors", "name": "Stack vendors", "tier": 3, "orgs": ["shadcn-ui", "TanStack", "prisma", "fastify", "pydantic", "fastapi", "remotion-dev"] }
+  ]
+}

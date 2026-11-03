@@ -61,6 +61,12 @@ const { applySlotNearMissSchema, SlotNearMissStore } = require("./slot-near-miss
 applySlotNearMissSchema(db);
 const nearMissStore = new SlotNearMissStore(db);
 
+// Company inbox (company_repos + company_orgs): every repo a tracked company created,
+// and the ones waiting for a ruling. DDL + statements live in company-store.js.
+const { applyCompanySchema, CompanyStore } = require("./company-store");
+applyCompanySchema(db);
+const companyStore = new CompanyStore(db);
+
 // Star history (star_snapshots): one total-star reading per repo per day, written
 // by gh-trending and gh-snapshot. DDL + statements live in snapshot-store.js.
 const { applySnapshotSchema, SnapshotStore } = require("./snapshot-store");
@@ -663,6 +669,9 @@ module.exports = {
 
   // Star history — see database/snapshot-store.js
   snapshots: snapshotStore,
+
+  // Company inbox — see database/company-store.js
+  companies: companyStore,
 
   close: () => db.close(),
 };

@@ -473,6 +473,14 @@
         ]
       },
       "color": "#8250df"
-    }
+    },
+    {"id": "company-orgs", "name": "Company repos (every repo a tracked company creates)", "type": "company-orgs", "url": "https://api.github.com/orgs", "enabled": true, "rate_limit_minutes": 720, "config": {"timeout_ms": 20000, "budget_ms": 600000, "description": "Reads each org in config/companies.json, newest-created first, and records every non-fork repo created in the window into company_repos. A repo enters the company inbox when it passes its tier's star floor and stays until ruled. Returns no feed items by design; read /api/companies/inbox."}, "color": "#0969da"},
+    {"id": "anthropic-news", "name": "Anthropic News (page links)", "type": "page-links", "url": "https://www.anthropic.com/news", "enabled": true, "rate_limit_minutes": 360, "config": {"base": "https://www.anthropic.com", "link_regex": "^/news/[a-z0-9-]+$", "exclude": ["/news/announcements"], "timeout_ms": 20000, "description": "Anthropic publishes no news feed (RSS 404 since 2026-03); each new /news/<slug> link is an item. published_at stays null - first_seen_at is when we learned of it."}, "color": "#d97757"},
+    {"id": "vercel-changelog", "name": "Vercel Changelog", "type": "rss", "url": "https://vercel.com/changelog/feed", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 60, "retention_days": 120, "color": "#000000"}},
+    {"id": "github-changelog", "name": "GitHub Changelog", "type": "rss", "url": "https://github.blog/changelog/feed/", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 120, "color": "#24292f"}},
+    {"id": "nvidia-dev-blog", "name": "NVIDIA Technical Blog", "type": "rss", "url": "https://developer.nvidia.com/blog/feed/", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#76b900"}},
+    {"id": "hf-blog", "name": "Hugging Face Blog", "type": "rss", "url": "https://huggingface.co/blog/feed.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"max_items": 40, "retention_days": 90, "color": "#ffcc4d"}},
+    {"id": "cloudflare-blog", "name": "Cloudflare Blog", "type": "rss", "url": "https://blog.cloudflare.com/rss/", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 90, "color": "#f38020"}},
+    {"id": "gemini-release-notes", "name": "Gemini release notes (Google Cloud)", "type": "rss", "url": "https://cloud.google.com/feeds/gemini-release-notes.xml", "enabled": true, "rate_limit_minutes": 360, "config": {"retention_days": 180, "description_chars": 2000, "color": "#1a73e8"}}
   ]
 }

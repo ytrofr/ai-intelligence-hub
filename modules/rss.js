@@ -72,7 +72,9 @@ class RSSModule extends BaseModule {
       }
     }
 
-    return items;
+    // config.max_items (2026-11-03): a vendor changelog feed can carry thousands of
+    // entries (Vercel: 2,118); keep its newest N so one source cannot flood the table.
+    return newestN(items, this.config.max_items);
   }
 
   /**
@@ -124,4 +126,12 @@ class RSSModule extends BaseModule {
   }
 }
 
+/** Newest `n` items by published_at (undated last); a falsy `n` keeps everything, in order. */
+function newestN(items, n) {
+  if (!n || items.length <= n) return items;
+  const t = (i) => (i.published_at ? Date.parse(i.published_at) : -Infinity);
+  return [...items].sort((a, b) => t(b) - t(a)).slice(0, n);
+}
+
 module.exports = RSSModule;
+module.exports.newestN = newestN;
