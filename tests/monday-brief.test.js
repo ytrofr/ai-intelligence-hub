@@ -187,3 +187,14 @@ test("pickTop: after the specific finds are ruled, two projects no longer get th
   const md = formatBrief({ window: WINDOW, inbox: { waiting: 3, baseline: 0, oldestDays: 0 }, companies: [], deadlines: [], tops: [{ id: "atlas", name: "Atlas", ...atlas }] });
   assert.match(md, /nothing in the inbox fits this project alone - 3 broad-only matches held back/);
 });
+
+test("themeInput: a blank description falls back to the README opening, never the whole README (2026-11-03)", () => {
+  const { themeInput, README_MATCH_CHARS } = require("../modules/monday-brief");
+  const described = themeInput({ repo: "o/a", description: "a design agent", topics: '["x"]', readme_excerpt: "eval harness" });
+  assert.equal(described.description, "a design agent");
+  assert.deepEqual(described.topics, ["x"]);
+  const blank = themeInput({ repo: "o/b", description: "  ", topics: null, readme_excerpt: "Skill trigger evals. " + "z ".repeat(2000) });
+  assert.match(blank.description, /^Skill trigger evals/);
+  assert.equal(blank.description.length <= README_MATCH_CHARS, true);
+  assert.equal(themeInput({ repo: "o/c", description: null, readme_excerpt: null }).description, "");
+});

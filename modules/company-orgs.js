@@ -15,6 +15,7 @@ const path = require("path");
 const BaseModule = require("./base-module");
 const { fetchResponse } = require("./http");
 const { PartialFetchError } = require("./fetch-runner");
+const { fillReadmes, ghReadme } = require("./company-readme");
 
 const API = "https://api.github.com";
 const DAY_MS = 86400000;
@@ -131,8 +132,16 @@ class CompanyOrgsModule extends BaseModule {
       trackDays: d.track_days || 60,
       baselineDays: d.baseline_days || 60,
     });
-    this.runReport = { orgs_checked: r.checked, orgs_failed: r.failed.length, recorded: r.recorded, crossed_floor: r.crossed };
-    console.log(`[companies] checked ${r.checked} orgs · ${r.recorded} repos in window · ${r.crossed} newly above floor · ${r.failed.length} orgs failed`);
+    // A blank description is UNKNOWN: read the README of waiting repos that declare nothing.
+    // Errors are stored per repo and retried next run; they never fail the sensor.
+    const readmes = await fillReadmes({
+      store: db.companies,
+      fetchReadme: this.deps.fetchReadme || ghReadme({ token, timeoutMs: this.config.timeout_ms }),
+      limit: d.readme_per_run || 30,
+      nowIso: (this.deps.now || new Date()).toISOString(),
+    });
+    this.runReport = { orgs_checked: r.checked, orgs_failed: r.failed.length, recorded: r.recorded, crossed_floor: r.crossed, readmes };
+    console.log(`[companies] checked ${r.checked} orgs · ${r.recorded} repos in window · ${r.crossed} newly above floor · ${r.failed.length} orgs failed · READMEs ${readmes.read} read / ${readmes.none} none / ${readmes.errors} errors of ${readmes.population}`);
     if (r.failed.length) {
       throw new PartialFetchError(`${r.failed.length} org(s) failed: ${r.failed.map((f) => `${f.org} (${f.error})`).join("; ")}`, [], this.runReport);
     }

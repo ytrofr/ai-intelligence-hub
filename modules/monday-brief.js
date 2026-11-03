@@ -243,7 +243,7 @@ function assembleBrief({ db, window, deps = {} }) {
   const projectsOf = new Map(themes.map((t) => [t.id, t.projects || []]));
   const fits = new Map(
     waiting.map((r) => {
-      const tags = matchThemes({ name: r.repo, description: r.description, topics: readJsonText(r.topics) }, compiled).filter((t) => t !== OTHER);
+      const tags = matchThemes(themeInput(r), compiled).filter((t) => t !== OTHER);
       return [r.repo, fitRepo(tags, projectsOf)];
     })
   );
@@ -255,6 +255,19 @@ function assembleBrief({ db, window, deps = {} }) {
   return formatBrief({ window, inbox, companies, deadlines: rankDeadlines(deadlines), tops, recall });
 }
 
+/**
+ * What the theme match reads for one inbox row. A blank description is UNKNOWN, not
+ * "no match": fall back to the opening of the README the sensor read
+ * (modules/company-readme.js). Only the opening - a whole README eventually names
+ * every theme (.claude/rules/shape-is-not-subject.md).
+ */
+const README_MATCH_CHARS = 400;
+function themeInput(r) {
+  const desc = String(r.description || "").trim();
+  const description = desc || String(r.readme_excerpt || "").slice(0, README_MATCH_CHARS);
+  return { name: r.repo, description, topics: readJsonText(r.topics) };
+}
+
 function readJsonText(s) {
   try {
     const v = JSON.parse(s || "[]");
@@ -264,4 +277,4 @@ function readJsonText(s) {
   }
 }
 
-module.exports = { formatBrief, pickTop, fitRepo, isDeadline, deadlineLine, rankDeadlines, modelTokens, assembleBrief, grepUses, MAX_LINES };
+module.exports = { themeInput, README_MATCH_CHARS, formatBrief, pickTop, fitRepo, isDeadline, deadlineLine, rankDeadlines, modelTokens, assembleBrief, grepUses, MAX_LINES };

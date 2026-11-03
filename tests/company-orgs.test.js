@@ -164,3 +164,27 @@ test("REPLAY: the audit's missed repos all land in the inbox from their org list
   await runCompanySensor({ orgs, store: s, listRepos: fakeLister(pages), now: NOW, trackDays: 75, baselineDays: 75 });
   assert.deepEqual(s.inbox().map((r) => r.repo).sort(), missed.map((m) => m[0]).sort());
 });
+
+test("fetch: after the org pass, READMEs are read for blank-description repos; a README error never fails the run", async () => {
+  const CompanyOrgsModule = require("../modules/company-orgs");
+  const s = fresh();
+  const registry = { tiers: { 1: { floor: 10 } }, companies: [{ id: "c", tier: 1, orgs: ["o"] }] };
+  const listRepos = async () => [
+    gh({ full_name: "o/blank", description: null }),
+    gh({ full_name: "o/broken", description: "" }),
+    gh({ full_name: "o/described" }),
+  ];
+  const asked = [];
+  const fetchReadme = async (repo) => {
+    asked.push(repo);
+    if (repo === "o/broken") throw new Error("HTTP 502");
+    return "# Blank\nTurns skill checklists into runnable steps.";
+  };
+  const m = new CompanyOrgsModule({ id: "company-orgs", deps: { db: { companies: s }, registry, listRepos, fetchReadme, token: "", now: NOW } });
+  assert.deepEqual(await m.fetch(), []);
+  assert.deepEqual(asked.sort(), ["o/blank", "o/broken"]);
+  assert.match(s.get("o/blank").readme_excerpt, /runnable steps/);
+  assert.equal(s.get("o/broken").readme_status, "error");
+  assert.equal(s.get("o/described").readme_status, null);
+  assert.deepEqual(m.runReport.readmes, { read: 1, none: 0, errors: 1, population: 2 });
+});
