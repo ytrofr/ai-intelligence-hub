@@ -305,7 +305,10 @@
         "text to ui",
         "landing page",
         "app builder",
-        "ui components"
+        "ui components",
+        "design agent",
+        "page builder",
+        "site builder"
       ],
       "queries": [
         "topic:generative-ui",

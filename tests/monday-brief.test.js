@@ -63,11 +63,11 @@ test("pickTop: never a ruled or discussed repo, never one a project's constraint
   const fits = new Map(inbox.map((r) => [r.repo, fitRepo(["agentic-ai"], new Map([["agentic-ai", ["atlas", "apollo"]]]))]));
   const atlas = pickTop("atlas", inbox, { priors, fits, n: 5 });
   assert.deepEqual(atlas.picks.map((r) => r.repo), ["c/fresh", "d/family"]);
-  assert.deepEqual(atlas.held, { ruled: 1, discussed: 1, constraint: 1 });
+  assert.deepEqual(atlas.held, { ruled: 1, discussed: 1, constraint: 1, broad: 0 });
   assert.deepEqual(pickTop("apollo", inbox, { priors, fits, n: 5 }).picks.map((r) => r.repo), ["anthropics/kit", "c/fresh", "d/family"]);
 });
 
-test("fitRepo + pickTop: a theme only this project declares outranks a theme every project shares", () => {
+test("fitRepo + pickTop: only a theme at most two projects declare puts a repo in a project's top list", () => {
   // agentic-ai is declared by four projects, so it says little about any one of them.
   const projectsOf = new Map([["agentic-ai", ["a", "b", "c", "atlas"]], ["chat-bots-whatsapp", ["a", "atlas"]], ["web-ui-generation", ["apollo"]]]);
   const generic = row("x/agent-framework", { stars: 16000 });
@@ -77,19 +77,20 @@ test("fitRepo + pickTop: a theme only this project declares outranks a theme eve
   assert.equal(fits.get(generic.repo).score.apollo, undefined, "apollo declares neither theme");
   const priors = new Map();
   const top = pickTop("atlas", [generic, specific], { priors, fits, n: 5 });
-  assert.deepEqual(top.picks.map((r) => r.repo), ["y/whatsapp-bot", "x/agent-framework"]);
+  assert.deepEqual(top.picks.map((r) => r.repo), ["y/whatsapp-bot"], "a repo matching ONLY a theme four projects share is not this project's find");
+  assert.equal(top.held.broad, 1);
   assert.deepEqual(top.picks[0].themes, ["agentic-ai", "chat-bots-whatsapp"], "only the themes that count for this project are shown");
 });
 
 test("formatBrief: a huge week still renders in <= MAX_LINES, and says what it cut", () => {
   const companies = Array.from({ length: 20 }, (_, i) => ({ id: `co${i}`, name: `Company ${i}`, newRepos: Array.from({ length: 30 }, (_, j) => row(`co${i}/r${j}`)), posts: 40, deadlines: 3 }));
   const deadlines = Array.from({ length: 20 }, (_, i) => ({ title: `Thing ${i} sunset`, url: `https://x/${i}`, source: "s", tokens: ["gemini-3.5-flash"], uses: [{ project: "Apollo", files: 3 }] }));
-  const top = { id: "apollo", name: "Apollo", picks: Array.from({ length: 5 }, (_, i) => ({ ...row(`z/p${i}`), themes: ["evals"], verdict: "new" })), held: { ruled: 2, discussed: 1, constraint: 0 } };
+  const top = { id: "apollo", name: "Apollo", picks: Array.from({ length: 5 }, (_, i) => ({ ...row(`z/p${i}`), themes: ["evals"], verdict: "new" })), held: { broad: 4, ruled: 2, discussed: 1, constraint: 0 } };
   const md = formatBrief({ window: WINDOW, inbox: { waiting: 83, baseline: 83, oldestDays: 0 }, companies, deadlines, tops: [top, { ...top, id: "atlas", name: "Atlas" }, { ...top, id: "third", name: "Third" }] });
   const lines = md.trimEnd().split("\n");
   assert.ok(lines.length <= MAX_LINES, `brief is ${lines.length} lines`);
   assert.match(md, /\+\d+ more deadline/);
-  assert.match(md, /held back: 2 already ruled, 1 discussed/);
+  assert.match(md, /held back: 2 already ruled, 1 discussed, 0 by a standing constraint, 4 broad-only/);
 });
 
 test("formatBrief: a deadline whose model id we could not look up says unknown, never 0 files", () => {
@@ -168,4 +169,21 @@ test("assembleBrief: feed POSTS (0 stars) are counted and a sunset post reaches 
   assert.match(md, /Google: 1 new repo \(top google\/new-thing 50★\) · 2 posts · 1 deadline/);
   assert.match(md, /Google Ads API v22 sunset reminder\]\(https:\/\/ads\/1\) \(google-ads-dev\) - no model id in the post/);
   assert.match(md, /Retiring GPT-4o in ChatGPT.*gpt-4o: Apollo 2/);
+});
+
+test("pickTop: after the specific finds are ruled, two projects no longer get the same broad list (2026-11-03 render)", () => {
+  const projectsOf = new Map([["agentic-ai", ["a", "apollo", "c", "atlas"]], ["web-ui-generation", ["a", "apollo"]], ["chat-bots-whatsapp", ["a", "atlas"]]]);
+  const inbox = [row("m/token-economizer", { stars: 4600 }), row("c/cf", { stars: 990 }), row("v/page-agent", { stars: 400 })];
+  const fits = new Map([
+    ["m/token-economizer", fitRepo(["agentic-ai"], projectsOf)],
+    ["c/cf", fitRepo(["agentic-ai"], projectsOf)],
+    ["v/page-agent", fitRepo(["agentic-ai", "web-ui-generation"], projectsOf)],
+  ]);
+  const apollo = pickTop("apollo", inbox, { priors: new Map(), fits, n: 5 });
+  const atlas = pickTop("atlas", inbox, { priors: new Map(), fits, n: 5 });
+  assert.deepEqual(apollo.picks.map((r) => r.repo), ["v/page-agent"]);
+  assert.deepEqual(atlas.picks.map((r) => r.repo), []);
+  assert.equal(atlas.held.broad, 3);
+  const md = formatBrief({ window: WINDOW, inbox: { waiting: 3, baseline: 0, oldestDays: 0 }, companies: [], deadlines: [], tops: [{ id: "atlas", name: "Atlas", ...atlas }] });
+  assert.match(md, /nothing in the inbox fits this project alone - 3 broad-only matches held back/);
 });

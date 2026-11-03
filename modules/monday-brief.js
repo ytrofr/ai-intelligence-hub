@@ -7,7 +7,8 @@
  *   1. What did each tracked company ship? (new repos above floor, posts, deadlines)
  *   2. Which vendor ENDS touch code we run? (model ids from the post, counted in files
  *      on each project's main - "?" when the lookup failed, never 0)
- *   3. Per project that asked (profile.brief_top), the top N repos waiting for a ruling.
+ *   3. Per project that asked (profile.brief_top), the top N repos waiting for a ruling
+ *      that match at least one theme no more than SPECIFIC_MAX_PROJECTS projects declare.
  *      A repo already ruled or discussed (modules/prior-ruling.js) or forbidden for
  *      that project by a standing constraint is HELD BACK and counted, never shown as new.
  *   4. How big is the inbox, and how old is the oldest unruled item?
@@ -20,6 +21,9 @@ const { execFileSync } = require("child_process");
 const { DEADLINE_TITLE } = require("./news-triage");
 
 const MAX_LINES = 40;
+// A theme declared by more projects than this says nothing about any ONE of them: after
+// the specific finds were ruled (2026-11-03), two projects got the same "agentic AI" list.
+const SPECIFIC_MAX_PROJECTS = 2;
 const COMPANY_LINES = 8;
 const DEADLINE_LINES = 4;
 const BODY_HEAD = 600; // a dated release note names the end in its first sentences
@@ -77,19 +81,21 @@ function modelTokens(text) {
 function fitRepo(tags, projectsOf) {
   const score = {};
   const themesFor = {};
+  const specificFor = {};
   for (const t of tags) {
     const ps = projectsOf.get(t) || [];
     for (const p of ps) {
       score[p] = (score[p] || 0) + 1 / ps.length;
       (themesFor[p] = themesFor[p] || []).push(t);
+      if (ps.length <= SPECIFIC_MAX_PROJECTS) specificFor[p] = true;
     }
   }
-  return { score, themesFor };
+  return { score, themesFor, specificFor };
 }
 
 /** Top `n` inbox rows for one project, and what was held back and why. */
 function pickTop(projectId, inbox, { priors, fits, n }) {
-  const held = { ruled: 0, discussed: 0, constraint: 0 };
+  const held = { ruled: 0, discussed: 0, constraint: 0, broad: 0 };
   const candidates = [];
   for (const r of inbox) {
     const fit = fits.get(r.repo);
@@ -99,6 +105,7 @@ function pickTop(projectId, inbox, { priors, fits, n }) {
     if (p.verdict === "ruled") held.ruled += 1;
     else if (p.verdict === "discussed") held.discussed += 1;
     else if (p.hits.some((h) => h.kind === "constraint" && (h.applies_to || []).includes(projectId))) held.constraint += 1;
+    else if (!fit.specificFor[projectId]) held.broad += 1;
     else candidates.push({ ...r, themes: fit.themesFor[projectId], verdict: p.verdict, fitScore });
   }
   candidates.sort((a, b) => b.fitScore - a.fitScore || (b.stars || 0) - (a.stars || 0));
@@ -145,9 +152,9 @@ function formatBrief({ window, inbox, companies, deadlines, tops, recall }) {
 
   for (const t of tops) {
     const h = t.held;
-    L.push(`**Top ${t.picks.length} for ${t.name}** - held back: ${h.ruled} already ruled, ${h.discussed} discussed, ${h.constraint} by a standing constraint`);
+    L.push(`**Top ${t.picks.length} for ${t.name}** - held back: ${h.ruled} already ruled, ${h.discussed} discussed, ${h.constraint} by a standing constraint, ${h.broad || 0} broad-only`);
     t.picks.forEach((r, i) => L.push(`${i + 1}. [${r.repo}](https://github.com/${r.repo}) ${stars(r.stars)} - ${(r.themes || []).join(", ")} · ${r.verdict}`));
-    if (!t.picks.length) L.push("- nothing new in the inbox fits this project");
+    if (!t.picks.length) L.push(`- nothing in the inbox fits this project alone - ${h.broad || 0} broad-only matches held back`);
     L.push("");
   }
   if (L.length > MAX_LINES) {
